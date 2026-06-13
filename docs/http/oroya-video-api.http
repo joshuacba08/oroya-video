@@ -1,0 +1,135 @@
+@baseUrl = http://127.0.0.1:8000
+@api = {{baseUrl}}/api/v1
+@videoPath = C:\Users\user\Videos\sample.mp4
+@projectId = replace-me
+@jobId = replace-me
+@exportId = replace-me
+
+### Health
+GET {{api}}/health
+
+### Full health
+GET {{api}}/health/full
+
+### Bootstrap
+GET {{api}}/bootstrap
+
+### Dashboard
+GET {{api}}/dashboard
+
+### App state
+GET {{api}}/app-state
+
+### Queue
+GET {{api}}/queue
+
+### Settings
+GET {{api}}/settings
+
+### Update settings
+PATCH {{api}}/settings
+Content-Type: application/json
+
+{
+  "general": {
+    "language": "es"
+  },
+  "processing": {
+    "frame_enhancer_engine": "mock",
+    "ai_device": "auto"
+  }
+}
+
+### Probe video
+POST {{api}}/videos/probe
+Content-Type: application/json
+
+{
+  "file_path": "{{videoPath}}"
+}
+
+### Import video
+POST {{api}}/videos/import
+Content-Type: application/json
+
+{
+  "file_path": "{{videoPath}}",
+  "source_mode": "reference"
+}
+
+### List videos
+GET {{api}}/videos?limit=20&offset=0
+
+### Create project
+POST {{api}}/projects
+Content-Type: application/json
+
+{
+  "name": "Oroya demo project",
+  "video_asset_id": "{{projectId}}"
+}
+
+### Workspace
+GET {{api}}/projects/{{projectId}}/workspace
+
+### List models
+GET {{api}}/models
+
+### Create job
+POST {{api}}/jobs
+Content-Type: application/json
+
+{
+  "project_id": "{{projectId}}"
+}
+
+### Preflight
+GET {{api}}/jobs/{{jobId}}/preflight
+
+### Start job
+POST {{api}}/jobs/{{jobId}}/start
+
+### Progress
+GET {{api}}/jobs/{{jobId}}/progress
+
+### Pipeline
+GET {{api}}/jobs/{{jobId}}/pipeline
+
+### Diagnostics
+GET {{api}}/jobs/{{jobId}}/diagnostics
+
+### Retry
+POST {{api}}/jobs/{{jobId}}/retry
+Content-Type: application/json
+
+{
+  "cleanup_before_retry": true,
+  "reset_progress": true
+}
+
+### Preview recommended
+GET {{api}}/jobs/{{jobId}}/preview/recommended
+
+### Preview frames
+GET {{api}}/jobs/{{jobId}}/preview/frames
+
+### Exports
+GET {{api}}/exports
+
+### Open export folder
+POST {{api}}/exports/{{exportId}}/open-folder
+
+### Cleanup job temp
+DELETE {{api}}/jobs/{{jobId}}/temp
+
+### Storage usage
+GET {{api}}/system/storage/usage
+
+### Cleanup old temp files
+POST {{api}}/system/cleanup/temp
+Content-Type: application/json
+
+{
+  "older_than_hours": 72,
+  "dry_run": true
+}

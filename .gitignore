@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.pyre/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Local runtime storage
+backend/storage/db/*
+backend/storage/exports/*
+backend/storage/imports/*
+backend/storage/logs/*
+backend/storage/models/*
+backend/storage/temp/*
+!backend/storage/db/.gitkeep
+!backend/storage/exports/.gitkeep
+!backend/storage/imports/.gitkeep
+!backend/storage/logs/.gitkeep
+!backend/storage/models/.gitkeep
+!backend/storage/models/realesrgan/
+!backend/storage/models/realesrgan/.gitkeep
+!backend/storage/temp/.gitkeep
+
+# Video and AI artifacts
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.pth
+*.pt
+*.onnx
+*.safetensors
+
+# Frontend / desktop tooling
+node_modules/
+.angular/
+.tauri/
+coverage/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
