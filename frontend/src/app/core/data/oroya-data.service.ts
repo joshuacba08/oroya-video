@@ -13,36 +13,11 @@ import {
   timer,
 } from 'rxjs';
 
-/** Polling: un error puntual (backend reiniciando, timeout) no debe terminar el stream. */
-export type PollErrorHandler = (error: unknown | null) => void;
-
-const MAX_POLL_BACKOFF_MS = 30000;
-
-/** El idioma guardado define `<html lang>`, que usan las fechas formateadas de la UI. */
-function applyDocumentLanguage(language: string | null | undefined): void {
-  if (language && typeof document !== 'undefined') {
-    document.documentElement.lang = language;
-  }
-}
-
-function resilientPoll<T>(
-  intervalMs: number,
-  request: () => Observable<T>,
-  onError?: PollErrorHandler,
-): Observable<T> {
-  return timer(0, intervalMs).pipe(
-    switchMap(() => request()),
-    tap({ next: () => onError?.(null), error: (error: unknown) => onError?.(error) }),
-    retry({
-      delay: (_error, attempt) =>
-        timer(Math.min(intervalMs * 2 ** (attempt - 1), MAX_POLL_BACKOFF_MS)),
-      resetOnSuccess: true,
-    }),
-  );
-}
-
 import { environment } from '../../../environments/environment';
+import { APP_VERSION } from '../app-version';
 import type {
+  AIInstallProgressResponse,
+  AIInstallStartResponse,
   AIRuntimeStatusResponse,
   AppStateResponse,
   BootstrapResponse,
@@ -115,6 +90,34 @@ import {
   mapSettings,
   mapWorkspace,
 } from './oroya.mappers';
+
+/** Polling: un error puntual (backend reiniciando, timeout) no debe terminar el stream. */
+export type PollErrorHandler = (error: unknown | null) => void;
+
+const MAX_POLL_BACKOFF_MS = 30000;
+
+/** El idioma guardado define `<html lang>`, que usan las fechas formateadas de la UI. */
+function applyDocumentLanguage(language: string | null | undefined): void {
+  if (language && typeof document !== 'undefined') {
+    document.documentElement.lang = language;
+  }
+}
+
+function resilientPoll<T>(
+  intervalMs: number,
+  request: () => Observable<T>,
+  onError?: PollErrorHandler,
+): Observable<T> {
+  return timer(0, intervalMs).pipe(
+    switchMap(() => request()),
+    tap({ next: () => onError?.(null), error: (error: unknown) => onError?.(error) }),
+    retry({
+      delay: (_error, attempt) =>
+        timer(Math.min(intervalMs * 2 ** (attempt - 1), MAX_POLL_BACKOFF_MS)),
+      resetOnSuccess: true,
+    }),
+  );
+}
 
 const DEFAULT_ENHANCEMENT_CONFIG = {
   model_id: 'realesrgan-x2',
@@ -215,6 +218,21 @@ export class OroyaDataService {
 
   pollFfmpegDownload(intervalMs = 750): Observable<FFmpegDownloadProgressResponse> {
     return timer(0, intervalMs).pipe(switchMap(() => this.ffmpegDownloadProgress()));
+  }
+
+  installAi(): Observable<AIInstallStartResponse> {
+    return this.command(() => this.api.post<AIInstallStartResponse>('/system/ai/install'));
+  }
+
+  aiInstallProgress(): Observable<AIInstallProgressResponse> {
+    return this.command(() =>
+      this.api.get<AIInstallProgressResponse>('/system/ai/install/progress'),
+    );
+  }
+
+  /** La instalación tarda minutos (PyTorch pesa >2 GB con CUDA): sondeo resistente a errores. */
+  pollAiInstall(intervalMs = 1500): Observable<AIInstallProgressResponse> {
+    return resilientPoll(intervalMs, () => this.aiInstallProgress());
   }
 
   filteredPreviewUrl(
@@ -642,7 +660,7 @@ export class OroyaDataService {
           backend: this.backendStatus(),
           ready: false,
           appName: 'Oroya Video',
-          appVersion: '0.1.0',
+          appVersion: APP_VERSION,
           queueCount: 0,
           interruptedCount: 0,
           warnings: [this.toErrorVm(error).message],
@@ -684,7 +702,7 @@ export class OroyaDataService {
       backend: this.backendStatus(),
       ready: false,
       appName: 'Oroya Video',
-      appVersion: '0.1.0',
+      appVersion: APP_VERSION,
       queueCount: MOCK_QUEUE.length,
       interruptedCount: 0,
       warnings: [message],

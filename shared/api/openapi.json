@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oroya Video Backend",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -285,6 +285,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/FFmpegDownloadProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/ai/install": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Install the AI runtime (PyTorch + Real-ESRGAN) in the background",
+        "operationId": "ai_install_route_api_v1_system_ai_install_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIInstallStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/ai/install/progress": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get AI runtime install progress",
+        "operationId": "ai_install_progress_route_api_v1_system_ai_install_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIInstallProgressResponse"
                 }
               }
             }
@@ -4021,6 +4063,48 @@
         }
       }
     },
+    "/api/system/ai/install": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Install the AI runtime (PyTorch + Real-ESRGAN) in the background",
+        "operationId": "ai_install_route_api_system_ai_install_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIInstallStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/ai/install/progress": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get AI runtime install progress",
+        "operationId": "ai_install_progress_route_api_system_ai_install_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIInstallProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/system/storage": {
       "get": {
         "tags": [
@@ -7501,6 +7585,94 @@
           "name"
         ],
         "title": "AICudaDeviceInfo"
+      },
+      "AIInstallProgressResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "step": {
+            "type": "integer",
+            "title": "Step"
+          },
+          "steps_total": {
+            "type": "integer",
+            "title": "Steps Total"
+          },
+          "step_label": {
+            "type": "string",
+            "title": "Step Label"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "output_tail": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Output Tail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "step",
+          "steps_total",
+          "step_label",
+          "percent",
+          "message",
+          "error_code",
+          "error_message",
+          "output_tail"
+        ],
+        "title": "AIInstallProgressResponse"
+      },
+      "AIInstallStartResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "already_installed": {
+            "type": "boolean",
+            "title": "Already Installed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "already_installed"
+        ],
+        "title": "AIInstallStartResponse"
       },
       "AIModelCreateRequest": {
         "properties": {

@@ -111,23 +111,45 @@
           <span>
             {{ startup.aiRuntimeAvailable
               ? 'PyTorch detectado. La mejora con IA en GPU está lista.'
-              : 'Para usar Real-ESRGAN necesitas PyTorch. Ejecuta este comando en PowerShell:' }}
+              : 'Para usar Real-ESRGAN se instala PyTorch y Real-ESRGAN en la carpeta de la app (2–3 GB con GPU NVIDIA, unos minutos).' }}
           </span>
           @if (!startup.aiRuntimeAvailable) {
-            <code class="setup-page__command">{{ aiInstallCommand() }}</code>
+            @if (aiInstall(); as install) {
+              @if (install.status === 'installing') {
+                <div class="setup-page__progress">
+                  <n-progress [value]="install.percent" variant="gemini" size="xs" />
+                  <small>
+                    Paso {{ install.step || 1 }} de {{ install.steps_total }}: {{ install.step_label }}
+                  </small>
+                  @if (install.message) {
+                    <small class="setup-page__install-log">{{ install.message }}</small>
+                  }
+                </div>
+              } @else if (install.status === 'failed') {
+                <small class="setup-page__step-error">{{ install.error_message }}</small>
+              }
+            }
             <div class="setup-page__ai-actions">
-              <n-button variant="secondary" size="sm" (click)="copyAiCommand()">
-                <n-icon name="copy" size="sm" />
-                Copiar comando
+              <n-button variant="primary" size="sm" [disabled]="aiInstalling()" (click)="startAiInstall()">
+                <n-icon name="download" size="sm" />
+                {{ aiInstalling() ? 'Instalando...' : 'Instalar runtime de IA' }}
               </n-button>
-              <n-button variant="secondary" size="sm" [disabled]="verifyingAi()" (click)="verifyAiRuntime(startup)">
+              <n-button variant="secondary" size="sm" [disabled]="verifyingAi() || aiInstalling()" (click)="verifyAiRuntime(startup)">
                 <n-icon name="refresh-cw" size="sm" />
                 {{ verifyingAi() ? 'Verificando...' : 'Verificar' }}
               </n-button>
             </div>
-            @if (aiAvailable() === false) {
+            @if (aiAvailable() === false && !aiInstalling()) {
               <small class="setup-page__step-error">PyTorch todavía no está disponible.</small>
             }
+            <details class="setup-page__manual">
+              <summary>Instalación manual (PowerShell)</summary>
+              <code class="setup-page__command">{{ aiInstallCommand() }}</code>
+              <n-button variant="secondary" size="sm" (click)="copyAiCommand()">
+                <n-icon name="copy" size="sm" />
+                Copiar comando
+              </n-button>
+            </details>
           }
         </div>
       </li>

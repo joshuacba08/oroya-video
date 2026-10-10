@@ -69,6 +69,16 @@ def _save_ui_settings(data: dict, settings: Settings | None = None) -> None:
     settings_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+def set_frame_enhancer_engine(engine: str, settings: Settings | None = None) -> None:
+    """Change and persist the enhancer engine (used after installing the AI runtime)."""
+    active_settings = _get_active_settings(settings)
+    ui_settings = _load_ui_settings(active_settings)
+    ui_settings.setdefault("processing", {})["frame_enhancer_engine"] = engine
+    _save_ui_settings(ui_settings, active_settings)
+    active_settings.frame_enhancer_engine = engine
+    logger.info("Frame enhancer engine set to %s", engine)
+
+
 def apply_persisted_settings(settings: Settings | None = None) -> Settings:
     active_settings = _get_active_settings(settings)
     saved_settings = _load_ui_settings(active_settings)

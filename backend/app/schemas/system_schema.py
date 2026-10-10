@@ -70,6 +70,23 @@ class FFmpegDownloadProgressResponse(BaseModel):
     error_message: str | None
 
 
+class AIInstallStartResponse(BaseModel):
+    status: str
+    already_installed: bool
+
+
+class AIInstallProgressResponse(BaseModel):
+    status: str
+    step: int
+    steps_total: int
+    step_label: str
+    percent: float
+    message: str
+    error_code: str | None
+    error_message: str | None
+    output_tail: list[str]
+
+
 class StoragePaths(BaseModel):
     db: str
     temp: str

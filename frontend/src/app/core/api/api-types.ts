@@ -3,6 +3,8 @@ import type { components, paths } from './oroya-api.types';
 export type ApiComponents = components;
 export type ApiPaths = paths;
 
+export type AIInstallProgressResponse = components['schemas']['AIInstallProgressResponse'];
+export type AIInstallStartResponse = components['schemas']['AIInstallStartResponse'];
 export type AIRuntimeStatusResponse = components['schemas']['AIRuntimeStatusResponse'];
 export type AppStateResponse = components['schemas']['AppStateResponse'];
 export type BootstrapResponse = components['schemas']['BootstrapResponse'];

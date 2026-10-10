@@ -4,7 +4,7 @@ Backend local de Oroya Video construido con FastAPI para el MVP desktop. La API 
 
 ## Requisitos
 
-- Python 3.13+
+- Python 3.12+ (el instalador empaqueta CPython 3.12; en desarrollo se usa 3.14)
 - Entorno virtual recomendado
 - FFmpeg y FFprobe en `PATH`
 - GPU NVIDIA, PyTorch y CUDA opcionales para Real-ESRGAN
@@ -44,9 +44,13 @@ Consulta [`.env.example`](.env.example). Las variables principales del MVP son:
 Por defecto `FRAME_ENHANCER_ENGINE=mock` (la etapa de mejora solo copia frames,
 para que máquinas sin torch no fallen el preflight). Para activar la IA real:
 
-1. Instala las dependencias IA en el mismo entorno del backend:
-   `pip install -e .[ai]` (torch con CUDA si tienes GPU NVIDIA). Verificado con
-   Python 3.14 + torch 2.12.1+cu132 + basicsr 1.4.2.
+1. Instala el stack de IA desde el asistente (`/setup` → "Instalar runtime de IA") o con
+   `POST /api/v1/system/ai/install` (progreso en `GET /api/v1/system/ai/install/progress`).
+   Usa el mismo intérprete del backend; sin `ai_extra_site_dir` (desarrollo) instala en
+   el entorno del backend. Elige torch CUDA (cu132) si detecta GPU NVIDIA, o CPU.
+   No uses `pip install basicsr` directo: su sdist no compila en Python 3.13+ y trae
+   `tb-nightly`. El instalador usa un wheel parcheado (`app/services/ai_wheel_builder.py`,
+   `scripts/build_ai_wheels.py`). Al terminar, el motor pasa a `realesrgan` si estaba en `mock`.
 2. Coloca los pesos en `storage/models/realesrgan/`:
    `realesrgan-x2.pth`, `realesrgan-x4.pth`, `realesrgan-general.pth`.
 3. En tu `.env` local: `FRAME_ENHANCER_ENGINE=realesrgan` y reinicia.

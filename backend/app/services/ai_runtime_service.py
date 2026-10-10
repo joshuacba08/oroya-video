@@ -48,9 +48,29 @@ def get_torch_module() -> Any | None:
 REALESRGAN_RUNTIME_MODULES = ("cv2", "basicsr.archs.rrdbnet_arch", "realesrgan")
 
 
+def ensure_torchvision_compat() -> None:
+    """basicsr 1.4.2 imports `torchvision.transforms.functional_tensor`, removed in
+    torchvision 0.17. Alias it to `functional` (same function) so a stock install works."""
+    legacy_name = "torchvision.transforms.functional_tensor"
+    if legacy_name in sys.modules:
+        return
+    try:
+        importlib.import_module(legacy_name)
+        return
+    except ModuleNotFoundError:
+        pass
+    except Exception:  # noqa: BLE001 - torchvision missing/broken: nothing to alias
+        return
+    try:
+        sys.modules[legacy_name] = importlib.import_module("torchvision.transforms.functional")
+    except Exception:  # noqa: BLE001
+        return
+
+
 def get_missing_realesrgan_modules() -> list[str]:
     """Import check, not just find_spec: basicsr can be installed yet fail to import
     against a newer torchvision."""
+    ensure_torchvision_compat()
     missing: list[str] = []
     for module_name in REALESRGAN_RUNTIME_MODULES:
         try:

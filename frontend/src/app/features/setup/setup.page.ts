@@ -7,7 +7,10 @@ import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NProgress } from '@neuralangular/angular-ui/progress';
 import { BehaviorSubject, Subscription, catchError, firstValueFrom, of, switchMap } from 'rxjs';
 
-import type { AIRuntimeStatusResponse } from '../../core/api/api-types';
+import type {
+  AIInstallProgressResponse,
+  AIRuntimeStatusResponse,
+} from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import type {
   ApiErrorVm,
@@ -39,12 +42,60 @@ export class SetupPage {
   readonly verifyingAi = signal(false);
   readonly aiAvailable = signal<boolean | null>(null);
   readonly aiRuntime = signal<AIRuntimeStatusResponse | null>(null);
+  readonly aiInstall = signal<AIInstallProgressResponse | null>(null);
+  private aiInstallSub: Subscription | undefined;
 
   constructor() {
     this.data
       .aiRuntime()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (runtime) => this.aiRuntime.set(runtime), error: () => undefined });
+    // Si la instalación sigue en curso (p. ej. se navegó fuera de Setup), retomar el progreso.
+    this.data
+      .aiInstallProgress()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (progress) => {
+          if (progress.status === 'installing') {
+            this.followAiInstall();
+          }
+        },
+        error: () => undefined,
+      });
+  }
+
+  async startAiInstall(): Promise<void> {
+    try {
+      this.error.set(null);
+      const started = await firstValueFrom(this.data.installAi());
+      if (started.already_installed) {
+        await this.verifyAiRuntime(null);
+        return;
+      }
+      this.followAiInstall();
+    } catch (startError) {
+      this.error.set(this.data.toErrorVm(startError));
+    }
+  }
+
+  aiInstalling(): boolean {
+    return this.aiInstall()?.status === 'installing';
+  }
+
+  private followAiInstall(): void {
+    this.aiInstallSub?.unsubscribe();
+    this.aiInstallSub = this.data
+      .pollAiInstall()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((progress) => {
+        this.aiInstall.set(progress);
+        if (progress.status === 'completed' || progress.status === 'failed') {
+          this.aiInstallSub?.unsubscribe();
+          if (progress.status === 'completed') {
+            void this.verifyAiRuntime(null);
+          }
+        }
+      });
   }
 
   readonly state$ = this.reload$.pipe(

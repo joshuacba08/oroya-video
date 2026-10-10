@@ -6,7 +6,8 @@
     1. Descarga (con caché) un runtime CPython portable (python-build-standalone).
     2. Instala las dependencias core del backend en ese runtime.
     3. Copia el código del backend a frontend/src-tauri/resources/backend/.
-    4. Ejecuta pnpm test + pnpm tauri build (NSIS).
+    4. Construye el wheel parcheado de basicsr (instalación de IA desde el asistente).
+    5. Ejecuta pnpm test + pnpm tauri build (NSIS).
 
     El instalador resultante arranca el backend automáticamente (sidecar) y
     guarda todos los datos de usuario en %LOCALAPPDATA%\dev.oroya.video.
@@ -67,12 +68,18 @@ New-Item -ItemType Directory -Force $appDir | Out-Null
 robocopy (Join-Path $repoRoot "backend\app") $appDir /E /XD __pycache__ | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed with $LASTEXITCODE" }
 
-# 4. Build del frontend + instalador NSIS
+# 4. Wheel parcheado de basicsr para la instalación de IA desde el asistente
+Write-Host "Construyendo wheel de basicsr..." -ForegroundColor Yellow
+& (Join-Path $pythonDir "python.exe") (Join-Path $repoRoot "scripts\build_ai_wheels.py") `
+    (Join-Path $resourcesDir "wheels")
+if ($LASTEXITCODE -ne 0) { throw "basicsr wheel build failed" }
+
+# 5. Build del frontend + instalador NSIS
 Push-Location (Join-Path $repoRoot "frontend")
 try {
     if (-not $SkipFrontendTests) {
         Write-Host "Ejecutando tests del frontend..." -ForegroundColor Yellow
-        pnpm test
+        pnpm test --watch=false
         if ($LASTEXITCODE -ne 0) { throw "pnpm test failed" }
     }
 

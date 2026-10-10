@@ -208,6 +208,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/ai/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install the AI runtime (PyTorch + Real-ESRGAN) in the background */
+        post: operations["ai_install_route_api_v1_system_ai_install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/ai/install/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get AI runtime install progress */
+        get: operations["ai_install_progress_route_api_v1_system_ai_install_progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/storage": {
         parameters: {
             query?: never;
@@ -1430,6 +1464,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/ai/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install the AI runtime (PyTorch + Real-ESRGAN) in the background */
+        post: operations["ai_install_route_api_system_ai_install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/ai/install/progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get AI runtime install progress */
+        get: operations["ai_install_progress_route_api_system_ai_install_progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/storage": {
         parameters: {
             query?: never;
@@ -2460,6 +2528,34 @@ export interface components {
             name: string | null;
             /** Memory Total Mb */
             memory_total_mb?: number | null;
+        };
+        /** AIInstallProgressResponse */
+        AIInstallProgressResponse: {
+            /** Status */
+            status: string;
+            /** Step */
+            step: number;
+            /** Steps Total */
+            steps_total: number;
+            /** Step Label */
+            step_label: string;
+            /** Percent */
+            percent: number;
+            /** Message */
+            message: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Output Tail */
+            output_tail: string[];
+        };
+        /** AIInstallStartResponse */
+        AIInstallStartResponse: {
+            /** Status */
+            status: string;
+            /** Already Installed */
+            already_installed: boolean;
         };
         /** AIModelCreateRequest */
         AIModelCreateRequest: {
@@ -4994,6 +5090,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FFmpegDownloadProgressResponse"];
+                };
+            };
+        };
+    };
+    ai_install_route_api_v1_system_ai_install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIInstallStartResponse"];
+                };
+            };
+        };
+    };
+    ai_install_progress_route_api_v1_system_ai_install_progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIInstallProgressResponse"];
                 };
             };
         };
@@ -7547,6 +7683,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FFmpegDownloadProgressResponse"];
+                };
+            };
+        };
+    };
+    ai_install_route_api_system_ai_install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIInstallStartResponse"];
+                };
+            };
+        };
+    };
+    ai_install_progress_route_api_system_ai_install_progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIInstallProgressResponse"];
                 };
             };
         };

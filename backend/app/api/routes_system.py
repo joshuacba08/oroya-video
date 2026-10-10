@@ -10,6 +10,8 @@ from app.schemas.hardening_schema import (
     StorageUsageResponse,
 )
 from app.schemas.system_schema import (
+    AIInstallProgressResponse,
+    AIInstallStartResponse,
     FFmpegDownloadProgressResponse,
     FFmpegDownloadStartResponse,
     GPUResponse,
@@ -18,6 +20,7 @@ from app.schemas.system_schema import (
     SystemInfoResponse,
     ToolsResponse,
 )
+from app.services.ai_install_service import get_ai_install_progress, start_ai_install
 from app.services.cleanup_service import cleanup_old_temp_files, get_storage_usage
 from app.services.gpu_detection_service import get_gpu_status
 from app.services.system_service import get_requirements_status, get_storage_info, get_system_info
@@ -63,6 +66,25 @@ def ffmpeg_download_route(request: Request) -> FFmpegDownloadStartResponse:
 )
 def ffmpeg_download_progress_route(request: Request) -> FFmpegDownloadProgressResponse:
     return get_ffmpeg_download_progress(request.app.state.settings)
+
+
+@router.post(
+    "/ai/install",
+    response_model=AIInstallStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Install the AI runtime (PyTorch + Real-ESRGAN) in the background",
+)
+def ai_install_route(request: Request) -> AIInstallStartResponse:
+    return start_ai_install(request.app.state.settings)
+
+
+@router.get(
+    "/ai/install/progress",
+    response_model=AIInstallProgressResponse,
+    summary="Get AI runtime install progress",
+)
+def ai_install_progress_route() -> AIInstallProgressResponse:
+    return get_ai_install_progress()
 
 
 @router.get("/storage", response_model=StorageResponse, summary="Storage paths and disk usage")

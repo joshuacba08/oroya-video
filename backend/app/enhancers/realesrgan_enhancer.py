@@ -15,7 +15,10 @@ from app.core.errors import (
     RealESRGANUnsupportedModelError,
 )
 from app.enhancers.base import CancelCallback, FrameEnhancer, PauseCallback, ProgressCallback
-from app.services.ai_runtime_service import clear_cuda_cache_if_available
+from app.services.ai_runtime_service import (
+    clear_cuda_cache_if_available,
+    ensure_torchvision_compat,
+)
 from app.utils.performance_utils import calculate_average_ms
 
 
@@ -180,6 +183,7 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         if not self.model_path.exists() or not self.model_path.is_file():
             raise RealESRGANModelLoadFailedError()
 
+        ensure_torchvision_compat()
         try:
             import cv2
             from basicsr.archs.rrdbnet_arch import RRDBNet

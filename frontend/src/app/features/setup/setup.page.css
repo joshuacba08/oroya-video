@@ -136,3 +136,20 @@ footer {
   justify-content: space-between;
   gap: 12px;
 }
+
+.setup-page__install-log {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup-page__manual {
+  display: grid;
+  gap: 8px;
+  color: var(--n-text-3);
+  font-size: 0.76rem;
+}
+
+.setup-page__manual summary {
+  cursor: pointer;
+}
