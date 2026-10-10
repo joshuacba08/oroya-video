@@ -10,9 +10,17 @@ export type NSelectOption = {
   selector: 'n-select',
   standalone: true,
   template: `
-    <select class="n-select" [class.n-select--sm]="size() === 'sm'" [value]="value()" (change)="onChange($event)">
+    <!-- [selected] por opción: un [value] en el <select> se aplica antes de que existan las
+         <option> y el navegador mostraba siempre la primera. -->
+    <select class="n-select" [class.n-select--sm]="size() === 'sm'" (change)="onChange($event)">
       @for (option of options(); track option.value) {
-        <option [value]="option.value" [disabled]="option.disabled">{{ option.label }}</option>
+        <option
+          [value]="option.value"
+          [disabled]="option.disabled"
+          [selected]="option.value === value()"
+        >
+          {{ option.label }}
+        </option>
       }
     </select>
   `,
