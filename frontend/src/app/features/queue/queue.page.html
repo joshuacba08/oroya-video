@@ -1,0 +1,117 @@
+<section class="queue-page">
+  <header>
+    <h1>Processing <span class="gt-text">Queue</span></h1>
+    <div>
+      <n-button variant="secondary" size="sm" disabled>
+        <n-icon name="pause-circle" size="sm" />
+        Pause All
+      </n-button>
+      <n-button variant="secondary" size="sm" disabled>
+        <n-icon name="arrow-up-down" size="sm" />
+        Priority
+      </n-button>
+    </div>
+  </header>
+
+  @if (error(); as errorVm) {
+    <div class="queue-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>Request {{ errorVm.requestId }}</span>
+      }
+    </div>
+  }
+
+  @if (queue$ | async; as jobs) {
+    <div class="queue-page__list">
+      @if (!jobs.length) {
+        <p class="queue-page__empty">No jobs in queue.</p>
+      }
+      @for (job of jobs; track job.id) {
+        <div
+          class="queue-page__card-link"
+          role="link"
+          tabindex="0"
+          [attr.aria-label]="'Open workspace for ' + job.projectName"
+          (click)="openJob(job)"
+          (keyup.enter)="openJob(job)"
+        >
+        <n-job-card
+          [title]="job.projectName"
+          [subtitle]="job.model + ' - ' + job.resolution + ' - ' + job.duration + ' duration'"
+          [status]="job.status"
+          [statusType]="badgeTone(job)"
+          [progress]="job.progress"
+          [progressLabel]="job.stage"
+        >
+          <n-ai-pipeline
+            label="AI Pipeline"
+            orientation="horizontal"
+            density="compact"
+            [steps]="job.pipeline"
+            [showProgress]="false"
+          />
+          @if (job.device || job.avgFrameTimeMs || job.etaLabel || job.failedFrames > 0) {
+            <div class="queue-page__telemetry">
+              <span class="queue-page__telemetry-item">{{ job.framesLabel }}</span>
+              @if (job.device) {
+                <span class="queue-page__telemetry-item queue-page__telemetry-item--device">
+                  {{ job.device.toUpperCase() }}
+                </span>
+              }
+              @if (job.avgFrameTimeMs) {
+                <span class="queue-page__telemetry-item">{{ job.avgFrameTimeMs }} ms/frame</span>
+              }
+              @if (job.etaLabel) {
+                <span class="queue-page__telemetry-item queue-page__telemetry-item--eta">
+                  {{ job.etaLabel }}
+                </span>
+              }
+              @if (job.failedFrames > 0) {
+                <span class="queue-page__telemetry-item queue-page__telemetry-item--failed">
+                  {{ job.failedFrames }} failed frames
+                </span>
+              }
+            </div>
+          }
+          @if (job.errorMessage) {
+            <p class="queue-page__job-error">{{ job.errorMessage }}</p>
+          }
+          <div class="queue-page__actions" (click)="$event.stopPropagation()" (keyup.enter)="$event.stopPropagation()">
+            @if (job.canStart) {
+              <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="startOrResume(job)">
+                <n-icon name="play" size="sm" />
+                {{ job.status === 'paused' ? 'Resume' : 'Start' }}
+              </n-button>
+            }
+            @if (job.canPause) {
+              <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="pause(job)">
+                <n-icon name="pause-circle" size="sm" />
+                Pause
+              </n-button>
+            }
+            @if (job.canCancel) {
+              <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="cancel(job)">
+                <n-icon name="circle-x" size="sm" />
+                Cancel
+              </n-button>
+            }
+            @if (job.canRetry) {
+              <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="retry(job)">
+                <n-icon name="rotate-ccw" size="sm" />
+                Retry
+              </n-button>
+            }
+            @if (job.canCleanup) {
+              <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="cleanup(job)">
+                <n-icon name="trash-2" size="sm" />
+                Cleanup
+              </n-button>
+            }
+          </div>
+        </n-job-card>
+        </div>
+      }
+    </div>
+  }
+</section>

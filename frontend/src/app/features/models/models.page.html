@@ -1,0 +1,38 @@
+<section class="models-page">
+  <header class="models-page__top">
+    <h1>AI <span class="gt-text">Models</span></h1>
+    <n-button variant="secondary" size="sm" [disabled]="refreshing()" (click)="refreshModels()">
+      <n-icon name="refresh-cw" size="sm" />
+      {{ refreshing() ? 'Refreshing...' : 'Refresh' }}
+    </n-button>
+  </header>
+
+  @if (error(); as errorVm) {
+    <div class="models-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>Request {{ errorVm.requestId }}</span>
+      }
+    </div>
+  }
+
+  @if (models$ | async; as models) {
+    <ov-section-header label="Installed Models" />
+    <div class="models-page__installed">
+      @for (model of installed(models); track model.id) {
+        <ov-model-card [model]="model" />
+      }
+    </div>
+
+    <ov-section-header label="Available Models" />
+    <div class="models-page__available">
+      @for (model of available(models); track model.id) {
+        <ov-model-card
+          [model]="model"
+          [download]="downloadFor(model)"
+          (downloadRequested)="startDownload($event)"
+        />
+      }
+    </div>
+  }
+</section>

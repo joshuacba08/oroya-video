@@ -1,0 +1,98 @@
+<section class="settings-page">
+  <h1><span class="gt-text">Settings</span></h1>
+
+  @if (error(); as errorVm) {
+    <div class="settings-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>Request {{ errorVm.requestId }}</span>
+      }
+    </div>
+  }
+
+  @if (settings$ | async; as settings) {
+    <section class="settings-page__section">
+      <h2>General</h2>
+      <ov-settings-row label="Language">
+        <n-select size="sm" [options]="languageOptions" [value]="settings.language" (valueChange)="updateLanguage($event)" />
+      </ov-settings-row>
+      <ov-settings-row label="Theme" description="Appearance of the interface">
+        <n-select size="sm" [options]="themeOptions" [value]="settings.theme" (valueChange)="updateTheme($event)" />
+      </ov-settings-row>
+      <ov-settings-row label="Cleanup temp on success">
+        <label class="switch">
+          <input type="checkbox" [checked]="settings.cleanupTempOnSuccess" (change)="updateCleanupOnSuccess($any($event.target).checked)" />
+          <span></span>
+        </label>
+      </ov-settings-row>
+      <ov-settings-row label="Preview frames kept" description="Frames preserved for the before/after preview after cleanup">
+        <div class="range-row">
+          <input type="range" min="0" max="96" step="4" [value]="settings.cleanupKeepPreviewFrames" (change)="updateKeepPreviewFrames($any($event.target).value)" />
+          <strong>{{ settings.cleanupKeepPreviewFrames }}</strong>
+        </div>
+      </ov-settings-row>
+    </section>
+
+    <section class="settings-page__section">
+      <h2>Performance</h2>
+      <ov-settings-row label="Enhancer engine" description="Frame enhancement backend">
+        <n-select size="sm" [options]="engineOptions" [value]="settings.frameEnhancerEngine" (valueChange)="updateEngine($event)" />
+      </ov-settings-row>
+      <ov-settings-row label="AI device" description="Primary processing device">
+        <n-select size="sm" [options]="aiDeviceOptions" [value]="settings.aiDevice" (valueChange)="updateAiDevice($event)" />
+      </ov-settings-row>
+      <ov-settings-row label="Allow CPU fallback">
+        <label class="switch">
+          <input type="checkbox" [checked]="settings.aiAllowCpu" (change)="updateAllowCpu($any($event.target).checked)" />
+          <span></span>
+        </label>
+      </ov-settings-row>
+      <ov-settings-row label="Half precision">
+        <label class="switch">
+          <input type="checkbox" [checked]="settings.aiHalfPrecision" (change)="updateHalfPrecision($any($event.target).checked)" />
+          <span></span>
+        </label>
+      </ov-settings-row>
+      <ov-settings-row label="Real-ESRGAN tile size" description="0 lets the backend auto-select">
+        <div class="range-row">
+          <input type="range" min="0" max="1200" step="100" [value]="settings.realesrganTileSize" (change)="updateTileSize($any($event.target).value)" />
+          <strong>{{ settings.realesrganTileSize }}</strong>
+        </div>
+      </ov-settings-row>
+      <ov-settings-row label="Tile padding" description="Overlap between tiles to avoid seams">
+        <div class="range-row">
+          <input type="range" min="0" max="50" step="2" [value]="settings.realesrganTilePad" (change)="updateTilePad($any($event.target).value)" />
+          <strong>{{ settings.realesrganTilePad }}</strong>
+        </div>
+      </ov-settings-row>
+      <ov-settings-row label="Pre padding" description="Border padding before inference">
+        <div class="range-row">
+          <input type="range" min="0" max="50" step="2" [value]="settings.realesrganPrePad" (change)="updatePrePad($any($event.target).value)" />
+          <strong>{{ settings.realesrganPrePad }}</strong>
+        </div>
+      </ov-settings-row>
+    </section>
+
+    <section class="settings-page__section">
+      <h2>Storage</h2>
+      <ov-settings-row label="Temp Folder" [description]="settings.tempPath">
+        <n-button variant="secondary" size="sm" disabled>
+          <n-icon name="folder" size="sm" />
+          Change
+        </n-button>
+      </ov-settings-row>
+      <ov-settings-row label="Models Folder" [description]="settings.modelsPath">
+        <n-button variant="secondary" size="sm" disabled>
+          <n-icon name="folder" size="sm" />
+          Change
+        </n-button>
+      </ov-settings-row>
+      <ov-settings-row label="Exports Folder" [description]="settings.exportsPath">
+        <n-button variant="secondary" size="sm" disabled>
+          <n-icon name="folder" size="sm" />
+          Change
+        </n-button>
+      </ov-settings-row>
+    </section>
+  }
+</section>

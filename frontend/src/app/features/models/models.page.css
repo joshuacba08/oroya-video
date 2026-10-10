@@ -1,0 +1,71 @@
+.models-page {
+  display: grid;
+  gap: 24px;
+  padding: 48px 44px 72px;
+}
+
+.models-page__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.models-page__top h1 {
+  margin: 0;
+  color: var(--n-text-1);
+  font-size: clamp(1.6rem, 2vw, 2rem);
+  font-weight: 900;
+}
+
+.models-page__error {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--n-color-danger), transparent 70%);
+  border-radius: var(--n-radius-md);
+  background: color-mix(in srgb, var(--n-color-danger), transparent 91%);
+}
+
+.models-page__error strong {
+  color: var(--n-text-1);
+}
+
+.models-page__error span {
+  color: var(--n-text-3);
+  font-family: var(--n-font-mono);
+  font-size: 0.72rem;
+}
+
+.models-page__installed {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, 1fr));
+  gap: 18px;
+  margin-bottom: 22px;
+}
+
+.models-page__available {
+  display: grid;
+  gap: 12px;
+}
+
+:host ::ng-deep .models-page__available .ov-model-card {
+  min-height: 96px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+@media (max-width: 1180px) {
+  .models-page__installed {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .models-page {
+    padding: 24px 18px 48px;
+  }
+
+  .models-page__installed {
+    grid-template-columns: 1fr;
+  }
+}

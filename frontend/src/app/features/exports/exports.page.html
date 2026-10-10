@@ -1,0 +1,77 @@
+<section class="exports-page">
+  @if (error(); as errorVm) {
+    <div class="exports-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>Request {{ errorVm.requestId }}</span>
+      }
+    </div>
+  }
+
+  @if (exports$ | async; as exportsPage) {
+    <div class="exports-page__featured">
+      <div class="exports-page__preview" [class.exports-page__preview--playing]="exportsPage.featured.mediaUrl">
+        @if (exportsPage.featured.mediaUrl) {
+          <video controls preload="metadata" [src]="exportsPage.featured.mediaUrl"></video>
+        } @else {
+          <span>{{ exportsPage.featured.resolution }}</span>
+          <n-icon name="play" size="xl" />
+        }
+      </div>
+      <div class="exports-page__summary">
+        <h2>{{ exportsPage.featured.fileName }}</h2>
+        <p>
+          {{ exportsPage.featured.resolution }} - {{ exportsPage.featured.fpsLabel || 'fps --' }} - {{ exportsPage.featured.duration }} -
+          {{ exportsPage.featured.codec }} - Est. {{ exportsPage.featured.sizeLabel }}
+        </p>
+      </div>
+      <div class="exports-page__settings">
+        <div><span>Resolution</span><strong>{{ exportsPage.featured.resolution }}</strong></div>
+        <div><span>Codec</span><strong>{{ exportsPage.featured.codec }}</strong></div>
+        <div><span>Quality</span><strong>Backend export</strong></div>
+        <div><span>Output Folder</span><strong>{{ exportsPage.featured.outputFolder || '-' }}</strong></div>
+        <div><span>Estimated Size</span><strong class="gt-text">{{ exportsPage.featured.sizeLabel }}</strong></div>
+        <n-button
+          variant="gemini"
+          size="lg"
+          fullWidth
+          [disabled]="!exportsPage.history.length || busyExportId() === exportsPage.featured.id"
+          (click)="openExport(exportsPage.featured)"
+        >
+          <n-icon name="download" size="md" />
+          Open Export
+        </n-button>
+      </div>
+    </div>
+
+    <ov-section-header label="Export History" />
+    <div class="exports-page__table">
+      <div class="exports-page__row exports-page__row--head">
+        <span>File Name</span>
+        <span>Date</span>
+        <span>Resolution</span>
+        <span>Size</span>
+        <span>Actions</span>
+      </div>
+      @for (item of exportsPage.history; track item.id) {
+        <div class="exports-page__row">
+          <strong>{{ item.fileName }}</strong>
+          <span>{{ item.dateLabel }}</span>
+          <span>{{ item.resolution }}</span>
+          <span>{{ item.sizeLabel }}</span>
+          <div class="exports-page__actions">
+            <button type="button" [disabled]="busyExportId() === item.id" (click)="openExport(item)" aria-label="Play export">
+              <n-icon name="play" size="sm" />
+            </button>
+            <button type="button" [disabled]="busyExportId() === item.id" (click)="openFolder(item)" aria-label="Open folder">
+              <n-icon name="folder" size="sm" />
+            </button>
+            <button type="button" [disabled]="busyExportId() === item.id" (click)="deleteExport(item)" aria-label="Delete export">
+              <n-icon name="trash-2" size="sm" />
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+</section>

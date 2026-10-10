@@ -1,0 +1,147 @@
+<section class="setup-page">
+  <header>
+    <h1>Configura <span class="gt-text">Oroya Video</span></h1>
+    <p>
+      Descarga las herramientas y modelos que faltan. Puedes omitir cualquier paso:
+      la app funciona en modo básico sin ellos.
+    </p>
+  </header>
+
+  @if (error(); as errorVm) {
+    <div class="setup-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>Request {{ errorVm.requestId }}</span>
+      }
+    </div>
+  }
+
+  @if (state$ | async; as startup) {
+    <ol class="setup-page__checklist">
+      <li [class.done]="startup.backend.isApi">
+        <n-icon [name]="startup.backend.isApi ? 'circle-check' : 'circle-x'" size="md" />
+        <div>
+          <strong>Backend local</strong>
+          <span>
+            {{ startup.backend.isApi ? 'Conectado y funcionando.' : 'No disponible. Revisa la pantalla de conexión.' }}
+          </span>
+        </div>
+      </li>
+
+      <li [class.done]="startup.ffmpegAvailable">
+        <n-icon [name]="startup.ffmpegAvailable ? 'circle-check' : 'download'" size="md" />
+        <div>
+          <strong>FFmpeg</strong>
+          <span>
+            {{ startup.ffmpegAvailable
+              ? 'Detectado. Extracción y codificación de video listas.'
+              : 'Necesario para procesar video (~170 MB).' }}
+          </span>
+          @if (!startup.ffmpegAvailable) {
+            @if (ffmpegProgress(); as progress) {
+              @if (progress.status === 'downloading') {
+                <div class="setup-page__progress">
+                  <n-progress [value]="progress.percent" variant="gemini" size="xs" />
+                  <small>
+                    {{ progress.percent.toFixed(0) }}%
+                    @if (progress.bytesTotal) {
+                      - {{ formatMb(progress.bytesDone) }} / {{ formatMb(progress.bytesTotal) }} MB
+                    }
+                  </small>
+                </div>
+              } @else if (progress.status === 'failed') {
+                <small class="setup-page__step-error">{{ progress.errorMessage }}</small>
+              }
+            }
+            <n-button
+              variant="primary"
+              size="sm"
+              [disabled]="ffmpegProgress()?.status === 'downloading'"
+              (click)="startFfmpegDownload()"
+            >
+              <n-icon name="download" size="sm" />
+              Descargar FFmpeg
+            </n-button>
+          }
+        </div>
+      </li>
+
+      <li [class.done]="startup.modelsInstalled > 0">
+        <n-icon [name]="startup.modelsInstalled > 0 ? 'circle-check' : 'box'" size="md" />
+        <div>
+          <strong>Modelos de IA</strong>
+          <span>
+            {{ startup.modelsInstalled > 0
+              ? startup.modelsInstalled + ' modelo(s) instalados.'
+              : 'Descarga al menos un modelo Real-ESRGAN para mejorar video con IA.' }}
+          </span>
+          @if (models$ | async; as models) {
+            @for (model of missingModels(models); track model.slug) {
+              <div class="setup-page__model-row">
+                <span>{{ model.name }}</span>
+                @if (modelDownloadFor(model); as progress) {
+                  @if (progress.status === 'downloading') {
+                    <div class="setup-page__progress">
+                      <n-progress [value]="progress.percent" variant="gemini" size="xs" />
+                      <small>{{ progress.percent.toFixed(0) }}%</small>
+                    </div>
+                  } @else if (progress.status === 'failed') {
+                    <small class="setup-page__step-error">{{ progress.errorMessage }}</small>
+                  }
+                }
+                <n-button
+                  variant="secondary"
+                  size="sm"
+                  [disabled]="modelDownloadFor(model)?.status === 'downloading'"
+                  (click)="startModelDownload(model)"
+                >
+                  <n-icon name="download" size="sm" />
+                  Descargar
+                </n-button>
+              </div>
+            }
+          }
+        </div>
+      </li>
+
+      <li [class.done]="startup.aiRuntimeAvailable">
+        <n-icon [name]="startup.aiRuntimeAvailable ? 'circle-check' : 'cpu'" size="md" />
+        <div>
+          <strong>Runtime de IA (opcional)</strong>
+          <span>
+            {{ startup.aiRuntimeAvailable
+              ? 'PyTorch detectado. La mejora con IA en GPU está lista.'
+              : 'Para usar Real-ESRGAN necesitas PyTorch. Ejecuta este comando en PowerShell:' }}
+          </span>
+          @if (!startup.aiRuntimeAvailable) {
+            <code class="setup-page__command">{{ aiInstallCommand() }}</code>
+            <div class="setup-page__ai-actions">
+              <n-button variant="secondary" size="sm" (click)="copyAiCommand()">
+                <n-icon name="copy" size="sm" />
+                Copiar comando
+              </n-button>
+              <n-button variant="secondary" size="sm" [disabled]="verifyingAi()" (click)="verifyAiRuntime(startup)">
+                <n-icon name="refresh-cw" size="sm" />
+                {{ verifyingAi() ? 'Verificando...' : 'Verificar' }}
+              </n-button>
+            </div>
+            @if (aiAvailable() === false) {
+              <small class="setup-page__step-error">PyTorch todavía no está disponible.</small>
+            }
+          }
+        </div>
+      </li>
+    </ol>
+
+    <footer>
+      <n-button variant="secondary" size="md" (click)="refresh()">
+        <n-icon name="refresh-cw" size="sm" />
+        Actualizar estado
+      </n-button>
+      <n-button variant="primary" size="md" (click)="dismissAndGo()">
+        Continuar a la app
+        <n-icon name="chevron-right" size="sm" />
+      </n-button>
+    </footer>
+  }
+</section>

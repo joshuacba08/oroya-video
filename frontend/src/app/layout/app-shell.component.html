@@ -1,0 +1,164 @@
+<n-shell class="ov-shell" sidebarMode="fixed">
+  <n-sidebar ariaLabel="Oroya Video navigation">
+    <div nSidebarBrand class="ov-brand">
+      <div class="ov-brand__mark">OV</div>
+      <div>
+        <strong>Oroya Video</strong>
+        <small>AI Enhancement</small>
+      </div>
+    </div>
+
+    <n-sidebar-section>
+      @for (item of navItems; track item.path) {
+        <n-sidebar-item
+          [icon]="item.icon"
+          [label]="item.label"
+          [badge]="item.path === '/queue' ? ((queueBadge$ | async) ?? undefined) : item.badge"
+          [active]="active(item.path)"
+          (itemClick)="navigate(item.path)"
+        />
+      }
+    </n-sidebar-section>
+
+    <div nSidebarFooter class="ov-sidebar-footer">
+      @if (dashboard$ | async; as dashboard) {
+        <ov-gpu-meter [system]="dashboard.system" />
+      }
+      <div class="ov-app-info">
+        <div>
+          <strong>Oroya Video</strong>
+          <small>v{{ (startup$ | async)?.appVersion ?? '0.1.0' }} - Open Source</small>
+        </div>
+        <span
+          class="ov-backend-chip"
+          [class.ov-backend-chip--api]="data.backendStatus().isApi"
+          [class.ov-backend-chip--mock]="data.backendStatus().isMock"
+          [class.ov-backend-chip--offline]="data.backendStatus().isOffline || data.backendStatus().wrongBackend"
+        >
+          {{
+            data.backendStatus().isApi
+              ? 'Connected'
+              : data.backendStatus().isMock
+                ? 'Mock'
+                : data.backendStatus().state === 'checking'
+                  ? '...'
+                  : 'Offline'
+          }}
+        </span>
+      </div>
+    </div>
+  </n-sidebar>
+
+  <main nShellContent class="ov-main">
+    <header class="ov-topbar">
+      <nav class="ov-breadcrumb" aria-label="Breadcrumb">
+        <span>Oroya Video</span>
+        <n-icon name="chevron-right" size="sm" />
+        <strong>{{ pageTitle() }}</strong>
+      </nav>
+
+      <div class="ov-topbar__actions">
+        <div class="ov-search">
+          <n-icon name="search" size="sm" />
+          <n-input
+            placeholder="Search projects..."
+            size="sm"
+            [value]="searchQuery()"
+            (valueChange)="updateSearch($event)"
+          />
+        </div>
+        <i class="ov-divider"></i>
+        <n-button variant="secondary" size="sm" (click)="newProject()">
+          <n-icon name="plus" size="sm" />
+          New Project
+        </n-button>
+      </div>
+    </header>
+
+    <div class="ov-banner-stack">
+      @if (startup$ | async; as startup) {
+        @if (showSetupBanner(startup)) {
+          <aside class="ov-status-banner ov-status-banner--setup">
+            <n-icon name="wand-sparkles" size="sm" />
+            <div>
+              <strong>Faltan componentes por configurar (FFmpeg o modelos de IA).</strong>
+            </div>
+            <n-button variant="secondary" size="sm" (click)="openSetup()">
+              Abrir asistente
+            </n-button>
+          </aside>
+        }
+      }
+      @if (startup$ | async; as startup) {
+        @if (!startup.backend.isApi || startup.warnings.length) {
+          <aside class="ov-status-banner" [class.ov-status-banner--danger]="startup.backend.wrongBackend">
+            <n-icon [name]="startup.backend.wrongBackend ? 'circle-x' : startup.backend.isMock ? 'flask-conical' : 'alert-triangle'" size="sm" />
+            <div>
+              <strong>{{ startup.backend.message }}</strong>
+              @if (startup.warnings.length && startup.warnings[0] !== startup.backend.message) {
+                <span>{{ startup.warnings[0] }}</span>
+              }
+            </div>
+          </aside>
+        }
+      }
+
+      @if (actionError(); as error) {
+        <aside class="ov-status-banner ov-status-banner--danger">
+          <n-icon name="circle-x" size="sm" />
+          <div>
+            <strong>{{ error.message }}</strong>
+            @if (error.requestId) {
+              <span>Request {{ error.requestId }}</span>
+            }
+          </div>
+        </aside>
+      }
+
+      @if (manualImportOpen()) {
+        <div class="ov-manual-import">
+          <ov-manual-path-import
+            [busy]="importing()"
+            (pathSubmitted)="importPath($event)"
+            (cancelled)="manualImportOpen.set(false)"
+          />
+        </div>
+      }
+    </div>
+
+    <section class="ov-router-surface">
+      @if (startup$ | async; as startup) {
+        @if (showOfflinePanel(startup)) {
+          <div class="ov-offline-panel">
+            <n-icon name="plug-zap" size="xl" />
+            <h2>Backend no disponible</h2>
+            <p>
+              La aplicación no pudo conectarse al backend local de Oroya Video.
+              Verifica que el proceso esté corriendo y vuelve a intentarlo.
+            </p>
+            <dl>
+              <dt>URL</dt>
+              <dd>{{ apiBaseUrl }}</dd>
+              @if (startup.backend.error?.code; as code) {
+                <dt>Error</dt>
+                <dd>{{ code }}</dd>
+              }
+              @if (startup.backend.error?.message; as message) {
+                <dt>Detalle</dt>
+                <dd>{{ message }}</dd>
+              }
+            </dl>
+            <n-button variant="primary" size="md" (click)="retryBackend()">
+              <n-icon name="rotate-ccw" size="sm" />
+              Reintentar conexión
+            </n-button>
+          </div>
+        } @else {
+          <router-outlet />
+        }
+      } @else {
+        <router-outlet />
+      }
+    </section>
+  </main>
+</n-shell>

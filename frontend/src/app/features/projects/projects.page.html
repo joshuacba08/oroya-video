@@ -1,0 +1,31 @@
+<section class="projects-page">
+  <h1>All <span class="gt-text">Projects</span></h1>
+  @if (error(); as errorVm) {
+    <div class="projects-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>Request {{ errorVm.requestId }}</span>
+      }
+    </div>
+  }
+  @if (manualImportOpen()) {
+    <ov-manual-path-import
+      [busy]="importing()"
+      (pathSubmitted)="importPath($event)"
+      (cancelled)="manualImportOpen.set(false)"
+    />
+  }
+  @if (projects$ | async; as projects) {
+    <div class="projects-page__grid">
+      @for (project of projects; track project.id) {
+        <ov-project-card [project]="project" />
+      }
+      @if (!projects.length) {
+        <p class="projects-page__empty">No projects yet.</p>
+      }
+      <button type="button" class="projects-page__new" (click)="newProject()">
+        <ov-project-card [project]="emptyProject" [empty]="true" />
+      </button>
+    </div>
+  }
+</section>
