@@ -37,6 +37,8 @@ backend/storage/temp/*
 !backend/storage/models/realesrgan/
 !backend/storage/models/realesrgan/.gitkeep
 !backend/storage/temp/.gitkeep
+# Ajustes de UI persistidos en runtime (no son configuración del repo)
+backend/storage/settings.json
 
 # Video and AI artifacts
 *.mp4
@@ -54,9 +56,17 @@ node_modules/
 .angular/
 .tauri/
 coverage/
+# Esquemas que Tauri regenera en cada build
+frontend/src-tauri/gen/schemas/
+
+# Logs de servidores locales (backend-8001.log, angular-serve.log, ...)
+*.log
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 .idea/
 .vscode/
+
+# Configuración local de herramientas de IA (Claude Code)
+.claude/
