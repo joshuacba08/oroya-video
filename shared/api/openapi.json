@@ -334,6 +334,53 @@
         }
       }
     },
+    "/api/v1/system/storage/open": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Open a storage folder (temp, models or exports) in the file explorer",
+        "operationId": "storage_open_route_api_v1_system_storage_open_post",
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "temp",
+                "models",
+                "exports"
+              ],
+              "type": "string",
+              "title": "Target"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageOpenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/storage": {
       "get": {
         "tags": [
@@ -4098,6 +4145,53 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AIInstallProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/storage/open": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Open a storage folder (temp, models or exports) in the file explorer",
+        "operationId": "storage_open_route_api_system_storage_open_post",
+        "parameters": [
+          {
+            "name": "target",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "temp",
+                "models",
+                "exports"
+              ],
+              "type": "string",
+              "title": "Target"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageOpenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -14622,6 +14716,29 @@
           "settings"
         ],
         "title": "SettingsUpdateResponse"
+      },
+      "StorageOpenResponse": {
+        "properties": {
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "opened": {
+            "type": "boolean",
+            "title": "Opened"
+          }
+        },
+        "type": "object",
+        "required": [
+          "target",
+          "path",
+          "opened"
+        ],
+        "title": "StorageOpenResponse"
       },
       "StoragePaths": {
         "properties": {

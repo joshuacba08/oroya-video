@@ -128,6 +128,9 @@ export interface ModelVm {
   description: string;
   installed: boolean;
   enabled: boolean;
+  /** Tiers del backend (`metadata.quality_tier` / `speed_tier`), o '' si no se declaran. */
+  qualityTier: string;
+  speedTier: string;
   quality: number;
   speed: number;
   vramGb: number;

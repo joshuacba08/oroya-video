@@ -64,7 +64,7 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({}),
+        "metadata_json": json.dumps({"quality_tier": "high", "speed_tier": "medium"}),
     },
     {
         "name": "Real-ESRGAN x4",
@@ -92,7 +92,7 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({}),
+        "metadata_json": json.dumps({"quality_tier": "very_high", "speed_tier": "slow"}),
     },
     {
         "name": "Real-ESRGAN General",
@@ -120,7 +120,7 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({}),
+        "metadata_json": json.dumps({"quality_tier": "medium", "speed_tier": "fast"}),
     },
 ]
 
@@ -183,6 +183,21 @@ def _get_installation_state(
     }
 
 
+def _merge_default_metadata(model, default_metadata_json: str) -> bool:
+    """Add metadata keys introduced in newer versions (e.g. quality/speed tiers) to
+    models seeded by older ones, without overwriting existing values."""
+    try:
+        current = json.loads(model.metadata_json or "{}")
+    except json.JSONDecodeError:
+        current = {}
+    defaults = json.loads(default_metadata_json)
+    missing = {key: value for key, value in defaults.items() if key not in current}
+    if not missing:
+        return False
+    model.metadata_json = json.dumps({**current, **missing})
+    return True
+
+
 def seed_default_models(db: Session, settings: Settings | None = None) -> None:
     active_settings = _get_active_settings(settings)
     logger.info("AI model seed started")
@@ -193,6 +208,8 @@ def seed_default_models(db: Session, settings: Settings | None = None) -> None:
             create_data = dict(model_data)
             create_data["id"] = str(uuid.uuid4())
             ai_model_repository.create_ai_model(db, create_data)
+            changed = True
+        elif _merge_default_metadata(existing_model, model_data["metadata_json"]):
             changed = True
 
     for model in ai_model_repository.list_ai_models(db, limit=100, offset=0):

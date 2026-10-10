@@ -1,17 +1,14 @@
 <section class="setup-page">
   <header>
-    <h1>Configura <span class="gt-text">Oroya Video</span></h1>
-    <p>
-      Descarga las herramientas y modelos que faltan. Puedes omitir cualquier paso:
-      la app funciona en modo básico sin ellos.
-    </p>
+    <h1>{{ 'setup.titlePrefix' | t }} <span class="gt-text">Oroya Video</span></h1>
+    <p>{{ 'setup.intro' | t }}</p>
   </header>
 
   @if (error(); as errorVm) {
     <div class="setup-page__error">
       <strong>{{ errorVm.message }}</strong>
       @if (errorVm.requestId) {
-        <span>Request {{ errorVm.requestId }}</span>
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
       }
     </div>
   }
@@ -21,10 +18,8 @@
       <li [class.done]="startup.backend.isApi">
         <n-icon [name]="startup.backend.isApi ? 'circle-check' : 'circle-x'" size="md" />
         <div>
-          <strong>Backend local</strong>
-          <span>
-            {{ startup.backend.isApi ? 'Conectado y funcionando.' : 'No disponible. Revisa la pantalla de conexión.' }}
-          </span>
+          <strong>{{ 'setup.backend' | t }}</strong>
+          <span>{{ (startup.backend.isApi ? 'setup.backendOk' : 'setup.backendDown') | t }}</span>
         </div>
       </li>
 
@@ -32,11 +27,7 @@
         <n-icon [name]="startup.ffmpegAvailable ? 'circle-check' : 'download'" size="md" />
         <div>
           <strong>FFmpeg</strong>
-          <span>
-            {{ startup.ffmpegAvailable
-              ? 'Detectado. Extracción y codificación de video listas.'
-              : 'Necesario para procesar video (~170 MB).' }}
-          </span>
+          <span>{{ (startup.ffmpegAvailable ? 'setup.ffmpegOk' : 'setup.ffmpegMissing') | t }}</span>
           @if (!startup.ffmpegAvailable) {
             @if (ffmpegProgress(); as progress) {
               @if (progress.status === 'downloading') {
@@ -60,7 +51,7 @@
               (click)="startFfmpegDownload()"
             >
               <n-icon name="download" size="sm" />
-              Descargar FFmpeg
+              {{ 'setup.ffmpegDownload' | t }}
             </n-button>
           }
         </div>
@@ -69,11 +60,13 @@
       <li [class.done]="startup.modelsInstalled > 0">
         <n-icon [name]="startup.modelsInstalled > 0 ? 'circle-check' : 'box'" size="md" />
         <div>
-          <strong>Modelos de IA</strong>
+          <strong>{{ 'setup.models' | t }}</strong>
           <span>
-            {{ startup.modelsInstalled > 0
-              ? startup.modelsInstalled + ' modelo(s) instalados.'
-              : 'Descarga al menos un modelo Real-ESRGAN para mejorar video con IA.' }}
+            {{
+              startup.modelsInstalled > 0
+                ? ('setup.modelsOk' | t: { count: startup.modelsInstalled })
+                : ('setup.modelsMissing' | t)
+            }}
           </span>
           @if (models$ | async; as models) {
             @for (model of missingModels(models); track model.slug) {
@@ -96,7 +89,7 @@
                   (click)="startModelDownload(model)"
                 >
                   <n-icon name="download" size="sm" />
-                  Descargar
+                  {{ 'common.download' | t }}
                 </n-button>
               </div>
             }
@@ -107,19 +100,15 @@
       <li [class.done]="startup.aiRuntimeAvailable">
         <n-icon [name]="startup.aiRuntimeAvailable ? 'circle-check' : 'cpu'" size="md" />
         <div>
-          <strong>Runtime de IA (opcional)</strong>
-          <span>
-            {{ startup.aiRuntimeAvailable
-              ? 'PyTorch detectado. La mejora con IA en GPU está lista.'
-              : 'Para usar Real-ESRGAN se instala PyTorch y Real-ESRGAN en la carpeta de la app (2–3 GB con GPU NVIDIA, unos minutos).' }}
-          </span>
+          <strong>{{ 'setup.ai' | t }}</strong>
+          <span>{{ (startup.aiRuntimeAvailable ? 'setup.aiOk' : 'setup.aiMissing') | t }}</span>
           @if (!startup.aiRuntimeAvailable) {
             @if (aiInstall(); as install) {
               @if (install.status === 'installing') {
                 <div class="setup-page__progress">
                   <n-progress [value]="install.percent" variant="gemini" size="xs" />
                   <small>
-                    Paso {{ install.step || 1 }} de {{ install.steps_total }}: {{ install.step_label }}
+                    {{ 'setup.aiStep' | t: { step: install.step || 1, total: install.steps_total, label: install.step_label } }}
                   </small>
                   @if (install.message) {
                     <small class="setup-page__install-log">{{ install.message }}</small>
@@ -132,22 +121,22 @@
             <div class="setup-page__ai-actions">
               <n-button variant="primary" size="sm" [disabled]="aiInstalling()" (click)="startAiInstall()">
                 <n-icon name="download" size="sm" />
-                {{ aiInstalling() ? 'Instalando...' : 'Instalar runtime de IA' }}
+                {{ (aiInstalling() ? 'setup.aiInstalling' : 'setup.aiInstall') | t }}
               </n-button>
               <n-button variant="secondary" size="sm" [disabled]="verifyingAi() || aiInstalling()" (click)="verifyAiRuntime(startup)">
                 <n-icon name="refresh-cw" size="sm" />
-                {{ verifyingAi() ? 'Verificando...' : 'Verificar' }}
+                {{ (verifyingAi() ? 'setup.verifying' : 'setup.verify') | t }}
               </n-button>
             </div>
             @if (aiAvailable() === false && !aiInstalling()) {
-              <small class="setup-page__step-error">PyTorch todavía no está disponible.</small>
+              <small class="setup-page__step-error">{{ 'setup.aiNotYet' | t }}</small>
             }
             <details class="setup-page__manual">
-              <summary>Instalación manual (PowerShell)</summary>
+              <summary>{{ 'setup.manual' | t }}</summary>
               <code class="setup-page__command">{{ aiInstallCommand() }}</code>
               <n-button variant="secondary" size="sm" (click)="copyAiCommand()">
                 <n-icon name="copy" size="sm" />
-                Copiar comando
+                {{ 'setup.copyCommand' | t }}
               </n-button>
             </details>
           }
@@ -158,10 +147,10 @@
     <footer>
       <n-button variant="secondary" size="md" (click)="refresh()">
         <n-icon name="refresh-cw" size="sm" />
-        Actualizar estado
+        {{ 'setup.refreshStatus' | t }}
       </n-button>
       <n-button variant="primary" size="md" (click)="dismissAndGo()">
-        Continuar a la app
+        {{ 'setup.continue' | t }}
         <n-icon name="chevron-right" size="sm" />
       </n-button>
     </footer>

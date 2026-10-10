@@ -15,6 +15,7 @@ import {
 
 import { environment } from '../../../environments/environment';
 import { APP_VERSION } from '../app-version';
+import { setLanguage, translate } from '../i18n/i18n';
 import type {
   AIInstallProgressResponse,
   AIInstallStartResponse,
@@ -96,13 +97,6 @@ export type PollErrorHandler = (error: unknown | null) => void;
 
 const MAX_POLL_BACKOFF_MS = 30000;
 
-/** El idioma guardado define `<html lang>`, que usan las fechas formateadas de la UI. */
-function applyDocumentLanguage(language: string | null | undefined): void {
-  if (language && typeof document !== 'undefined') {
-    document.documentElement.lang = language;
-  }
-}
-
 function resilientPoll<T>(
   intervalMs: number,
   request: () => Observable<T>,
@@ -140,7 +134,7 @@ const CHECKING_STATUS: BackendStatusVm = {
   isMock: false,
   isOffline: false,
   wrongBackend: false,
-  message: 'Checking Oroya backend...',
+  message: translate('backend.checking'),
   warnings: [],
 };
 
@@ -304,7 +298,7 @@ export class OroyaDataService {
       '/settings',
       mapSettings,
       MOCK_SETTINGS,
-    ).pipe(tap((settings) => applyDocumentLanguage(settings.language)));
+    ).pipe(tap((settings) => setLanguage(settings.language)));
   }
 
   workspace(projectId: string): Observable<WorkspaceVm> {
@@ -332,7 +326,7 @@ export class OroyaDataService {
         if (!probe.valid) {
           return throwError(
             () =>
-              new OroyaApiError('video_probe_invalid', 'The selected video is not valid.', {
+              new OroyaApiError('video_probe_invalid', translate('errors.video_probe_invalid'), {
                 details: { warnings: probe.warnings },
                 method: 'POST',
                 path: '/videos/probe',
@@ -381,6 +375,10 @@ export class OroyaDataService {
     return this.command(() =>
       this.api.patch<ProjectDetailResponse>(`/projects/${encodeURIComponent(projectId)}`, payload),
     );
+  }
+
+  deleteProject(projectId: string): Observable<unknown> {
+    return this.command(() => this.api.delete(`/projects/${encodeURIComponent(projectId)}`));
   }
 
   createJob(payload: JobCreateRequest): Observable<QueueJobVm> {
@@ -517,7 +515,20 @@ export class OroyaDataService {
       this.api.patch<SettingsUpdateResponse>('/settings', payload),
     ).pipe(
       map((response) => mapSettings(response.settings)),
-      tap((settings) => applyDocumentLanguage(settings.language)),
+      tap((settings) => setLanguage(settings.language)),
+    );
+  }
+
+  openStorageFolder(target: 'temp' | 'models' | 'exports'): Observable<unknown> {
+    return this.command(() =>
+      this.api.post(`/system/storage/open?target=${encodeURIComponent(target)}`),
+    );
+  }
+
+  setModelEnabled(slug: string, enabled: boolean): Observable<unknown> {
+    const action = enabled ? 'enable' : 'disable';
+    return this.command(() =>
+      this.api.post(`/models/${encodeURIComponent(slug)}/${action}`),
     );
   }
 
@@ -533,7 +544,8 @@ export class OroyaDataService {
     if (error instanceof OroyaApiError) {
       return {
         code: error.code,
-        message: error.message,
+        // Mensaje traducido por error_code; si no hay traducción, el del backend.
+        message: translate(`errors.${error.code}`, undefined, error.message),
         status: error.status,
         requestId: error.requestId,
         details: error.details,
@@ -542,7 +554,7 @@ export class OroyaDataService {
 
     return {
       code: 'unknown_error',
-      message: error instanceof Error ? error.message : 'Unknown error.',
+      message: error instanceof Error ? error.message : translate('common.unknownError'),
     };
   }
 
@@ -559,7 +571,7 @@ export class OroyaDataService {
     query?: Record<string, string | number | boolean | null | undefined>,
   ): Observable<TVm> {
     if (environment.dataMode === 'mock') {
-      this.useMockStatus('Mock data mode enabled.');
+      this.useMockStatus(translate('backend.mockMode'));
       return of(mock);
     }
 
@@ -617,8 +629,8 @@ export class OroyaDataService {
 
   private async loadStartup(): Promise<StartupVm> {
     if (environment.dataMode === 'mock') {
-      this.useMockStatus('Mock data mode enabled.');
-      return this.mockStartup('Mock data mode enabled.');
+      this.useMockStatus(translate('backend.mockMode'));
+      return this.mockStartup(translate('backend.mockMode'));
     }
 
     try {
@@ -629,10 +641,10 @@ export class OroyaDataService {
         this.api.get<SettingsResponse>('/settings'),
         this.api.get<JobListResponse>('/jobs/interrupted'),
       ]);
-      applyDocumentLanguage(settings.general?.language);
+      setLanguage(settings.general?.language);
       const warnings = [
         ...bootstrap.warnings,
-        ...(!appState.system.ready ? ['System requirements are not fully ready.'] : []),
+        ...(!appState.system.ready ? [translate('backend.notReady')] : []),
       ];
       this.useApiStatus(health, warnings);
       return {
@@ -722,7 +734,7 @@ export class OroyaDataService {
       wrongBackend: false,
       service: health?.service ?? 'Oroya Video Backend',
       version: health?.version ?? null,
-      message: 'Connected to Oroya backend.',
+      message: translate('backend.connected'),
       warnings,
     });
   }
@@ -783,7 +795,7 @@ export class OroyaDataService {
       isMock: false,
       isOffline: true,
       wrongBackend: false,
-      message: 'Oroya backend is not reachable.',
+      message: translate('backend.unreachable'),
       warnings: [vm.message],
       error: vm,
     });

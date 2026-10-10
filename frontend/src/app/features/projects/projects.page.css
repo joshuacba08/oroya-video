@@ -69,3 +69,21 @@ h1 {
     grid-template-columns: 1fr;
   }
 }
+
+.projects-page__search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--n-text-2);
+  font-size: 0.86rem;
+}
+
+.projects-page__search button {
+  border: 0;
+  background: none;
+  color: var(--n-color-primary-light);
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+}

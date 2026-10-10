@@ -6,13 +6,15 @@ import { BehaviorSubject, catchError, firstValueFrom, of, switchMap } from 'rxjs
 
 import { OroyaApiError } from '../../core/api/oroya-api-client';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { translate } from '../../core/i18n/i18n';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm, ExportVm } from '../../core/models/oroya.models';
 import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.component';
 
 @Component({
   selector: 'app-exports-page',
   standalone: true,
-  imports: [AsyncPipe, NButton, NIcon, OvSectionHeaderComponent],
+  imports: [AsyncPipe, NButton, NIcon, OvSectionHeaderComponent, TranslatePipe],
   templateUrl: './exports.page.html',
   styleUrl: './exports.page.css',
 })
@@ -55,7 +57,7 @@ export class ExportsPage {
   }
 
   async deleteExport(item: ExportVm): Promise<void> {
-    if (!window.confirm(`Delete "${item.fileName}"? The video file will be removed from disk.`)) {
+    if (!window.confirm(translate('exports.deleteConfirm', { name: item.fileName }))) {
       return;
     }
     await this.runExportAction(item.id, async () => {

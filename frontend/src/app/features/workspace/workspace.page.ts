@@ -21,6 +21,8 @@ import {
 import type { CompareFrameResponse, JobPreflightResponse } from '../../core/api/api-types';
 import { OroyaApiError } from '../../core/api/oroya-api-client';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { translate } from '../../core/i18n/i18n';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import type {
   ApiErrorVm,
@@ -46,7 +48,16 @@ type WorkspaceControls = {
 @Component({
   selector: 'app-workspace-page',
   standalone: true,
-  imports: [AsyncPipe, NAIPipeline, NButton, NIcon, NProgress, OvVideoPreviewComponent, RouterLink],
+  imports: [
+    AsyncPipe,
+    NAIPipeline,
+    NButton,
+    NIcon,
+    NProgress,
+    OvVideoPreviewComponent,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: './workspace.page.html',
   styleUrl: './workspace.page.css',
 })
@@ -432,7 +443,9 @@ export class WorkspacePage {
 
   afterLabel(workspace: WorkspaceVm): string {
     const scale = this.ensureControls(workspace).scale;
-    return scale === 'original' ? 'Enhanced' : `${scale} Enhanced`;
+    return scale === 'original'
+      ? translate('workspace.enhanced')
+      : translate('workspace.enhancedScale', { scale });
   }
 
   hasPreview(workspace: WorkspaceVm): boolean {

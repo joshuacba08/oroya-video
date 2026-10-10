@@ -4,11 +4,13 @@ import { Router, RouterLink } from '@angular/router';
 import { NCard, NCardContent } from '@neuralangular/angular-ui/card';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 
-import { catchError, combineLatest, firstValueFrom, map, of, startWith } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, startWith, switchMap } from 'rxjs';
 
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { mapGpu } from '../../core/data/oroya.mappers';
 import { DesktopService } from '../../core/desktop/desktop.service';
+import { translate } from '../../core/i18n/i18n';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type {
   ApiErrorVm,
   ModelVm,
@@ -33,6 +35,7 @@ import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.comp
     OvProjectCardComponent,
     OvSectionHeaderComponent,
     RouterLink,
+    TranslatePipe,
   ],
   templateUrl: './dashboard.page.html',
   styleUrl: './dashboard.page.css',
@@ -45,9 +48,17 @@ export class DashboardPage {
   readonly error = signal<ApiErrorVm | null>(null);
   readonly manualImportOpen = signal(false);
   readonly importing = signal(false);
+  readonly notice = signal<string | null>(null);
+  /** "Import Video" se queda en el dashboard; "New Project" abre el workspace. */
+  private openWorkspaceAfterImport = true;
+  private readonly reload$ = new BehaviorSubject(0);
   readonly dashboard$ = combineLatest([
-    this.data.pollDashboard((error) =>
-      this.error.set(error ? this.data.toErrorVm(error) : null),
+    this.reload$.pipe(
+      switchMap(() =>
+        this.data.pollDashboard((error) =>
+          this.error.set(error ? this.data.toErrorVm(error) : null),
+        ),
+      ),
     ),
     this.data.pollGpu().pipe(startWith(null)),
     // El dashboard solo trae conteos: los nombres de los modelos instalados vienen de /models.
@@ -72,7 +83,7 @@ export class DashboardPage {
   );
   readonly emptyProject: ProjectCardVm = {
     id: 'new',
-    name: 'New Project',
+    name: '',
     model: '',
     duration: '',
     resolution: '',
@@ -82,7 +93,17 @@ export class DashboardPage {
     thumbnailTone: 'empty',
   };
 
+  async newProject(): Promise<void> {
+    await this.pickAndImport(true);
+  }
+
   async importVideo(): Promise<void> {
+    await this.pickAndImport(false);
+  }
+
+  private async pickAndImport(openWorkspace: boolean): Promise<void> {
+    this.openWorkspaceAfterImport = openWorkspace;
+    this.notice.set(null);
     if (!this.desktop.isDesktop()) {
       this.manualImportOpen.set(true);
       return;
@@ -106,7 +127,12 @@ export class DashboardPage {
       this.importing.set(true);
       const project = await firstValueFrom(this.data.importPickedVideo(selected));
       this.manualImportOpen.set(false);
-      await this.router.navigate(['/projects', project.id]);
+      if (this.openWorkspaceAfterImport) {
+        await this.router.navigate(['/projects', project.id]);
+        return;
+      }
+      this.notice.set(translate('dashboard.imported', { name: project.name }));
+      this.reload$.next(Date.now());
     } catch (error) {
       this.error.set(this.data.toErrorVm(error));
     } finally {

@@ -28,13 +28,17 @@ import { APP_VERSION } from '../core/app-version';
 import { OroyaDataService } from '../core/data/oroya-data.service';
 import { mapGpu } from '../core/data/oroya.mappers';
 import { DesktopService } from '../core/desktop/desktop.service';
+import type { TranslationKey } from '../core/i18n/en';
+import { translate } from '../core/i18n/i18n';
+import { TranslatePipe } from '../core/i18n/translate.pipe';
 import type { ApiErrorVm, PickedVideo, StartupVm } from '../core/models/oroya.models';
 import { OvGpuMeterComponent } from '../shared/ui/ov-gpu-meter.component';
 import { OvManualPathImportComponent } from '../shared/ui/ov-manual-path-import.component';
 
 type NavItem = {
   path: string;
-  label: string;
+  /** Clave de traducción. */
+  label: TranslationKey;
   icon: string;
   badge?: string;
 };
@@ -44,6 +48,7 @@ type NavItem = {
   standalone: true,
   imports: [
     AsyncPipe,
+    TranslatePipe,
     NButton,
     NIcon,
     NInput,
@@ -88,6 +93,7 @@ export class AppShellComponent {
   );
   private readonly retry$ = new BehaviorSubject(0);
   readonly apiBaseUrl = environment.apiBaseUrl;
+  readonly appVersion = APP_VERSION;
   readonly startup$ = this.retry$.pipe(
     switchMap(() =>
       this.data.startup().pipe(
@@ -148,24 +154,24 @@ export class AppShellComponent {
   }
 
   readonly navItems: NavItem[] = [
-    { path: '/dashboard', label: 'Dashboard', icon: 'home' },
-    { path: '/projects', label: 'Projects', icon: 'folder-open' },
-    { path: '/queue', label: 'Processing Queue', icon: 'cpu' },
-    { path: '/models', label: 'Models', icon: 'box' },
-    { path: '/exports', label: 'Exports', icon: 'download' },
-    { path: '/settings', label: 'Settings', icon: 'settings' },
-    { path: '/setup', label: 'Setup', icon: 'wand-sparkles' },
+    { path: '/dashboard', label: 'nav.dashboard', icon: 'home' },
+    { path: '/projects', label: 'nav.projects', icon: 'folder-open' },
+    { path: '/queue', label: 'nav.queue', icon: 'cpu' },
+    { path: '/models', label: 'nav.models', icon: 'box' },
+    { path: '/exports', label: 'nav.exports', icon: 'download' },
+    { path: '/settings', label: 'nav.settings', icon: 'settings' },
+    { path: '/setup', label: 'nav.setup', icon: 'wand-sparkles' },
   ];
 
   readonly pageTitle = computed(() => {
     const url = this.currentUrl();
 
     if (url.startsWith('/projects/') && url !== '/projects') {
-      return 'Workspace';
+      return translate('nav.workspace');
     }
 
-    return (
-      this.navItems.find((item) => url.startsWith(item.path))?.label ?? 'Dashboard'
+    return translate(
+      this.navItems.find((item) => url.startsWith(item.path))?.label ?? 'nav.dashboard',
     );
   });
 
@@ -216,14 +222,16 @@ export class AppShellComponent {
     }
   }
 
+  /** La búsqueda es global: desde cualquier página lleva a Proyectos con el filtro. */
   updateSearch(value: string): void {
     this.searchQuery.set(value);
-
-    if (this.currentUrl().split('?')[0] === '/projects') {
-      void this.router.navigate(['/projects'], {
-        queryParams: { search: value.trim() || null },
-        queryParamsHandling: 'merge',
-      });
+    const onProjects = this.currentUrl().split('?')[0] === '/projects';
+    if (!value.trim() && !onProjects) {
+      return;
     }
+    void this.router.navigate(['/projects'], {
+      queryParams: { search: value.trim() || null },
+      queryParamsHandling: 'merge',
+    });
   }
 }

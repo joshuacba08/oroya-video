@@ -12,6 +12,7 @@ import type {
   AIRuntimeStatusResponse,
 } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type {
   ApiErrorVm,
   ModelDownloadVm,
@@ -24,7 +25,7 @@ export const SETUP_DISMISSED_KEY = 'oroya.setup.dismissed';
 @Component({
   selector: 'app-setup-page',
   standalone: true,
-  imports: [AsyncPipe, NButton, NIcon, NProgress],
+  imports: [AsyncPipe, NButton, NIcon, NProgress, TranslatePipe],
   templateUrl: './setup.page.html',
   styleUrl: './setup.page.css',
 })

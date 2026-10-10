@@ -3,25 +3,40 @@ import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NProgress } from '@neuralangular/angular-ui/progress';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ModelDownloadVm, ModelVm } from '../../core/models/oroya.models';
 
 @Component({
   selector: 'ov-model-card',
   standalone: true,
-  imports: [NButton, NIcon, NProgress],
+  imports: [NButton, NIcon, NProgress, TranslatePipe],
   template: `
     <article class="ov-model-card" [class.ov-model-card--available]="!model().installed">
       <header>
         <div>
           <h3>{{ model().name }}</h3>
-          <span>{{ model().installed ? 'Installed' : 'Available' }} - {{ model().version }}</span>
+          <span>
+            {{ (model().installed ? (model().enabled ? 'model.installed' : 'model.disabled') : 'model.notInstalled') | t }}
+            @if (model().version) {
+              - {{ model().version }}
+            }
+          </span>
         </div>
-        @if (!model().installed) {
+        @if (model().installed) {
+          <n-button
+            variant="secondary"
+            size="sm"
+            [disabled]="toggling()"
+            (click)="enabledToggled.emit(model())"
+          >
+            {{ (model().enabled ? 'model.disable' : 'model.enable') | t }}
+          </n-button>
+        } @else {
           <n-button
             variant="secondary"
             size="sm"
             iconOnly
-            [ariaLabel]="'Download ' + model().name"
+            [ariaLabel]="'model.downloadAria' | t: { name: model().name }"
             [disabled]="download()?.status === 'downloading'"
             (click)="downloadRequested.emit(model())"
           >
@@ -43,24 +58,28 @@ import type { ModelDownloadVm, ModelVm } from '../../core/models/oroya.models';
           </div>
         } @else if (state.status === 'failed') {
           <p class="ov-model-card__download-error">
-            Download failed: {{ state.errorMessage || 'unknown error' }}
+            {{ 'model.downloadFailed' | t: { error: state.errorMessage || ('common.unknownError' | t) } }}
           </p>
         }
       }
       @if (model().installed) {
         <div class="ov-model-card__metrics">
+          @if (model().qualityTier) {
+            <label>
+              <span>{{ 'model.quality' | t }}</span>
+              <n-progress [value]="model().quality" variant="gemini" size="xs" />
+              <strong>{{ 'quality.' + model().qualityTier | t: undefined : model().qualityTier }}</strong>
+            </label>
+          }
+          @if (model().speedTier) {
+            <label>
+              <span>{{ 'model.speed' | t }}</span>
+              <n-progress [value]="model().speed" variant="warning" size="xs" />
+              <strong>{{ 'speed.' + model().speedTier | t: undefined : model().speedTier }}</strong>
+            </label>
+          }
           <label>
-            <span>Quality</span>
-            <n-progress [value]="model().quality" variant="gemini" size="xs" />
-            <strong>{{ qualityLabel() }}</strong>
-          </label>
-          <label>
-            <span>Speed</span>
-            <n-progress [value]="model().speed" variant="warning" size="xs" />
-            <strong>{{ speedLabel() }}</strong>
-          </label>
-          <label>
-            <span>VRAM</span>
+            <span>{{ 'model.vram' | t }}</span>
             <n-progress [value]="vramPercent()" variant="success-blue" size="xs" />
             <strong>{{ model().vramGb }} GB</strong>
           </label>
@@ -183,17 +202,11 @@ export class OvModelCardComponent {
   readonly model = input.required<ModelVm>();
   readonly download = input<ModelDownloadVm | null>(null);
   readonly downloadRequested = output<ModelVm>();
+  readonly toggling = input(false);
+  readonly enabledToggled = output<ModelVm>();
 
   formatMb(bytes: number): string {
     return (bytes / 1024 ** 2).toFixed(0);
-  }
-
-  qualityLabel(): string {
-    return this.model().quality > 90 ? 'Best' : (this.model().quality / 10).toFixed(1);
-  }
-
-  speedLabel(): string {
-    return this.model().speed > 60 ? 'Med' : (this.model().speed / 10).toFixed(1);
   }
 
   vramPercent(): number {

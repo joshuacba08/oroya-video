@@ -1,20 +1,21 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NProgress } from '@neuralangular/angular-ui/progress';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ProjectCardVm } from '../../core/models/oroya.models';
 
 @Component({
   selector: 'ov-project-card',
   standalone: true,
-  imports: [NIcon, NProgress, RouterLink],
+  imports: [NIcon, NProgress, RouterLink, TranslatePipe],
   template: `
     <a class="ov-project-card" [class.ov-project-card--empty]="empty()" [routerLink]="empty() ? null : ['/projects', project().id]">
       @if (empty()) {
         <div class="ov-project-card__empty">
           <span><n-icon name="plus" size="md" /></span>
-          <strong>New Project</strong>
+          <strong>{{ 'common.newProject' | t }}</strong>
         </div>
       } @else {
         <div class="ov-project-card__thumb" [class]="'ov-project-card__thumb ov-project-card__thumb--' + project().thumbnailTone">
@@ -24,11 +25,33 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
           }
         </div>
         <div class="ov-project-card__body">
-          <h3>{{ project().name }}</h3>
+          <div class="ov-project-card__title">
+            <h3>{{ project().name }}</h3>
+            @if (actions()) {
+              <span class="ov-project-card__actions" role="group" [attr.aria-label]="'projects.actions' | t">
+                <button
+                  type="button"
+                  [title]="'common.rename' | t"
+                  [attr.aria-label]="'common.rename' | t"
+                  (click)="emit($event, renameRequested)"
+                >
+                  <n-icon name="pencil" size="xs" />
+                </button>
+                <button
+                  type="button"
+                  [title]="'common.delete' | t"
+                  [attr.aria-label]="'common.delete' | t"
+                  (click)="emit($event, deleteRequested)"
+                >
+                  <n-icon name="trash-2" size="xs" />
+                </button>
+              </span>
+            }
+          </div>
           <p>{{ project().model }} - {{ project().duration }}</p>
           <div class="ov-project-card__status" [class]="'ov-project-card__status ov-project-card__status--' + project().statusTone">
             <n-icon [name]="statusIcon()" size="sm" />
-            <span>{{ project().status }} - {{ project().updatedLabel }}</span>
+            <span>{{ 'status.' + project().status | t: undefined : project().status }} - {{ project().updatedLabel }}</span>
           </div>
           @if (project().progress !== undefined && project().progress! > 0 && project().progress! < 100) {
             <n-progress [value]="project().progress!" variant="gemini-full" size="xs" />
@@ -199,6 +222,41 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
         color: var(--n-color-success);
       }
 
+      .ov-project-card__title {
+        display: flex;
+        align-items: start;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .ov-project-card__actions {
+        display: inline-flex;
+        gap: 4px;
+        opacity: 0;
+        transition: opacity var(--n-transition-fast);
+      }
+
+      .ov-project-card:hover .ov-project-card__actions,
+      .ov-project-card:focus-within .ov-project-card__actions {
+        opacity: 1;
+      }
+
+      .ov-project-card__actions button {
+        display: inline-grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border: 1px solid var(--n-border-1);
+        border-radius: var(--n-radius-sm, 6px);
+        background: var(--n-surface-2);
+        color: var(--n-text-2);
+        cursor: pointer;
+      }
+
+      .ov-project-card__actions button:hover {
+        color: var(--n-text-1);
+      }
+
       .ov-project-card__status--processing {
         color: var(--n-color-primary-light);
       }
@@ -212,6 +270,17 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
 export class OvProjectCardComponent {
   readonly project = input.required<ProjectCardVm>();
   readonly empty = input(false);
+  /** Muestra renombrar/eliminar (página de proyectos). */
+  readonly actions = input(false);
+  readonly renameRequested = output<ProjectCardVm>();
+  readonly deleteRequested = output<ProjectCardVm>();
+
+  // La tarjeta es un enlace: los botones no deben navegar al workspace.
+  emit(event: Event, target: { emit(value: ProjectCardVm): void }): void {
+    event.preventDefault();
+    event.stopPropagation();
+    target.emit(this.project());
+  }
 
   statusIcon(): string {
     switch (this.project().statusTone) {

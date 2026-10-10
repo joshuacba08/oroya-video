@@ -1,10 +1,12 @@
 import { AsyncPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
-import { catchError, firstValueFrom, map, of, switchMap } from 'rxjs';
+import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, switchMap } from 'rxjs';
 
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
+import { translate } from '../../core/i18n/i18n';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm, PickedVideo, ProjectCardVm } from '../../core/models/oroya.models';
 import { OvManualPathImportComponent } from '../../shared/ui/ov-manual-path-import.component';
 import { OvProjectCardComponent } from '../../shared/ui/ov-project-card.component';
@@ -12,7 +14,7 @@ import { OvProjectCardComponent } from '../../shared/ui/ov-project-card.componen
 @Component({
   selector: 'app-projects-page',
   standalone: true,
-  imports: [AsyncPipe, OvManualPathImportComponent, OvProjectCardComponent],
+  imports: [AsyncPipe, OvManualPathImportComponent, OvProjectCardComponent, TranslatePipe],
   templateUrl: './projects.page.html',
   styleUrl: './projects.page.css',
 })
@@ -25,9 +27,10 @@ export class ProjectsPage {
   readonly error = signal<ApiErrorVm | null>(null);
   readonly manualImportOpen = signal(false);
   readonly importing = signal(false);
-  readonly projects$ = this.route.queryParamMap.pipe(
-    map((params) => params.get('search') ?? undefined),
-    switchMap((search) => this.data.projects(search)),
+  private readonly reload$ = new BehaviorSubject(0);
+  readonly search$ = this.route.queryParamMap.pipe(map((params) => params.get('search') ?? ''));
+  readonly projects$ = combineLatest([this.search$, this.reload$]).pipe(
+    switchMap(([search]) => this.data.projects(search || undefined)),
     catchError((error: unknown) => {
       this.error.set(this.data.toErrorVm(error));
       return of(null);
@@ -35,7 +38,7 @@ export class ProjectsPage {
   );
   readonly emptyProject: ProjectCardVm = {
     id: 'new',
-    name: 'New Project',
+    name: '',
     model: '',
     duration: '',
     resolution: '',
@@ -44,6 +47,35 @@ export class ProjectsPage {
     updatedLabel: '',
     thumbnailTone: 'empty',
   };
+
+  clearSearch(): void {
+    void this.router.navigate(['/projects']);
+  }
+
+  async renameProject(project: ProjectCardVm): Promise<void> {
+    const name = window.prompt(translate('projects.renamePrompt'), project.name)?.trim();
+    if (!name || name === project.name) {
+      return;
+    }
+    await this.runAction(() => firstValueFrom(this.data.updateProject(project.id, { name })));
+  }
+
+  async deleteProject(project: ProjectCardVm): Promise<void> {
+    if (!window.confirm(translate('projects.deleteConfirm', { name: project.name }))) {
+      return;
+    }
+    await this.runAction(() => firstValueFrom(this.data.deleteProject(project.id)));
+  }
+
+  private async runAction(action: () => Promise<unknown>): Promise<void> {
+    try {
+      this.error.set(null);
+      await action();
+      this.reload$.next(Date.now());
+    } catch (error) {
+      this.error.set(this.data.toErrorVm(error));
+    }
+  }
 
   async newProject(): Promise<void> {
     if (!this.desktop.isDesktop()) {

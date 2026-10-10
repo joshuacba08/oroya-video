@@ -3,6 +3,8 @@ import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NImageCompare } from '@neuralangular/angular-ui/image-compare';
 
+import { translate } from '../../core/i18n/i18n';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { PreviewFrameVm, WorkspaceVm } from '../../core/models/oroya.models';
 
 export type PreviewCompareMode = 'slider' | 'side_by_side';
@@ -11,7 +13,7 @@ export type PreviewZoom = 'fit' | '100%';
 @Component({
   selector: 'ov-video-preview',
   standalone: true,
-  imports: [NButton, NIcon, NImageCompare],
+  imports: [NButton, NIcon, NImageCompare, TranslatePipe],
   template: `
     <section class="ov-video-preview">
       <div class="ov-video-preview__toolbar">
@@ -22,7 +24,7 @@ export type PreviewZoom = 'fit' | '100%';
             (click)="setCompareMode('slider')"
           >
             <n-icon name="columns-2" size="sm" />
-            Wipe
+            {{ 'preview.wipe' | t }}
           </button>
           <button
             type="button"
@@ -30,17 +32,17 @@ export type PreviewZoom = 'fit' | '100%';
             (click)="setCompareMode('side_by_side')"
           >
             <n-icon name="layout-grid" size="sm" />
-            Side by side
+            {{ 'preview.sideBySide' | t }}
           </button>
         </div>
         @if (filtersActive()) {
-          <span class="ov-video-preview__filters-badge" title="Denoise/sharpen filters are rendered into this preview">
+          <span class="ov-video-preview__filters-badge" [title]="'preview.filtersHint' | t">
             <n-icon name="sparkles" size="sm" />
-            Filters applied
+            {{ 'preview.filtersApplied' | t }}
           </span>
         }
         <div class="ov-video-preview__modes">
-          <button type="button" [class.on]="zoom() === 'fit'" (click)="setZoom('fit')">Fit</button>
+          <button type="button" [class.on]="zoom() === 'fit'" (click)="setZoom('fit')">{{ 'preview.fit' | t }}</button>
           <button type="button" [class.on]="zoom() === '100%'" (click)="setZoom('100%')">100%</button>
         </div>
       </div>
@@ -51,8 +53,8 @@ export type PreviewZoom = 'fit' | '100%';
         @if (!beforeSrc() && !afterSrc()) {
           <div class="ov-video-preview__empty">
             <n-icon name="film" size="xl" />
-            <strong>No preview yet</strong>
-            <span>Start processing to see the before/after comparison here.</span>
+            <strong>{{ 'preview.emptyTitle' | t }}</strong>
+            <span>{{ 'preview.emptyBody' | t }}</span>
           </div>
         } @else if (compareMode() === 'slider') {
           <n-image-compare
@@ -60,6 +62,8 @@ export type PreviewZoom = 'fit' | '100%';
             [afterSrc]="afterSrc()"
             [beforeLabel]="beforeLabel()"
             [afterLabel]="afterLabel()"
+            [beforeAlt]="'preview.originalAlt' | t"
+            [afterAlt]="'preview.enhancedAlt' | t"
             [value]="compareValue()"
             (valueChange)="compareValue.set($event)"
           />
@@ -68,13 +72,13 @@ export type PreviewZoom = 'fit' | '100%';
             <figure>
               <figcaption>{{ beforeLabel() }}</figcaption>
               <div class="ov-video-preview__pane" #beforePane (scroll)="syncScroll(beforePane, afterPane)">
-                <img [src]="beforeSrc()" alt="Original frame" [class.natural]="zoom() === '100%'" />
+                <img [src]="beforeSrc()" [alt]="'preview.originalAlt' | t" [class.natural]="zoom() === '100%'" />
               </div>
             </figure>
             <figure>
               <figcaption>{{ afterLabel() }}</figcaption>
               <div class="ov-video-preview__pane" #afterPane (scroll)="syncScroll(afterPane, beforePane)">
-                <img [src]="afterSrc()" alt="Enhanced frame" [class.natural]="zoom() === '100%'" />
+                <img [src]="afterSrc()" [alt]="'preview.enhancedAlt' | t" [class.natural]="zoom() === '100%'" />
               </div>
             </figure>
           </div>
@@ -96,7 +100,7 @@ export type PreviewZoom = 'fit' | '100%';
                 class="ov-video-preview__frame"
                 [class.ov-video-preview__frame--selected]="frame.index === selectedFrameIndex()"
                 (click)="frameSelected.emit(frame.index)"
-                [attr.aria-label]="'Preview frame ' + frame.index"
+                [attr.aria-label]="'preview.frameAria' | t: { index: frame.index }"
               >
                 @if (frame.enhancedUrl || frame.originalUrl) {
                   <img [src]="frame.enhancedUrl || frame.originalUrl" alt="" />
@@ -114,7 +118,7 @@ export type PreviewZoom = 'fit' | '100%';
             variant="secondary"
             size="sm"
             iconOnly
-            ariaLabel="Open current preview frame"
+            [ariaLabel]="'preview.openFrame' | t"
             [disabled]="!snapshotAvailable()"
             (click)="snapshotRequested.emit()"
           >
@@ -124,7 +128,7 @@ export type PreviewZoom = 'fit' | '100%';
             variant="secondary"
             size="sm"
             iconOnly
-            ariaLabel="Focus current preview frame"
+            [ariaLabel]="'preview.focus' | t"
             [disabled]="!snapshotAvailable()"
             (click)="focusRequested.emit()"
           >
@@ -371,8 +375,8 @@ export class OvVideoPreviewComponent {
   readonly workspace = input.required<WorkspaceVm>();
   readonly beforeSrc = input('');
   readonly afterSrc = input('');
-  readonly beforeLabel = input('Original');
-  readonly afterLabel = input('Enhanced');
+  readonly beforeLabel = input(translate('workspace.original'));
+  readonly afterLabel = input(translate('workspace.enhanced'));
   readonly frames = input<PreviewFrameVm[]>([]);
   readonly selectedFrameIndex = input<number | null>(null);
   readonly snapshotAvailable = input(false);
@@ -408,7 +412,9 @@ export class OvVideoPreviewComponent {
     }
 
     const total = this.totalFrames();
-    return total > 0 ? `frame ${index + 1} of ${total}` : `frame ${index + 1}`;
+    return total > 0
+      ? translate('preview.frameOf', { index: index + 1, total })
+      : translate('preview.frameLabel', { index: index + 1 });
   });
 
   setCompareMode(mode: PreviewCompareMode): void {

@@ -242,6 +242,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/storage/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open a storage folder (temp, models or exports) in the file explorer */
+        post: operations["storage_open_route_api_v1_system_storage_open_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/storage": {
         parameters: {
             query?: never;
@@ -1492,6 +1509,23 @@ export interface paths {
         get: operations["ai_install_progress_route_api_system_ai_install_progress_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/storage/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open a storage folder (temp, models or exports) in the file explorer */
+        post: operations["storage_open_route_api_system_storage_open_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4525,6 +4559,15 @@ export interface components {
             updated: boolean;
             settings: components["schemas"]["SettingsResponse"];
         };
+        /** StorageOpenResponse */
+        StorageOpenResponse: {
+            /** Target */
+            target: string;
+            /** Path */
+            path: string;
+            /** Opened */
+            opened: boolean;
+        };
         /** StoragePaths */
         StoragePaths: {
             /** Db */
@@ -5130,6 +5173,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AIInstallProgressResponse"];
+                };
+            };
+        };
+    };
+    storage_open_route_api_v1_system_storage_open_post: {
+        parameters: {
+            query: {
+                target: "temp" | "models" | "exports";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOpenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7723,6 +7797,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AIInstallProgressResponse"];
+                };
+            };
+        };
+    };
+    storage_open_route_api_system_storage_open_post: {
+        parameters: {
+            query: {
+                target: "temp" | "models" | "exports";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StorageOpenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

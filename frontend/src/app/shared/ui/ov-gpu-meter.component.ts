@@ -2,16 +2,17 @@ import { Component, input } from '@angular/core';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NProgress } from '@neuralangular/angular-ui/progress';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { SystemStatusVm } from '../../core/models/oroya.models';
 
 @Component({
   selector: 'ov-gpu-meter',
   standalone: true,
-  imports: [NIcon, NProgress],
+  imports: [NIcon, NProgress, TranslatePipe],
   template: `
     <section class="ov-gpu-meter">
       <header>
-        <span><n-icon name="cpu" size="sm" /> GPU - {{ system().gpuName }}</span>
+        <span><n-icon name="cpu" size="sm" /> {{ 'gpu.label' | t: { name: system().gpuName } }}</span>
         <strong>{{ system().gpuUsage }}%</strong>
       </header>
       <n-progress [value]="system().gpuUsage" variant="primary" size="xs" />

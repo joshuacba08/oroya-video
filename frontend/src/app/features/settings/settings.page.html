@@ -1,71 +1,77 @@
 <section class="settings-page">
-  <h1><span class="gt-text">Settings</span></h1>
+  <h1><span class="gt-text">{{ 'nav.settings' | t }}</span></h1>
 
   @if (error(); as errorVm) {
     <div class="settings-page__error">
       <strong>{{ errorVm.message }}</strong>
       @if (errorVm.requestId) {
-        <span>Request {{ errorVm.requestId }}</span>
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
       }
     </div>
   }
 
   @if (settings$ | async; as settings) {
     <section class="settings-page__section">
-      <h2>General</h2>
-      <ov-settings-row label="Language">
-        <n-select size="sm" [options]="languageOptions" [value]="settings.language" (valueChange)="updateLanguage($event)" />
+      <h2>{{ 'settings.general' | t }}</h2>
+      <ov-settings-row [label]="'settings.language' | t">
+        <n-select size="sm" [options]="languageOptions()" [value]="settings.language" (valueChange)="updateLanguage($event)" />
       </ov-settings-row>
-      <ov-settings-row label="Theme" description="Appearance of the interface">
-        <n-select size="sm" [options]="themeOptions" [value]="settings.theme" (valueChange)="updateTheme($event)" />
+      <ov-settings-row [label]="'settings.theme' | t" [description]="'settings.themeDescription' | t">
+        <n-select size="sm" [options]="themeOptions()" [value]="settings.theme" (valueChange)="updateTheme($event)" />
       </ov-settings-row>
-      <ov-settings-row label="Cleanup temp on success">
+      <ov-settings-row [label]="'settings.cleanupOnSuccess' | t">
         <label class="switch">
           <input type="checkbox" [checked]="settings.cleanupTempOnSuccess" (change)="updateCleanupOnSuccess($any($event.target).checked)" />
           <span></span>
         </label>
       </ov-settings-row>
-      <ov-settings-row label="Preview frames kept" description="Frames preserved for the before/after preview after cleanup">
+      <ov-settings-row [label]="'settings.previewKept' | t" [description]="'settings.previewKeptDescription' | t">
         <div class="range-row">
-          <input type="range" min="0" max="96" step="4" [value]="settings.cleanupKeepPreviewFrames" (change)="updateKeepPreviewFrames($any($event.target).value)" />
+          <input type="range" min="4" max="96" step="4" [value]="settings.cleanupKeepPreviewFrames" (change)="updateKeepPreviewFrames($any($event.target).value)" />
           <strong>{{ settings.cleanupKeepPreviewFrames }}</strong>
+        </div>
+      </ov-settings-row>
+      <ov-settings-row [label]="'settings.tempMaxAge' | t" [description]="'settings.tempMaxAgeDescription' | t">
+        <div class="range-row">
+          <input type="range" min="12" max="336" step="12" [value]="settings.cleanupOlderThanHours" (change)="updateTempMaxAge($any($event.target).value)" />
+          <strong>{{ 'settings.hours' | t: { hours: settings.cleanupOlderThanHours } }}</strong>
         </div>
       </ov-settings-row>
     </section>
 
     <section class="settings-page__section">
-      <h2>Performance</h2>
-      <ov-settings-row label="Enhancer engine" description="Frame enhancement backend">
+      <h2>{{ 'settings.performance' | t }}</h2>
+      <ov-settings-row [label]="'settings.engine' | t" [description]="'settings.engineDescription' | t">
         <n-select size="sm" [options]="engineOptions(settings.frameEnhancerEngine)" [value]="settings.frameEnhancerEngine" (valueChange)="updateEngine($event)" />
       </ov-settings-row>
-      <ov-settings-row label="AI device" description="Primary processing device">
-        <n-select size="sm" [options]="aiDeviceOptions" [value]="settings.aiDevice" (valueChange)="updateAiDevice($event)" />
+      <ov-settings-row [label]="'settings.device' | t" [description]="'settings.deviceDescription' | t">
+        <n-select size="sm" [options]="aiDeviceOptions()" [value]="settings.aiDevice" (valueChange)="updateAiDevice($event)" />
       </ov-settings-row>
-      <ov-settings-row label="Allow CPU fallback">
+      <ov-settings-row [label]="'settings.allowCpu' | t">
         <label class="switch">
           <input type="checkbox" [checked]="settings.aiAllowCpu" (change)="updateAllowCpu($any($event.target).checked)" />
           <span></span>
         </label>
       </ov-settings-row>
-      <ov-settings-row label="Half precision">
+      <ov-settings-row [label]="'settings.halfPrecision' | t">
         <label class="switch">
           <input type="checkbox" [checked]="settings.aiHalfPrecision" (change)="updateHalfPrecision($any($event.target).checked)" />
           <span></span>
         </label>
       </ov-settings-row>
-      <ov-settings-row label="Real-ESRGAN tile size" description="0 lets the backend auto-select">
+      <ov-settings-row [label]="'settings.tileSize' | t" [description]="'settings.tileSizeDescription' | t">
         <div class="range-row">
           <input type="range" min="0" max="1200" step="100" [value]="settings.realesrganTileSize" (change)="updateTileSize($any($event.target).value)" />
           <strong>{{ settings.realesrganTileSize }}</strong>
         </div>
       </ov-settings-row>
-      <ov-settings-row label="Tile padding" description="Overlap between tiles to avoid seams">
+      <ov-settings-row [label]="'settings.tilePad' | t" [description]="'settings.tilePadDescription' | t">
         <div class="range-row">
           <input type="range" min="0" max="50" step="2" [value]="settings.realesrganTilePad" (change)="updateTilePad($any($event.target).value)" />
           <strong>{{ settings.realesrganTilePad }}</strong>
         </div>
       </ov-settings-row>
-      <ov-settings-row label="Pre padding" description="Border padding before inference">
+      <ov-settings-row [label]="'settings.prePad' | t" [description]="'settings.prePadDescription' | t">
         <div class="range-row">
           <input type="range" min="0" max="50" step="2" [value]="settings.realesrganPrePad" (change)="updatePrePad($any($event.target).value)" />
           <strong>{{ settings.realesrganPrePad }}</strong>
@@ -74,23 +80,23 @@
     </section>
 
     <section class="settings-page__section">
-      <h2>Storage</h2>
-      <ov-settings-row label="Temp Folder" [description]="settings.tempPath">
-        <n-button variant="secondary" size="sm" disabled>
-          <n-icon name="folder" size="sm" />
-          Change
+      <h2>{{ 'settings.storage' | t }}</h2>
+      <ov-settings-row [label]="'settings.tempFolder' | t" [description]="settings.tempPath">
+        <n-button variant="secondary" size="sm" (click)="openStorage('temp')">
+          <n-icon name="folder-open" size="sm" />
+          {{ 'common.openFolder' | t }}
         </n-button>
       </ov-settings-row>
-      <ov-settings-row label="Models Folder" [description]="settings.modelsPath">
-        <n-button variant="secondary" size="sm" disabled>
-          <n-icon name="folder" size="sm" />
-          Change
+      <ov-settings-row [label]="'settings.modelsFolder' | t" [description]="settings.modelsPath">
+        <n-button variant="secondary" size="sm" (click)="openStorage('models')">
+          <n-icon name="folder-open" size="sm" />
+          {{ 'common.openFolder' | t }}
         </n-button>
       </ov-settings-row>
-      <ov-settings-row label="Exports Folder" [description]="settings.exportsPath">
-        <n-button variant="secondary" size="sm" disabled>
-          <n-icon name="folder" size="sm" />
-          Change
+      <ov-settings-row [label]="'settings.exportsFolder' | t" [description]="settings.exportsPath">
+        <n-button variant="secondary" size="sm" (click)="openStorage('exports')">
+          <n-icon name="folder-open" size="sm" />
+          {{ 'common.openFolder' | t }}
         </n-button>
       </ov-settings-row>
     </section>

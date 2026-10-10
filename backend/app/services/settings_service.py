@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.errors import InvalidProjectConfigurationError, JobInvalidStateError
+from app.core.errors import InvalidProjectConfigurationError, SettingsLockedByRunningJobError
 from app.core.logging import get_logger
 from app.core.paths import get_exports_path, get_models_path, get_settings_file_path, get_temp_path
 from app.db.models import ProcessingJob
@@ -145,7 +145,7 @@ def build_settings_response(settings: Settings | None = None) -> SettingsRespons
 def _ensure_no_running_jobs(db: Session) -> None:
     running_job = db.query(ProcessingJob).filter(ProcessingJob.status == "running").first()
     if running_job is not None:
-        raise JobInvalidStateError()
+        raise SettingsLockedByRunningJobError()
 
 
 def update_settings(

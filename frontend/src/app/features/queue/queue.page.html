@@ -1,51 +1,52 @@
 <section class="queue-page">
-  <header>
-    <h1>Processing <span class="gt-text">Queue</span></h1>
-    <div>
-      <n-button variant="secondary" size="sm" disabled>
-        <n-icon name="pause-circle" size="sm" />
-        Pause All
-      </n-button>
-      <n-button variant="secondary" size="sm" disabled>
-        <n-icon name="arrow-up-down" size="sm" />
-        Priority
-      </n-button>
-    </div>
-  </header>
-
   @if (error(); as errorVm) {
     <div class="queue-page__error">
       <strong>{{ errorVm.message }}</strong>
       @if (errorVm.requestId) {
-        <span>Request {{ errorVm.requestId }}</span>
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
       }
     </div>
   }
 
   @if (queue$ | async; as jobs) {
+    <header>
+      <h1>{{ 'queue.titlePrefix' | t }} <span class="gt-text">{{ 'queue.titleEmphasis' | t }}</span></h1>
+      <div>
+        <n-button
+          variant="secondary"
+          size="sm"
+          [disabled]="!pausableJobs(jobs).length || pausingAll()"
+          (click)="pauseAll(jobs)"
+        >
+          <n-icon name="pause-circle" size="sm" />
+          {{ 'queue.pauseAll' | t }}
+        </n-button>
+      </div>
+    </header>
+
     <div class="queue-page__list">
       @if (!jobs.length) {
-        <p class="queue-page__empty">No jobs in queue.</p>
+        <p class="queue-page__empty">{{ 'queue.empty' | t }}</p>
       }
       @for (job of jobs; track job.id) {
         <div
           class="queue-page__card-link"
           role="link"
           tabindex="0"
-          [attr.aria-label]="'Open workspace for ' + job.projectName"
+          [attr.aria-label]="'queue.openWorkspace' | t: { name: job.projectName }"
           (click)="openJob(job)"
           (keyup.enter)="openJob(job)"
         >
         <n-job-card
           [title]="job.projectName"
-          [subtitle]="job.model + ' - ' + job.resolution + ' - ' + job.duration + ' duration'"
-          [status]="job.status"
+          [subtitle]="'queue.subtitle' | t: { model: job.model, resolution: job.resolution, duration: job.duration }"
+          [status]="'status.' + job.status | t: undefined : job.status"
           [statusType]="badgeTone(job)"
           [progress]="job.progress"
           [progressLabel]="job.stage"
         >
           <n-ai-pipeline
-            label="AI Pipeline"
+            [label]="'pipeline.label' | t"
             orientation="horizontal"
             density="compact"
             [steps]="job.pipeline"
@@ -60,7 +61,7 @@
                 </span>
               }
               @if (job.avgFrameTimeMs) {
-                <span class="queue-page__telemetry-item">{{ job.avgFrameTimeMs }} ms/frame</span>
+                <span class="queue-page__telemetry-item">{{ 'queue.msPerFrame' | t: { ms: job.avgFrameTimeMs } }}</span>
               }
               @if (job.etaLabel) {
                 <span class="queue-page__telemetry-item queue-page__telemetry-item--eta">
@@ -69,7 +70,7 @@
               }
               @if (job.failedFrames > 0) {
                 <span class="queue-page__telemetry-item queue-page__telemetry-item--failed">
-                  {{ job.failedFrames }} failed frames
+                  {{ 'queue.failedFrames' | t: { count: job.failedFrames } }}
                 </span>
               }
             </div>
@@ -81,31 +82,31 @@
             @if (job.canStart) {
               <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="startOrResume(job)">
                 <n-icon name="play" size="sm" />
-                {{ job.status === 'paused' ? 'Resume' : 'Start' }}
+                {{ (job.status === 'paused' ? 'common.resume' : 'common.start') | t }}
               </n-button>
             }
             @if (job.canPause) {
               <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="pause(job)">
                 <n-icon name="pause-circle" size="sm" />
-                Pause
+                {{ 'common.pause' | t }}
               </n-button>
             }
             @if (job.canCancel) {
               <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="cancel(job)">
                 <n-icon name="circle-x" size="sm" />
-                Cancel
+                {{ 'common.cancel' | t }}
               </n-button>
             }
             @if (job.canRetry) {
               <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="retry(job)">
                 <n-icon name="rotate-ccw" size="sm" />
-                Retry
+                {{ 'common.retry' | t }}
               </n-button>
             }
             @if (job.canCleanup) {
               <n-button variant="secondary" size="sm" [disabled]="busyJobId() === job.id" (click)="cleanup(job)">
                 <n-icon name="trash-2" size="sm" />
-                Cleanup
+                {{ 'common.cleanup' | t }}
               </n-button>
             }
           </div>

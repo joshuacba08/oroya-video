@@ -3,8 +3,15 @@
     <div class="dashboard-page__error">
       <strong>{{ errorVm.message }}</strong>
       @if (errorVm.requestId) {
-        <span>Request {{ errorVm.requestId }}</span>
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
       }
+    </div>
+  }
+
+  @if (notice(); as noticeText) {
+    <div class="dashboard-page__notice">
+      <n-icon name="circle-check" size="sm" />
+      <span>{{ noticeText }}</span>
     </div>
   }
 
@@ -25,33 +32,33 @@
       <span class="dashboard-page__source">{{ dashboard.source }}</span>
     </div>
 
-    <ov-section-header label="Recent Projects" />
+    <ov-section-header [label]="'dashboard.recentProjects' | t" />
     <div class="dashboard-page__projects">
       @for (project of dashboard.recentProjects; track project.id) {
         <ov-project-card [project]="project" />
       }
-      <button type="button" class="dashboard-page__new" (click)="importVideo()">
+      <button type="button" class="dashboard-page__new" (click)="newProject()">
         <ov-project-card [project]="emptyProject" [empty]="true" />
       </button>
     </div>
 
-    <ov-section-header label="Quick Actions" />
+    <ov-section-header [label]="'dashboard.quickActions' | t" />
     <div class="dashboard-page__actions">
-      <button type="button" class="quick-action" (click)="importVideo()">
+      <button type="button" class="quick-action" [disabled]="importing()" (click)="importVideo()">
         <n-icon name="file-video" size="md" />
-        <span>Import Video</span>
+        <span>{{ 'dashboard.importVideo' | t }}</span>
       </button>
-      <button type="button" class="quick-action" (click)="importVideo()">
+      <button type="button" class="quick-action" [disabled]="importing()" (click)="newProject()">
         <n-icon name="folder-open" size="md" />
-        <span>New Project</span>
+        <span>{{ 'common.newProject' | t }}</span>
       </button>
       <button type="button" class="quick-action" (click)="openExports()">
         <n-icon name="download" size="md" />
-        <span>Open Exports</span>
+        <span>{{ 'dashboard.openExports' | t }}</span>
       </button>
     </div>
 
-    <ov-section-header label="System Status" />
+    <ov-section-header [label]="'dashboard.systemStatus' | t" />
     <div class="dashboard-page__system">
       <n-card>
         <n-card-content>
@@ -64,7 +71,7 @@
           <div class="models-status">
             <header>
               <n-icon name="box" size="md" />
-              <strong>Installed Models</strong>
+              <strong>{{ 'dashboard.installedModels' | t }}</strong>
             </header>
             @for (model of dashboard.installedModels.slice(0, 3); track model.id) {
               <div class="models-status__row">
@@ -73,9 +80,13 @@
               </div>
             }
             <footer>
-              <span>{{ dashboard.installedModels.length }} models ready</span>
+              <span>{{ 'dashboard.modelsReady' | t: { count: dashboard.installedModels.length } }}</span>
               <a routerLink="/models">
-                {{ dashboard.availableModelsCount > 0 ? dashboard.availableModelsCount + ' available' : 'Manage' }}
+                {{
+                  dashboard.availableModelsCount > 0
+                    ? ('dashboard.modelsAvailable' | t: { count: dashboard.availableModelsCount })
+                    : ('common.manage' | t)
+                }}
               </a>
             </footer>
           </div>

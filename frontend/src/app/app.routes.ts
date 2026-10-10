@@ -16,49 +16,49 @@ export const routes: Routes = [
         path: 'dashboard',
         loadComponent: () =>
           import('./features/dashboard/dashboard.page').then((m) => m.DashboardPage),
-        title: 'Oroya Video - Dashboard',
+        title: 'nav.dashboard',
       },
       {
         path: 'projects',
         loadComponent: () =>
           import('./features/projects/projects.page').then((m) => m.ProjectsPage),
-        title: 'Oroya Video - Projects',
+        title: 'nav.projects',
       },
       {
         path: 'projects/:id',
         loadComponent: () =>
           import('./features/workspace/workspace.page').then((m) => m.WorkspacePage),
-        title: 'Oroya Video - Workspace',
+        title: 'nav.workspace',
       },
       {
         path: 'queue',
         loadComponent: () =>
           import('./features/queue/queue.page').then((m) => m.QueuePage),
-        title: 'Oroya Video - Processing Queue',
+        title: 'nav.queue',
       },
       {
         path: 'models',
         loadComponent: () =>
           import('./features/models/models.page').then((m) => m.ModelsPage),
-        title: 'Oroya Video - Models',
+        title: 'nav.models',
       },
       {
         path: 'exports',
         loadComponent: () =>
           import('./features/exports/exports.page').then((m) => m.ExportsPage),
-        title: 'Oroya Video - Exports',
+        title: 'nav.exports',
       },
       {
         path: 'settings',
         loadComponent: () =>
           import('./features/settings/settings.page').then((m) => m.SettingsPage),
-        title: 'Oroya Video - Settings',
+        title: 'nav.settings',
       },
       {
         path: 'setup',
         loadComponent: () =>
           import('./features/setup/setup.page').then((m) => m.SetupPage),
-        title: 'Oroya Video - Setup',
+        title: 'nav.setup',
       },
     ],
   },

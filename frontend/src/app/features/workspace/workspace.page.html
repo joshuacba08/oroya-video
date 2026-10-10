@@ -4,7 +4,7 @@
       <div class="workspace-page__error">
         <strong>{{ errorVm.message }}</strong>
         @if (errorVm.requestId) {
-          <span>Request {{ errorVm.requestId }}</span>
+          <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
         }
       </div>
     }
@@ -12,7 +12,7 @@
     @if (preflight(); as preflightVm) {
       @if (!preflightVm.ready) {
         <div class="workspace-page__error workspace-page__preflight">
-          <strong>Preflight failed</strong>
+          <strong>{{ 'workspace.preflightFailed' | t }}</strong>
           @if (preflightVm.errors.length) {
             <ul>
               @for (item of preflightVm.errors; track item) {
@@ -28,7 +28,7 @@
             </ul>
           }
           @if (failingChecks(preflightVm).length) {
-            <span>Failed checks: {{ failingChecks(preflightVm).join(', ') }}</span>
+            <span>{{ 'workspace.failedChecks' | t: { checks: failingChecks(preflightVm).join(', ') } }}</span>
           }
         </div>
       }
@@ -38,7 +38,7 @@
       <div class="workspace-page__error workspace-page__error--soft">
         <strong>{{ previewErrorVm.message }}</strong>
         @if (previewErrorVm.requestId) {
-          <span>Request {{ previewErrorVm.requestId }}</span>
+          <span>{{ 'common.request' | t: { id: previewErrorVm.requestId } }}</span>
         }
       </div>
     }
@@ -48,13 +48,13 @@
     <header class="workspace-page__top">
       <button type="button" class="workspace-page__back" (click)="backToProjects()">
         <n-icon name="chevron-left" size="md" />
-        Projects
+        {{ 'nav.projects' | t }}
       </button>
       <h1>{{ workspace.project.name }}</h1>
       <div>
         <n-button variant="secondary" size="sm" [disabled]="!hasPreview(workspace)" (click)="takeSnapshot(workspace)">
           <n-icon name="image" size="sm" />
-          Snapshot
+          {{ 'workspace.snapshot' | t }}
         </n-button>
         @if (liveJob(); as job) {
           @if (hasActiveLiveJob()) {
@@ -67,36 +67,36 @@
             @if (job.status === 'paused') {
               <n-button variant="primary" size="sm" [disabled]="jobActionBusy()" (click)="resumeActiveJob(workspace)">
                 <n-icon name="play" size="sm" />
-                Resume
+                {{ 'common.resume' | t }}
               </n-button>
             } @else if (job.canPause) {
               <n-button variant="secondary" size="sm" [disabled]="jobActionBusy()" (click)="pauseActiveJob()">
                 <n-icon name="pause-circle" size="sm" />
-                Pause
+                {{ 'common.pause' | t }}
               </n-button>
             }
             @if (job.canCancel) {
               <n-button variant="secondary" size="sm" [disabled]="jobActionBusy()" (click)="cancelActiveJob()">
                 <n-icon name="circle-x" size="sm" />
-                Cancel
+                {{ 'common.cancel' | t }}
               </n-button>
             }
           } @else {
             @if (job.canRetry) {
               <n-button variant="secondary" size="sm" [disabled]="jobActionBusy()" (click)="retryActiveJob(workspace)">
                 <n-icon name="rotate-ccw" size="sm" />
-                Retry
+                {{ 'common.retry' | t }}
               </n-button>
             }
             <n-button variant="primary" size="sm" [disabled]="processing()" (click)="startProcessing(workspace)">
               <n-icon name="play" size="sm" />
-              {{ processing() ? 'Starting...' : 'Start Processing' }}
+              {{ (processing() ? 'workspace.starting' : 'workspace.startProcessing') | t }}
             </n-button>
           }
         } @else {
           <n-button variant="primary" size="sm" [disabled]="processing()" (click)="startProcessing(workspace)">
             <n-icon name="play" size="sm" />
-            {{ processing() ? 'Starting...' : 'Start Processing' }}
+            {{ (processing() ? 'workspace.starting' : 'workspace.startProcessing') | t }}
           </n-button>
         }
       </div>
@@ -105,8 +105,8 @@
     @if (liveJob()?.status === 'completed' && workspace.latestExportId) {
       <div class="workspace-page__export-ready">
         <n-icon name="circle-check" size="sm" />
-        <span>Processing completed. Your export is ready.</span>
-        <a routerLink="/exports">Open Exports</a>
+        <span>{{ 'workspace.exportReady' | t }}</span>
+        <a routerLink="/exports">{{ 'dashboard.openExports' | t }}</a>
       </div>
     }
 
@@ -119,13 +119,13 @@
           (click)="toggleSection('video')"
         >
           <n-icon name="film" size="md" />
-          <span>Video Info</span>
+          <span>{{ 'workspace.videoInfo' | t }}</span>
           <n-icon [name]="isCollapsed('video') ? 'chevron-right' : 'chevron-down'" size="sm" />
         </button>
         @if (!isCollapsed('video')) {
           <dl class="video-info">
             @for (row of workspace.videoInfo; track row.label) {
-              <div><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
+              <div><dt>{{ row.label | t }}</dt><dd>{{ row.value }}</dd></div>
             }
           </dl>
         }
@@ -140,7 +140,7 @@
           (click)="toggleSection('model')"
         >
           <n-icon name="box" size="md" />
-          <span>AI Model</span>
+          <span>{{ 'workspace.aiModel' | t }}</span>
           <n-icon [name]="isCollapsed('model') ? 'chevron-right' : 'chevron-down'" size="sm" />
         </button>
         @if (!isCollapsed('model')) {
@@ -155,16 +155,16 @@
             <header>
               <strong>{{ model.name }}</strong>
               @if (model.id === current.modelId) {
-                <span>Selected</span>
+                <span>{{ 'model.selected' | t }}</span>
               }
             </header>
             <p>{{ model.description }}</p>
             <label>
-              <span>Quality</span>
+              <span>{{ 'model.quality' | t }}</span>
               <n-progress [value]="model.quality" variant="gemini" size="xs" />
             </label>
             <label>
-              <span>GPU Load</span>
+              <span>{{ 'model.gpuLoad' | t }}</span>
               <n-progress [value]="model.vramGb * 8" variant="warning" size="xs" />
             </label>
           </button>
@@ -180,20 +180,20 @@
           (click)="toggleSection('enhancement')"
         >
           <n-icon name="settings" size="md" />
-          <span>Enhancement</span>
+          <span>{{ 'workspace.enhancement' | t }}</span>
           <n-icon [name]="isCollapsed('enhancement') ? 'chevron-right' : 'chevron-down'" size="sm" />
         </button>
         @if (!isCollapsed('enhancement')) {
         <div class="enhance-row">
-          <span>Resolution</span>
+          <span>{{ 'workspace.resolution' | t }}</span>
           <div class="segmented">
-            <button type="button" [class.on]="current.scale === 'original'" (click)="setScale(workspace, 'original')">Original</button>
+            <button type="button" [class.on]="current.scale === 'original'" (click)="setScale(workspace, 'original')">{{ 'workspace.original' | t }}</button>
             <button type="button" [class.on]="current.scale === '2x'" (click)="setScale(workspace, '2x')">2x</button>
             <button type="button" [class.on]="current.scale === '4x'" (click)="setScale(workspace, '4x')">4x</button>
           </div>
         </div>
         <label class="slider-row">
-          <span>Denoise</span>
+          <span>{{ 'workspace.denoise' | t }}</span>
           <input
             type="range"
             min="0"
@@ -204,7 +204,7 @@
           <strong>{{ current.denoise }}</strong>
         </label>
         <label class="slider-row">
-          <span>Sharpen</span>
+          <span>{{ 'workspace.sharpen' | t }}</span>
           <input
             type="range"
             min="0"
@@ -215,7 +215,7 @@
           <strong>{{ current.sharpen }}</strong>
         </label>
         <div class="enhance-row">
-          <span>Compression Cleanup</span>
+          <span>{{ 'workspace.compressionCleanup' | t }}</span>
           <label class="switch">
             <input
               type="checkbox"
@@ -226,7 +226,7 @@
           </label>
         </div>
         <div class="enhance-row">
-          <span>Keep Audio</span>
+          <span>{{ 'workspace.keepAudio' | t }}</span>
           <label class="switch">
             <input
               type="checkbox"
@@ -238,10 +238,10 @@
         </div>
         <p class="save-state" [class.save-state--error]="saveState() === 'error'">
           @switch (saveState()) {
-            @case ('saving') { Saving settings... }
-            @case ('saved') { Settings saved }
-            @case ('error') { Settings could not be saved }
-            @default { Job settings }
+            @case ('saving') { {{ 'workspace.saving' | t }} }
+            @case ('saved') { {{ 'workspace.saved' | t }} }
+            @case ('error') { {{ 'workspace.saveFailed' | t }} }
+            @default { {{ 'workspace.jobSettings' | t }} }
           }
         </p>
         }
@@ -250,7 +250,7 @@
 
       <section class="inspector-block">
         <n-ai-pipeline
-          label="AI Pipeline"
+          [label]="'pipeline.label' | t"
           orientation="vertical"
           density="compact"
           [steps]="liveJob()?.pipeline ?? workspace.pipeline"
@@ -266,21 +266,21 @@
           (click)="toggleSection('estimate')"
         >
           <n-icon name="clock" size="md" />
-          <span>Estimate</span>
+          <span>{{ 'workspace.estimate' | t }}</span>
           <n-icon [name]="isCollapsed('estimate') ? 'chevron-right' : 'chevron-down'" size="sm" />
         </button>
         @if (!isCollapsed('estimate')) {
         <div>
-          <span>{{ hasActiveLiveJob() ? 'Remaining' : 'Processing Time' }}</span>
+          <span>{{ (hasActiveLiveJob() ? 'workspace.remaining' : 'workspace.processingTime') | t }}</span>
           <strong>{{ liveJob()?.etaLabel ?? workspace.estimateTime }}</strong>
         </div>
         @if (liveJob()?.avgFrameTimeMs; as avgMs) {
-          <div><span>Frame Time</span><strong>{{ avgMs }} ms</strong></div>
+          <div><span>{{ 'workspace.frameTime' | t }}</span><strong>{{ avgMs }} ms</strong></div>
         }
         @if (liveJob()?.device; as device) {
-          <div><span>Device</span><strong>{{ device.toUpperCase() }}</strong></div>
+          <div><span>{{ 'workspace.device' | t }}</span><strong>{{ device.toUpperCase() }}</strong></div>
         }
-        <div><span>Output Size</span><strong>{{ workspace.outputSize }}</strong></div>
+        <div><span>{{ 'workspace.outputSize' | t }}</span><strong>{{ workspace.outputSize }}</strong></div>
         }
       </section>
     </aside>
@@ -294,7 +294,7 @@
           (click)="toggleFollowLive()"
         >
           <n-icon name="radio" size="sm" />
-          {{ followLive() ? 'Following live' : 'Follow live' }}
+          {{ (followLive() ? 'workspace.followingLive' : 'workspace.followLive') | t }}
         </button>
       }
       <ov-video-preview

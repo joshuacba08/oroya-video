@@ -221,6 +221,15 @@ class JobNotFoundError(OroyaVideoError):
         )
 
 
+class SettingsLockedByRunningJobError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Processing settings cannot change while a job is running.",
+            error_code="settings_locked_by_running_job",
+            status_code=409,
+        )
+
+
 class JobInvalidStateError(OroyaVideoError):
     def __init__(self) -> None:
         super().__init__(

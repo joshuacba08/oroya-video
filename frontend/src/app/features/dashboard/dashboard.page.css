@@ -201,3 +201,15 @@ p {
     grid-template-columns: 1fr;
   }
 }
+
+.dashboard-page__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--n-color-success), transparent 70%);
+  border-radius: var(--n-radius-md);
+  background: color-mix(in srgb, var(--n-color-success), transparent 91%);
+  color: var(--n-text-1);
+  font-size: 0.86rem;
+}

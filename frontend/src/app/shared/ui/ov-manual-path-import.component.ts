@@ -1,15 +1,17 @@
 import { ChangeDetectionStrategy, Component, input, output, signal } from '@angular/core';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
+
 @Component({
   selector: 'ov-manual-path-import',
   standalone: true,
-  imports: [NIcon],
+  imports: [NIcon, TranslatePipe],
   template: `
     <form class="manual-path" (submit)="submit($event)">
       <label class="manual-path__label" for="manual-video-path">
         <n-icon name="file-video" size="sm" />
-        <span>Absolute video path</span>
+        <span>{{ 'import.pathLabel' | t }}</span>
       </label>
       <div class="manual-path__controls">
         <input
@@ -17,13 +19,14 @@ import { NIcon } from '@neuralangular/angular-ui/icon';
           type="text"
           autocomplete="off"
           spellcheck="false"
-          placeholder="C:\\Users\\Ander\\Videos\\sample.mp4"
+          placeholder="C:\\Videos\\sample.mp4"
+          [title]="'import.pathHint' | t"
           [value]="path()"
           (input)="path.set(inputValue($event))"
         />
-        <button type="submit" [disabled]="busy() || !path().trim()">Import</button>
+        <button type="submit" [disabled]="busy() || !path().trim()">{{ 'common.import' | t }}</button>
         <button type="button" class="manual-path__ghost" [disabled]="busy()" (click)="cancelled.emit()">
-          Cancel
+          {{ 'common.cancel' | t }}
         </button>
       </div>
     </form>

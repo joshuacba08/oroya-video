@@ -26,12 +26,12 @@ import type {
   SystemStatusVm,
   WorkspaceVm,
 } from '../models/oroya.models';
+import { getLocale, translate } from '../i18n/i18n';
 
 type UnknownRecord = Record<string, unknown>;
 
 const tones: ProjectTone[] = ['violet', 'green', 'rose', 'blue'];
 const pipelineOrder = ['import', 'extract', 'enhance', 'encode', 'export'];
-const pipelineTitles = ['Import', 'Extract', 'Enhance', 'Encode', 'Export'];
 const pipelineIcons = ['upload', 'film', 'sparkles', 'box', 'download'];
 
 function record(value: unknown): UnknownRecord {
@@ -82,8 +82,7 @@ export function formatDateLabel(value: unknown, fallback = 'recent'): string {
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-  const locale = typeof document !== 'undefined' ? document.documentElement.lang : '';
-  return date.toLocaleString(locale || undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return date.toLocaleString(getLocale(), { dateStyle: 'medium', timeStyle: 'short' });
 }
 
 function formatSeconds(seconds: unknown, fallback = '--:--'): string {
@@ -157,7 +156,7 @@ function stageToPipeline(stage: string, progress: number, status = ''): Pipeline
 
   return pipelineOrder.map((id, index) => ({
     id,
-    title: pipelineTitles[index],
+    title: translate(`pipeline.${id}`),
     icon: pipelineIcons[index],
     status:
       failed && index === activeIndex
@@ -180,7 +179,8 @@ function resolutionFromConfig(source: UnknownRecord): string {
   const config = record(source['enhancement_config']);
   const exportConfig = record(source['export_config']);
   const scale = stringValue(config['scale'], stringValue(exportConfig['output_resolution'], '2x'));
-  const label = scale === '4x' ? 'Original -> 4K' : scale === 'original' ? 'Original' : 'Original -> 2x';
+  const original = translate('workspace.original');
+  const label = scale === 'original' ? original : `${original} → ${scale === '4x' ? '4x' : '2x'}`;
   return pickString(source, ['resolution', 'resolution_label', 'target_resolution'], label);
 }
 
@@ -229,11 +229,14 @@ export function mapDashboard(response: DashboardResponse): DashboardVm {
     activeJobs,
     installedModels: [],
     availableModelsCount: numberValue(record(response.models)['missing'], 0),
-    subtitle: `${projects.length} recent projects - ${
-      response.system_status.ready ? 'System ready' : 'System needs setup'
-    }`,
+    subtitle: translate('dashboard.subtitle', {
+      count: projects.length,
+      state: translate(
+        response.system_status.ready ? 'dashboard.systemReady' : 'dashboard.systemNeedsSetup',
+      ),
+    }),
     system: {
-      gpuName: 'Detecting GPU...',
+      gpuName: translate('gpu.detecting'),
       gpuUsage: 0,
       vramUsedGb: 0,
       vramTotalGb: 0,
@@ -249,7 +252,7 @@ export function mapGpu(response: GPUResponse | null, base: SystemStatusVm): Syst
   if (!response?.available || !gpu) {
     return {
       ...base,
-      gpuName: 'GPU not detected',
+      gpuName: translate('gpu.notDetected'),
       gpuUsage: 0,
       vramUsedGb: 0,
       vramTotalGb: 0,
@@ -286,17 +289,18 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
   return {
     id: pickString(job, ['job_id', 'id'], `job-${index}`),
     projectId: pickString(job, ['project_id']),
-    projectName: pickString(job, ['project_name', 'name'], 'Untitled project'),
+    projectName: pickString(job, ['project_name', 'name'], translate('common.untitledProject')),
     status,
     statusTone: statusTone(status),
-    stage: pickString(job, ['stage_label'], stage.replaceAll('_', ' ')),
+    stage: translate(`stage.${stage}`, undefined, pickString(job, ['stage_label'], stage.replaceAll('_', ' '))),
     progress,
     model: pickString(job, ['model_slug', 'ai_model_slug'], 'Real-ESRGAN'),
     resolution: resolutionFromConfig(job),
     duration: formatSeconds(job['elapsed_time_seconds']),
-    framesLabel: `${pickNumber(job, ['frames_processed', 'enhanced_frames'], 0)} / ${
-      typeof job['frames_total'] === 'number' ? job['frames_total'] : '-'
-    } frames`,
+    framesLabel: translate('job.frames', {
+      done: pickNumber(job, ['frames_processed', 'enhanced_frames'], 0),
+      total: typeof job['frames_total'] === 'number' ? job['frames_total'] : '-',
+    }),
     pipeline: stageToPipeline(stage, progress, status),
     // Las acciones vienen del backend (job_contract_service); sin ellas no se ofrece nada.
     canStart: booleanValue(job['can_start'], booleanValue(actions['can_start'])),
@@ -310,7 +314,7 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     device: stringValue(job['realesrgan_device']) || undefined,
     avgFrameTimeMs: avgFrameTimeMs > 0 ? Math.round(avgFrameTimeMs) : undefined,
     failedFrames: pickNumber(job, ['realesrgan_failed_frames'], 0),
-    etaLabel: etaSeconds > 0 ? `~${formatSeconds(etaSeconds)} left` : undefined,
+    etaLabel: etaSeconds > 0 ? translate('job.etaLeft', { time: formatSeconds(etaSeconds) }) : undefined,
     framesProcessed: pickNumber(job, ['enhanced_frames', 'frames_processed'], framesDone),
     framesTotal,
   };
@@ -331,29 +335,53 @@ export function mapJobControl(response: JobControlResponse): QueueJobVm {
   return mapUnknownQueueJob(response.job);
 }
 
-export function mapJobProgress(response: JobProgressResponse, projectName = 'Active job'): QueueJobVm {
+export function mapJobProgress(
+  response: JobProgressResponse,
+  projectName = translate('common.activeJob'),
+): QueueJobVm {
   return mapUnknownQueueJob({
     ...response,
     project_name: projectName,
   });
 }
 
+const TIER_BAR_VALUE: Record<string, number> = {
+  very_high: 95,
+  high: 80,
+  medium: 60,
+  'speed.fast': 85,
+  'speed.medium': 55,
+  'speed.slow': 30,
+};
+
 function mapModelLike(value: unknown, index = 0): ModelVm {
   const model = record(value);
   const installed = booleanValue(model['is_installed'], booleanValue(model['installed']));
-  const scale = numberValue(model['scale_factor'], index === 1 ? 4 : 2);
   const slug = pickString(model, ['slug', 'id'], `model-${index}`);
+  const metadata = record(model['metadata']);
+  const qualityTier = stringValue(metadata['quality_tier']);
+  const speedTier = stringValue(metadata['speed_tier']);
+  const version = stringValue(model['version']);
 
   return {
     id: pickString(model, ['id', 'slug'], `model-${index}`),
     slug,
     name: pickString(model, ['name'], `Model ${index + 1}`),
-    version: stringValue(model['version']) ? `v${model['version']}` : pickString(model, ['status'], installed ? 'installed' : 'available'),
-    description: pickString(model, ['description'], 'AI video enhancement model.'),
+    // "mvp" era un marcador interno, no una versión real del modelo.
+    version: version && version !== 'mvp' ? `v${version}` : '',
+    // Los modelos de serie tienen descripción traducida; los personalizados usan la del backend.
+    description: translate(
+      `modelDescription.${slug}`,
+      undefined,
+      pickString(model, ['description'], translate('model.fallbackDescription')),
+    ),
     installed,
     enabled: booleanValue(model['is_enabled'], booleanValue(model['enabled'], true)),
-    quality: scale === 4 ? 92 : 76,
-    speed: scale === 4 ? 35 : 62,
+    // Valores relativos para las barras, a partir de los tiers que declara el backend.
+    qualityTier,
+    speedTier,
+    quality: TIER_BAR_VALUE[qualityTier] ?? 0,
+    speed: TIER_BAR_VALUE[`speed.${speedTier}`] ?? 0,
     vramGb: Math.round((numberValue(model['estimated_vram_mb'], 4096) / 1024) * 10) / 10,
     category: pickString(model, ['category'], 'upscaling'),
   };
@@ -370,14 +398,10 @@ export function mapExports(response: ExportListResponse): ExportsPageVm {
     jobId: item.job_id,
     fileName: item.file_name,
     filePath: item.file_path,
-    dateLabel: new Date(item.created_at).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }),
+    dateLabel: formatDateLabel(item.created_at, '-'),
     resolution: item.resolution_label ?? `${item.width ?? 3840}x${item.height ?? 2160}`,
     codec: item.video_codec ?? 'H.264',
-    fpsLabel: typeof item.fps === 'number' ? `${Math.round(item.fps * 100) / 100}fps` : undefined,
+    fpsLabel: typeof item.fps === 'number' ? `${Math.round(item.fps * 100) / 100} fps` : undefined,
     outputFolder: parentPath(item.file_path),
     sizeLabel: formatBytes(item.file_size_bytes, `${Math.max(item.file_size_mb / 1024, 0.1).toFixed(1)} GB`),
     duration: item.duration_label ?? formatSeconds(item.duration_seconds),
@@ -388,7 +412,7 @@ export function mapExports(response: ExportListResponse): ExportsPageVm {
     id: '',
     projectId: '',
     jobId: '',
-    fileName: 'No exports yet',
+    fileName: translate('exports.none'),
     filePath: '',
     dateLabel: '-',
     resolution: '-',
@@ -431,19 +455,22 @@ export function mapSettings(response: SettingsResponse): SettingsVm {
 
 function mapVideoInfo(video: UnknownRecord): { label: string; value: string }[] {
   const fps = numberValue(video['fps'], 0);
+  const channels = video['audio_channels']
+    ? translate('video.channels', { count: String(video['audio_channels']) })
+    : '';
   const audio = booleanValue(video['has_audio'])
-    ? [stringValue(video['audio_codec']), video['audio_channels'] ? `${video['audio_channels']} ch` : '']
-        .filter(Boolean)
-        .join(' · ') || 'Yes'
-    : 'None';
+    ? [stringValue(video['audio_codec']), channels].filter(Boolean).join(' · ') ||
+      translate('common.yes')
+    : translate('common.none');
+  // `label` es una clave de traducción: la plantilla la traduce con el idioma activo.
   const rows = [
-    { label: 'File', value: stringValue(video['file_name']) },
-    { label: 'Resolution', value: stringValue(video['resolution_label']) },
-    { label: 'Duration', value: stringValue(video['duration_label']) },
-    { label: 'Frame rate', value: fps > 0 ? `${Math.round(fps * 100) / 100} fps` : '' },
-    { label: 'Codec', value: stringValue(video['video_codec']) },
-    { label: 'Audio', value: audio },
-    { label: 'Size', value: formatBytes(video['file_size_bytes'], '') },
+    { label: 'video.file', value: stringValue(video['file_name']) },
+    { label: 'workspace.resolution', value: stringValue(video['resolution_label']) },
+    { label: 'video.duration', value: stringValue(video['duration_label']) },
+    { label: 'video.frameRate', value: fps > 0 ? `${Math.round(fps * 100) / 100} fps` : '' },
+    { label: 'video.codec', value: stringValue(video['video_codec']) },
+    { label: 'video.audio', value: audio },
+    { label: 'video.size', value: formatBytes(video['file_size_bytes'], '') },
   ];
   return rows.filter((row) => row.value);
 }
@@ -515,7 +542,7 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
 function idlePipeline(): PipelineStepVm[] {
   return pipelineOrder.map((id, index) => ({
     id,
-    title: pipelineTitles[index],
+    title: translate(`pipeline.${id}`),
     icon: pipelineIcons[index],
     status: 'pending' as const,
   }));
@@ -525,11 +552,13 @@ function emptyModelVm(): ModelVm {
   return {
     id: '',
     slug: '',
-    name: 'No models available',
+    name: translate('model.noneTitle'),
     version: '',
-    description: 'Install an AI model to start enhancing videos.',
+    description: translate('model.noneDescription'),
     installed: false,
     enabled: false,
+    qualityTier: '',
+    speedTier: '',
     quality: 0,
     speed: 0,
     vramGb: 0,

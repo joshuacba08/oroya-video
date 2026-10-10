@@ -9,12 +9,13 @@ import { NJobCard } from '@neuralangular/angular-ui/job-card';
 import { Observable, firstValueFrom } from 'rxjs';
 
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm, QueueJobVm } from '../../core/models/oroya.models';
 
 @Component({
   selector: 'app-queue-page',
   standalone: true,
-  imports: [AsyncPipe, NAIPipeline, NButton, NIcon, NJobCard],
+  imports: [AsyncPipe, NAIPipeline, NButton, NIcon, NJobCard, TranslatePipe],
   templateUrl: './queue.page.html',
   styleUrl: './queue.page.css',
 })
@@ -24,6 +25,7 @@ export class QueuePage {
 
   readonly error = signal<ApiErrorVm | null>(null);
   readonly busyJobId = signal<string | null>(null);
+  readonly pausingAll = signal(false);
   readonly queue$ = this.data.pollQueue((error) =>
     this.error.set(error ? this.data.toErrorVm(error) : null),
   );
@@ -46,6 +48,31 @@ export class QueuePage {
     await this.runJobAction(job.id, () =>
       job.status === 'paused' ? this.data.resumeJob(job.id) : this.data.startJob(job.id),
     );
+  }
+
+  pausableJobs(jobs: QueueJobVm[]): QueueJobVm[] {
+    return jobs.filter((job) => job.canPause);
+  }
+
+  /** Pausa todos los jobs que el backend permite pausar (mejora en curso o en cola). */
+  async pauseAll(jobs: QueueJobVm[]): Promise<void> {
+    const targets = this.pausableJobs(jobs);
+    if (!targets.length || this.pausingAll()) {
+      return;
+    }
+    this.pausingAll.set(true);
+    this.error.set(null);
+    try {
+      const results = await Promise.allSettled(
+        targets.map((job) => firstValueFrom(this.data.pauseJob(job.id))),
+      );
+      const failure = results.find((result) => result.status === 'rejected');
+      if (failure) {
+        this.error.set(this.data.toErrorVm(failure.reason));
+      }
+    } finally {
+      this.pausingAll.set(false);
+    }
   }
 
   async cancel(job: QueueJobVm): Promise<void> {

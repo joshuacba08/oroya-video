@@ -1,5 +1,5 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NSelect } from '@neuralangular/angular-ui/select';
@@ -9,19 +9,17 @@ import { BehaviorSubject, catchError, firstValueFrom, of, switchMap } from 'rxjs
 import { environment } from '../../../environments/environment';
 import type { SettingsUpdateRequest } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { translate } from '../../core/i18n/i18n';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm } from '../../core/models/oroya.models';
 import { OvSettingsRowComponent } from '../../shared/ui/ov-settings-row.component';
 
-const ENGINE_OPTIONS_AI_ONLY: NSelectOption[] = [{ label: 'Real-ESRGAN', value: 'realesrgan' }];
-const ENGINE_OPTIONS_WITH_MOCK: NSelectOption[] = [
-  { label: 'Mock enhancer (no AI)', value: 'mock' },
-  ...ENGINE_OPTIONS_AI_ONLY,
-];
+type StorageTarget = 'temp' | 'models' | 'exports';
 
 @Component({
   selector: 'app-settings-page',
   standalone: true,
-  imports: [AsyncPipe, NButton, NIcon, NSelect, OvSettingsRowComponent],
+  imports: [AsyncPipe, NButton, NIcon, NSelect, OvSettingsRowComponent, TranslatePipe],
   templateUrl: './settings.page.html',
   styleUrl: './settings.page.css',
 })
@@ -38,30 +36,38 @@ export class SettingsPage {
       return of(null);
     }),
   );
-  readonly languageOptions: NSelectOption[] = [
-    { label: 'English', value: 'en' },
-    { label: 'Spanish', value: 'es' },
-  ];
+
+  // `computed` sobre `translate()`: las etiquetas cambian al cambiar el idioma.
+  readonly languageOptions = computed<NSelectOption[]>(() => [
+    { label: translate('settings.languageEn'), value: 'en' },
+    { label: translate('settings.languageEs'), value: 'es' },
+  ]);
   // Solo existe el tema oscuro: "System" no tenía efecto y se retiró hasta que haya tema claro.
-  readonly themeOptions: NSelectOption[] = [{ label: 'Dark', value: 'dark' }];
+  readonly themeOptions = computed<NSelectOption[]>(() => [
+    { label: translate('settings.themeDark'), value: 'dark' },
+  ]);
+  readonly aiDeviceOptions = computed<NSelectOption[]>(() => [
+    { label: translate('settings.deviceAuto'), value: 'auto' },
+    { label: 'CPU', value: 'cpu' },
+    { label: 'CUDA', value: 'cuda' },
+  ]);
+  private readonly engineOptionsAiOnly = computed<NSelectOption[]>(() => [
+    { label: 'Real-ESRGAN', value: 'realesrgan' },
+  ]);
+  private readonly engineOptionsWithMock = computed<NSelectOption[]>(() => [
+    { label: translate('settings.engineMock'), value: 'mock' },
+    ...this.engineOptionsAiOnly(),
+  ]);
+
   /**
    * El motor "mock" solo copia frames (sirve para desarrollo). En producción se ofrece
    * únicamente si es el valor actual, para que el select no quede vacío antes de instalar IA.
    */
   engineOptions(current: string): NSelectOption[] {
     return !environment.production || current === 'mock'
-      ? ENGINE_OPTIONS_WITH_MOCK
-      : ENGINE_OPTIONS_AI_ONLY;
+      ? this.engineOptionsWithMock()
+      : this.engineOptionsAiOnly();
   }
-  readonly aiDeviceOptions: NSelectOption[] = [
-    { label: 'Auto', value: 'auto' },
-    { label: 'CPU', value: 'cpu' },
-    { label: 'CUDA', value: 'cuda' },
-  ];
-  readonly gpuOptions: NSelectOption[] = [
-    { label: 'Auto', value: 'auto' },
-    { label: 'CPU fallback', value: 'cpu' },
-  ];
 
   updateLanguage(value: string): void {
     void this.patch({ general: { language: value } });
@@ -95,6 +101,10 @@ export class SettingsPage {
     void this.patch({ cleanup: { cleanup_keep_preview_frames: Number(value) } });
   }
 
+  updateTempMaxAge(value: string): void {
+    void this.patch({ cleanup: { cleanup_temp_older_than_hours: Number(value) } });
+  }
+
   updateAllowCpu(checked: boolean): void {
     void this.patch({ processing: { ai_allow_cpu: checked } });
   }
@@ -105,6 +115,15 @@ export class SettingsPage {
 
   updateCleanupOnSuccess(checked: boolean): void {
     void this.patch({ cleanup: { cleanup_temp_on_success: checked } });
+  }
+
+  async openStorage(target: StorageTarget): Promise<void> {
+    try {
+      this.error.set(null);
+      await firstValueFrom(this.data.openStorageFolder(target));
+    } catch (error) {
+      this.error.set(this.data.toErrorVm(error));
+    }
   }
 
   private async patch(payload: SettingsUpdateRequest): Promise<void> {

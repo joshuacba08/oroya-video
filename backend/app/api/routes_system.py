@@ -1,8 +1,9 @@
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.paths import get_exports_path, get_models_path, get_temp_path
 from app.db.database import get_db
 from app.schemas.hardening_schema import (
     CleanupBatchRequest,
@@ -16,10 +17,12 @@ from app.schemas.system_schema import (
     FFmpegDownloadStartResponse,
     GPUResponse,
     RequirementsResponse,
+    StorageOpenResponse,
     StorageResponse,
     SystemInfoResponse,
     ToolsResponse,
 )
+from app.services import desktop_open_service
 from app.services.ai_install_service import get_ai_install_progress, start_ai_install
 from app.services.cleanup_service import cleanup_old_temp_files, get_storage_usage
 from app.services.gpu_detection_service import get_gpu_status
@@ -85,6 +88,23 @@ def ai_install_route(request: Request) -> AIInstallStartResponse:
 )
 def ai_install_progress_route() -> AIInstallProgressResponse:
     return get_ai_install_progress()
+
+
+@router.post(
+    "/storage/open",
+    response_model=StorageOpenResponse,
+    summary="Open a storage folder (temp, models or exports) in the file explorer",
+)
+def storage_open_route(
+    request: Request,
+    target: Literal["temp", "models", "exports"] = Query(...),
+) -> StorageOpenResponse:
+    settings = request.app.state.settings
+    resolvers = {"temp": get_temp_path, "models": get_models_path, "exports": get_exports_path}
+    folder = resolvers[target](settings)
+    folder.mkdir(parents=True, exist_ok=True)
+    opened = desktop_open_service.reveal_in_folder(folder)
+    return StorageOpenResponse(target=target, path=str(folder), opened=opened)
 
 
 @router.get("/storage", response_model=StorageResponse, summary="Storage paths and disk usage")

@@ -6,6 +6,7 @@ import { NIcon } from '@neuralangular/angular-ui/icon';
 import { BehaviorSubject, Subscription, catchError, firstValueFrom, of, switchMap } from 'rxjs';
 
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm, ModelDownloadVm, ModelVm } from '../../core/models/oroya.models';
 import { OvModelCardComponent } from '../../shared/ui/ov-model-card.component';
 import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.component';
@@ -13,7 +14,7 @@ import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.comp
 @Component({
   selector: 'app-models-page',
   standalone: true,
-  imports: [AsyncPipe, NButton, NIcon, OvModelCardComponent, OvSectionHeaderComponent],
+  imports: [AsyncPipe, NButton, NIcon, OvModelCardComponent, OvSectionHeaderComponent, TranslatePipe],
   templateUrl: './models.page.html',
   styleUrl: './models.page.css',
 })
@@ -25,6 +26,7 @@ export class ModelsPage {
 
   readonly error = signal<ApiErrorVm | null>(null);
   readonly refreshing = signal(false);
+  readonly togglingSlug = signal<string | null>(null);
   readonly downloads = signal<Record<string, ModelDownloadVm>>({});
   readonly models$ = this.reload$.pipe(
     switchMap(() => this.data.models()),
@@ -52,6 +54,19 @@ export class ModelsPage {
       this.error.set(this.data.toErrorVm(error));
     } finally {
       this.refreshing.set(false);
+    }
+  }
+
+  async toggleEnabled(model: ModelVm): Promise<void> {
+    try {
+      this.error.set(null);
+      this.togglingSlug.set(model.slug);
+      await firstValueFrom(this.data.setModelEnabled(model.slug, !model.enabled));
+      this.reload$.next(Date.now());
+    } catch (error) {
+      this.error.set(this.data.toErrorVm(error));
+    } finally {
+      this.togglingSlug.set(null);
     }
   }
 
