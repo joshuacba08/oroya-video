@@ -399,8 +399,7 @@ def test_pause_during_enhancement_marks_job_paused(enhancement_client) -> None:
     assert progress_response.json()["enhanced_frames"] == 1
     assert summary_response.json()["enhancement_completed_at"] is None
     assert any(
-        item["message"] == "Enhancement paused by user."
-        for item in logs_response.json()["items"]
+        item["message"] == "Enhancement paused by user." for item in logs_response.json()["items"]
     )
 
 

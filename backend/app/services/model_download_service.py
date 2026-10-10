@@ -22,15 +22,13 @@ logger = get_logger(__name__)
 MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, str]] = {
     "realesrgan-x2": {
         "url": (
-            "https://github.com/xinntao/Real-ESRGAN/releases/download/"
-            "v0.2.1/RealESRGAN_x2plus.pth"
+            "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth"
         ),
         "sha256": "49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb",
     },
     "realesrgan-x4": {
         "url": (
-            "https://github.com/xinntao/Real-ESRGAN/releases/download/"
-            "v0.1.0/RealESRGAN_x4plus.pth"
+            "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
         ),
         "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1",
     },
@@ -61,9 +59,9 @@ def start_model_download(
     model = ai_model_service._get_model_or_raise(db, model_id_or_slug)
 
     # El flag de la DB puede estar desfasado (archivo borrado a mano): se comprueba el disco.
-    installed_file_exists = bool(model.relative_path) and get_model_path(
-        model.relative_path, active_settings
-    ).is_file()
+    installed_file_exists = (
+        bool(model.relative_path) and get_model_path(model.relative_path, active_settings).is_file()
+    )
     if model.is_installed and installed_file_exists:
         return AIModelDownloadStartResponse(
             slug=model.slug,

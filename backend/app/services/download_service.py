@@ -104,11 +104,7 @@ def _run_download(
                     output.write(chunk)
                     digest.update(chunk)
                     bytes_done += len(chunk)
-                    percent = (
-                        round(bytes_done / bytes_total * 100, 1)
-                        if bytes_total
-                        else 0.0
-                    )
+                    percent = round(bytes_done / bytes_total * 100, 1) if bytes_total else 0.0
                     _set_state(key, bytes_done=bytes_done, percent=percent)
 
         if sha256 is not None and digest.hexdigest().lower() != sha256.lower():

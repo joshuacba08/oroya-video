@@ -395,8 +395,7 @@ def test_filtered_preview_accepts_query_overrides(preview_client) -> None:
         patch("app.services.preview_service.subprocess.run", side_effect=fake_run),
     ):
         response = client.get(
-            f"/api/jobs/{job['id']}/preview/filtered/0"
-            "?denoise=0&sharpen=0&compression_cleanup=true"
+            f"/api/jobs/{job['id']}/preview/filtered/0?denoise=0&sharpen=0&compression_cleanup=true"
         )
 
     assert response.status_code == 200

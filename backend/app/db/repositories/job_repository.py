@@ -33,12 +33,7 @@ def list_jobs(
     if project_id:
         query = query.filter(ProcessingJob.project_id == project_id)
 
-    return (
-        query.order_by(ProcessingJob.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    return query.order_by(ProcessingJob.created_at.desc()).offset(offset).limit(limit).all()
 
 
 def count_jobs(

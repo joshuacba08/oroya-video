@@ -219,9 +219,12 @@ def test_runtime_endpoint_warns_when_cuda_is_required_but_missing(tmp_path: Path
     )
     app = create_app(settings)
 
-    with TestClient(app) as client, patch(
-        "app.services.ai_runtime_service.get_torch_module",
-        return_value=FakeTorch(cuda_available=False),
+    with (
+        TestClient(app) as client,
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
     ):
         response = client.get("/api/ai/runtime")
 

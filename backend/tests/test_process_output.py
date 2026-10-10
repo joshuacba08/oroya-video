@@ -6,12 +6,7 @@ from app.utils.process_output import StderrDrain
 
 def test_stderr_drain_prevents_pipe_deadlock_with_large_stderr() -> None:
     # Writes far more than the OS pipe buffer to stderr before finishing stdout.
-    script = (
-        "import sys\n"
-        "sys.stderr.write('w' * 1_000_000)\n"
-        "sys.stderr.flush()\n"
-        "print('frame=1')\n"
-    )
+    script = "import sys\nsys.stderr.write('w' * 1_000_000)\nsys.stderr.flush()\nprint('frame=1')\n"
     process = subprocess.Popen(
         [sys.executable, "-c", script],
         stdout=subprocess.PIPE,

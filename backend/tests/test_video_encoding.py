@@ -264,9 +264,7 @@ def test_build_video_encoding_command_and_parse_progress() -> None:
 def test_build_enhancement_video_filters_returns_none_for_default_config() -> None:
     assert build_enhancement_video_filters({}) is None
     assert (
-        build_enhancement_video_filters(
-            {"denoise": 0, "sharpen": 0, "compression_cleanup": False}
-        )
+        build_enhancement_video_filters({"denoise": 0, "sharpen": 0, "compression_cleanup": False})
         is None
     )
 
@@ -540,8 +538,7 @@ def test_encode_video_for_job_applies_enhancement_filters(encoding_client) -> No
     messages = [item["message"] for item in logs_response.json()["items"]]
     assert (
         "Encoding filters: deblock=filter=strong:block=8,hqdn3d=3.20,unsharp=5:5:0.45,"
-        "scale=3840:2160:flags=lanczos"
-        in messages
+        "scale=3840:2160:flags=lanczos" in messages
     )
     assert "Filters apply to the final video, not to preview frames." in messages
 

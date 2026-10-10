@@ -600,9 +600,7 @@ def test_worker_marks_job_failed_when_stage_raises_without_marking_it(frame_clie
     payload = client.get(f"/api/jobs/{job['id']}/progress").json()
     assert payload["status"] == "failed"
     assert payload["error_code"] == "realesrgan_model_load_failed"
-    assert client.get(f"/api/projects/{project['id']}").json()["project"]["status"] == (
-        "failed"
-    )
+    assert client.get(f"/api/projects/{project['id']}").json()["project"]["status"] == ("failed")
 
 
 def test_worker_skips_job_paused_while_queued(frame_client) -> None:

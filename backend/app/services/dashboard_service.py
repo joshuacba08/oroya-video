@@ -90,12 +90,8 @@ def get_dashboard_response(db: Session, settings: Settings | None = None) -> Das
     active_settings = _get_active_settings(settings)
     requirements = get_requirements_status(active_settings)
     storage_usage = get_storage_usage(active_settings)
-    recent_projects = (
-        db.query(Project).order_by(Project.updated_at.desc()).limit(5).all()
-    )
-    recent_exports = (
-        db.query(ExportAsset).order_by(ExportAsset.created_at.desc()).limit(5).all()
-    )
+    recent_projects = db.query(Project).order_by(Project.updated_at.desc()).limit(5).all()
+    recent_exports = db.query(ExportAsset).order_by(ExportAsset.created_at.desc()).limit(5).all()
     active_jobs = (
         db.query(ProcessingJob)
         .filter(ProcessingJob.status.in_(("queued", "running", "retrying")))
@@ -200,9 +196,7 @@ def get_queue_response(
     items = (
         db.query(ProcessingJob, Project.name)
         .outerjoin(Project, Project.id == ProcessingJob.project_id)
-        .filter(
-            ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)
-        )
+        .filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES))
         .order_by(ProcessingJob.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -236,13 +230,7 @@ def get_queue_response(
         )
         for job, project_name in items
     ]
-    total = (
-        db.query(ProcessingJob)
-        .filter(
-            ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)
-        )
-        .count()
-    )
+    total = db.query(ProcessingJob).filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)).count()
     return QueueResponse(
         items=response_items,
         total=total,

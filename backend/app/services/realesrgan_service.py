@@ -439,8 +439,7 @@ def validate_realesrgan_job_requirements(
         and input_frames_available
         and device is not None
         and not any(
-            warning.startswith("Selected Real-ESRGAN model is disabled")
-            for warning in warnings
+            warning.startswith("Selected Real-ESRGAN model is disabled") for warning in warnings
         )
     )
     return RealESRGANJobValidationResponse(

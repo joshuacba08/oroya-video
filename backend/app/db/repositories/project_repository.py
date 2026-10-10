@@ -31,12 +31,7 @@ def list_projects(
     if search:
         query = query.filter(Project.name.ilike(f"%{search}%"))
 
-    return (
-        query.order_by(Project.updated_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    return query.order_by(Project.updated_at.desc()).offset(offset).limit(limit).all()
 
 
 def count_projects(

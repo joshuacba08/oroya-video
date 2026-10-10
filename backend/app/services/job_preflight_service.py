@@ -86,9 +86,9 @@ def run_job_preflight(
     checks["storage_temp_writable"] = is_storage_writable(active_settings)
     exports_path = get_exports_path(active_settings)
     exports_path.mkdir(parents=True, exist_ok=True)
-    checks["storage_exports_writable"] = is_storage_writable(
-        active_settings
-    ) and exports_path.exists()
+    checks["storage_exports_writable"] = (
+        is_storage_writable(active_settings) and exports_path.exists()
+    )
     checks["job_process_inactive"] = not _has_active_process(job)
     checks["job_state_allowed"] = job.status not in FINAL_JOB_STATUSES
     checks["cuda_available"] = active_settings.ai_device.strip().lower() != "cuda" or (

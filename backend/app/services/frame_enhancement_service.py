@@ -62,9 +62,7 @@ def ensure_enhancement_storage_capacity(
     _, _, free_bytes = shutil.disk_usage(temp_path)
     required_bytes = max(get_directory_size_bytes(original_frames_dir), 1)
     if free_bytes < required_bytes:
-        raise InsufficientTempStorageError(
-            "Not enough temporary storage space to enhance frames."
-        )
+        raise InsufficientTempStorageError("Not enough temporary storage space to enhance frames.")
 
 
 def _mark_enhancement_failed(

@@ -174,9 +174,7 @@ def ensure_encoding_storage_capacity(
     _, _, free_bytes = shutil.disk_usage(temp_path)
     required_bytes = max(int(get_directory_size_bytes(enhanced_frames_dir) * 0.25), 1)
     if free_bytes < required_bytes:
-        raise InsufficientTempStorageError(
-            "Not enough temporary storage space to encode video."
-        )
+        raise InsufficientTempStorageError("Not enough temporary storage space to encode video.")
 
 
 def _mark_encoding_failed(

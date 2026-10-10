@@ -192,15 +192,13 @@ def update_settings(
             ]
         if cleanup_update.get("cleanup_keep_preview_frames") is not None:
             if cleanup_update["cleanup_keep_preview_frames"] < 0:
-                raise InvalidProjectConfigurationError(
-                    "cleanup_keep_preview_frames must be >= 0."
-                )
+                raise InvalidProjectConfigurationError("cleanup_keep_preview_frames must be >= 0.")
             active_settings.cleanup_keep_preview_frames = cleanup_update[
                 "cleanup_keep_preview_frames"
             ]
-            ui_settings.setdefault("cleanup", {})["cleanup_keep_preview_frames"] = (
-                cleanup_update["cleanup_keep_preview_frames"]
-            )
+            ui_settings.setdefault("cleanup", {})["cleanup_keep_preview_frames"] = cleanup_update[
+                "cleanup_keep_preview_frames"
+            ]
         if cleanup_update.get("cleanup_temp_older_than_hours") is not None:
             if cleanup_update["cleanup_temp_older_than_hours"] <= 0:
                 raise InvalidProjectConfigurationError(
@@ -209,9 +207,9 @@ def update_settings(
             active_settings.cleanup_temp_older_than_hours = cleanup_update[
                 "cleanup_temp_older_than_hours"
             ]
-            ui_settings.setdefault("cleanup", {})["cleanup_temp_older_than_hours"] = (
-                cleanup_update["cleanup_temp_older_than_hours"]
-            )
+            ui_settings.setdefault("cleanup", {})["cleanup_temp_older_than_hours"] = cleanup_update[
+                "cleanup_temp_older_than_hours"
+            ]
 
     _save_ui_settings(ui_settings, active_settings)
     return SettingsUpdateResponse(updated=True, settings=build_settings_response(active_settings))

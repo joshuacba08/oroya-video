@@ -112,9 +112,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestIdMiddleware)
 
     @app.exception_handler(OroyaVideoError)
-    async def oroya_video_error_handler(
-        request: Request, exc: OroyaVideoError
-    ) -> JSONResponse:
+    async def oroya_video_error_handler(request: Request, exc: OroyaVideoError) -> JSONResponse:
         logger.warning("Handled application error on %s: %s", request.url.path, exc.message)
         return JSONResponse(
             status_code=exc.status_code,

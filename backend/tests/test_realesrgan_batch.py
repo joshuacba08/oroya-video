@@ -417,8 +417,7 @@ def test_realesrgan_pause_stops_between_frames_and_marks_job_paused(realesrgan_c
     assert refreshed_job.enhancement_completed_at is None
     logs_response = client.get(f"/api/jobs/{job['id']}/logs")
     assert any(
-        item["message"] == "Enhancement paused by user."
-        for item in logs_response.json()["items"]
+        item["message"] == "Enhancement paused by user." for item in logs_response.json()["items"]
     )
 
 
@@ -429,9 +428,7 @@ def test_realesrgan_skips_already_enhanced_frames_on_resume(realesrgan_client) -
     project = _create_project(client, video["id"])
     job = _create_job(client, project["id"])
     _prepare_original_frames(settings, job["id"], frame_count=3)
-    enhanced_dir = (
-        Path(settings.storage_path) / "temp" / "jobs" / job["id"] / "frames" / "enhanced"
-    )
+    enhanced_dir = Path(settings.storage_path) / "temp" / "jobs" / job["id"] / "frames" / "enhanced"
     enhanced_dir.mkdir(parents=True, exist_ok=True)
     (enhanced_dir / "frame_00000000.png").write_bytes(b"already-enhanced-0")
     (enhanced_dir / "frame_00000001.png").write_bytes(b"already-enhanced-1")

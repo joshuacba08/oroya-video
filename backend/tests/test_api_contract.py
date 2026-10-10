@@ -305,6 +305,4 @@ def test_settings_patch_and_openapi_export_are_ready_for_frontend(contract_clien
     schema = json.loads(openapi_path.read_text(encoding="utf-8"))
     assert "/api/v1/bootstrap" in schema["paths"]
     assert "/api/v1/settings" in schema["paths"]
-    assert {"Health", "Dashboard", "Settings", "Jobs"} <= {
-        tag["name"] for tag in schema["tags"]
-    }
+    assert {"Health", "Dashboard", "Settings", "Jobs"} <= {tag["name"] for tag in schema["tags"]}

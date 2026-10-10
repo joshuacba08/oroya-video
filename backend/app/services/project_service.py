@@ -247,9 +247,7 @@ def _build_project_configs(
         _merge_config(existing_enhancement, enhancement_config)
     )
     merged_export = _validate_export_config(_merge_config(existing_export, export_config))
-    merged_workspace = _validate_workspace_state(
-        _merge_config(existing_workspace, workspace_state)
-    )
+    merged_workspace = _validate_workspace_state(_merge_config(existing_workspace, workspace_state))
     merged_enhancement["model_id"] = _validate_model_reference(
         db,
         merged_enhancement["model_id"],
@@ -412,15 +410,11 @@ def get_project_workspace(
         preview=preview_payload,
         actions={
             "can_create_job": True,
-            "can_start_latest_job": bool(
-                latest_job_actions and latest_job_actions["can_start"]
-            ),
+            "can_start_latest_job": bool(latest_job_actions and latest_job_actions["can_start"]),
             "can_cancel_latest_job": latest_job is not None
             and latest_job_actions is not None
             and latest_job_actions["can_cancel"],
-            "can_retry_latest_job": bool(
-                latest_job_actions and latest_job_actions["can_retry"]
-            ),
+            "can_retry_latest_job": bool(latest_job_actions and latest_job_actions["can_retry"]),
             "can_export": latest_export is not None,
         },
     )
