@@ -53,7 +53,11 @@ Write-Host "Extrayendo runtime..." -ForegroundColor Yellow
 $extractDir = Join-Path $buildCache "python-extract"
 if (Test-Path $extractDir) { Remove-Item $extractDir -Recurse -Force -Confirm:$false }
 New-Item -ItemType Directory -Force $extractDir | Out-Null
-tar -xzf $archivePath -C $extractDir
+# tar.exe de Windows explícito: el `tar` de Git Bash (si va antes en el PATH) interpreta
+# "C:" como un host remoto y falla.
+$tarExe = Join-Path $env:SystemRoot "System32\tar.exe"
+& $tarExe -xzf $archivePath -C $extractDir
+if ($LASTEXITCODE -ne 0) { throw "tar extraction failed" }
 Move-Item (Join-Path $extractDir "python") $pythonDir
 
 # 2. Dependencias core del backend

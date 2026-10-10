@@ -39,7 +39,10 @@ fn spawn_backend(app: &tauri::App) -> Result<Option<Child>, Box<dyn std::error::
     .env("PORT", BACKEND_PORT.to_string())
     .env("ENVIRONMENT", "production")
     .env("DEBUG", "false")
-    .env("PYTHONNOUSERSITE", "1");
+    .env("PYTHONNOUSERSITE", "1")
+    // El backend vigila este PID y se apaga si la app muere sin pasar por RunEvent::Exit
+    // (crash o cierre forzado), para no dejar un backend huérfano en el puerto.
+    .env("OROYA_PARENT_PID", std::process::id().to_string());
 
     #[cfg(windows)]
     {

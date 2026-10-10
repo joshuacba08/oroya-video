@@ -9,6 +9,7 @@ from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import OroyaVideoError
 from app.core.logging import configure_logging, get_logger
+from app.core.parent_watchdog import start_parent_watchdog
 from app.core.paths import ensure_storage_directories, get_storage_path
 from app.db import database
 from app.middleware.access_log import AccessLogMiddleware
@@ -80,6 +81,7 @@ def create_lifespan(settings: Settings):
             finally:
                 db.close()
         start_job_worker(active_settings)
+        start_parent_watchdog()
 
         logger.info("%s started", active_settings.app_name)
         logger.info("Environment: %s", active_settings.environment)
