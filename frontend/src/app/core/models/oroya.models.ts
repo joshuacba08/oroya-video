@@ -107,6 +107,8 @@ export interface QueueJobVm {
   avgFrameTimeMs?: number;
   failedFrames: number;
   etaLabel?: string;
+  /** Solo el tiempo (p. ej. "~2:10"), para mostrar bajo una etiqueta propia. */
+  etaTime?: string;
   framesProcessed: number;
   framesTotal: number;
 }

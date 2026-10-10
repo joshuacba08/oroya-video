@@ -272,7 +272,7 @@
         @if (!isCollapsed('estimate')) {
         <div>
           <span>{{ (hasActiveLiveJob() ? 'workspace.remaining' : 'workspace.processingTime') | t }}</span>
-          <strong>{{ liveJob()?.etaLabel ?? workspace.estimateTime }}</strong>
+          <strong>{{ liveJob()?.etaTime ?? workspace.estimateTime }}</strong>
         </div>
         @if (liveJob()?.avgFrameTimeMs; as avgMs) {
           <div><span>{{ 'workspace.frameTime' | t }}</span><strong>{{ avgMs }} ms</strong></div>

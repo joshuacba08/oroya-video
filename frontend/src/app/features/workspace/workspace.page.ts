@@ -45,6 +45,9 @@ type WorkspaceControls = {
   zoom: WorkspaceVm['zoom'];
 };
 
+/** El progreso llega cada ~0,5 s (SSE); la vista previa en vivo basta con refrescarla cada 2 s. */
+const LIVE_PREVIEW_REFRESH_MS = 2000;
+
 @Component({
   selector: 'app-workspace-page',
   standalone: true,
@@ -72,6 +75,7 @@ export class WorkspacePage {
   private liveSub: Subscription | undefined;
   private liveJobId: string | undefined;
   private lastEnhancedCount = 0;
+  private lastPreviewRefresh = 0;
   private readonly reload$ = new BehaviorSubject<number>(0);
 
   readonly error = signal<ApiErrorVm | null>(null);
@@ -217,8 +221,10 @@ export class WorkspacePage {
   private async onLiveTick(workspace: WorkspaceVm, job: QueueJobVm): Promise<void> {
     this.liveJob.set(job);
 
-    if (job.framesProcessed > this.lastEnhancedCount && job.status === 'running') {
+    const previewDue = Date.now() - this.lastPreviewRefresh >= LIVE_PREVIEW_REFRESH_MS;
+    if (job.framesProcessed > this.lastEnhancedCount && job.status === 'running' && previewDue) {
       this.lastEnhancedCount = job.framesProcessed;
+      this.lastPreviewRefresh = Date.now();
       try {
         const frames = await firstValueFrom(
           this.data.previewFrames(job.id, {

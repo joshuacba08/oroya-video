@@ -96,6 +96,7 @@ import {
 export type PollErrorHandler = (error: unknown | null) => void;
 
 const MAX_POLL_BACKOFF_MS = 30000;
+const SSE_FINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'interrupted', 'paused']);
 
 function resilientPoll<T>(
   intervalMs: number,
@@ -444,13 +445,46 @@ export class OroyaDataService {
     ).pipe(map((response) => mapJobProgress(response, projectName)));
   }
 
+  /**
+   * Progreso en vivo: SSE (`/jobs/{id}/events`) y, si no está disponible o se corta,
+   * polling con backoff. Completa cuando el job llega a un estado terminal o pausado.
+   */
   pollJobProgress(
     jobId: string,
     projectName?: string,
     intervalMs = 1000,
     onError?: PollErrorHandler,
   ): Observable<QueueJobVm> {
-    return resilientPoll(intervalMs, () => this.jobProgress(jobId, projectName), onError);
+    const polling = resilientPoll(intervalMs, () => this.jobProgress(jobId, projectName), onError);
+    if (environment.dataMode === 'mock' || typeof EventSource === 'undefined') {
+      return polling;
+    }
+    return this.jobEvents(jobId, projectName).pipe(
+      tap(() => onError?.(null)),
+      catchError(() => polling),
+    );
+  }
+
+  jobEvents(jobId: string, projectName?: string): Observable<QueueJobVm> {
+    return new Observable<QueueJobVm>((subscriber) => {
+      const source = new EventSource(
+        this.api.resolveUrl(`/jobs/${encodeURIComponent(jobId)}/events`),
+      );
+      source.onmessage = (event: MessageEvent<string>) => {
+        const response = JSON.parse(event.data) as JobProgressResponse;
+        subscriber.next(mapJobProgress(response, projectName));
+        if (SSE_FINAL_STATUSES.has(response.status)) {
+          // Cerrar antes de que el servidor corte: EventSource reconectaría solo.
+          source.close();
+          subscriber.complete();
+        }
+      };
+      source.onerror = () => {
+        source.close();
+        subscriber.error(new OroyaApiError('sse_unavailable', 'Live progress stream failed.'));
+      };
+      return () => source.close();
+    });
   }
 
   previewRecommended(jobId: string): Observable<CompareFrameResponse> {

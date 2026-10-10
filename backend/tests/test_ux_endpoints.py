@@ -56,3 +56,38 @@ def test_seed_adds_tiers_to_models_from_older_versions(tmp_path: Path) -> None:
         )
 
     assert x2["metadata"] == {"custom": 1, "quality_tier": "high", "speed_tier": "medium"}
+
+
+def test_job_events_stream_sends_progress_and_closes_on_terminal_state(tmp_path: Path) -> None:
+    from tests.test_projects import _create_project, _import_video
+
+    source_file = tmp_path / "sample.mp4"
+    source_file.write_bytes(b"fake-video-content")
+    with TestClient(create_app(_settings(tmp_path))) as client:
+        project_id = _create_project(client, _import_video(client, source_file)["id"])["project"][
+            "id"
+        ]
+        job_id = client.post("/api/jobs", json={"project_id": project_id}).json()["job"]["id"]
+        db = database.SessionLocal()
+        try:
+            from app.db.repositories import job_repository
+
+            job = job_repository.get_job_by_id(db, job_id)
+            job_repository.update_job(db, job, {"status": "completed", "progress_percent": 100.0})
+            db.commit()
+        finally:
+            db.close()
+
+        with client.stream("GET", f"/api/v1/jobs/{job_id}/events") as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("text/event-stream")
+            body = "".join(response.iter_text())
+
+        missing = client.get("/api/v1/jobs/missing-job/events")
+
+    events = [line for line in body.splitlines() if line.startswith("data: ")]
+    assert len(events) == 1
+    payload = json.loads(events[0].removeprefix("data: "))
+    assert payload["job_id"] == job_id
+    assert payload["status"] == "completed"
+    assert missing.status_code == 404

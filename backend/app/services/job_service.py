@@ -83,6 +83,7 @@ from app.services.job_contract_service import (
     build_job_actions,
     build_stage_label,
     build_stage_progress_percent,
+    estimate_remaining_seconds,
     is_export_available,
     is_preview_available,
 )
@@ -674,7 +675,7 @@ def get_job_progress(db: Session, job_id: str) -> JobProgressResponse:
         frames_processed=job.frames_processed,
         extracted_frames=job.extracted_frames,
         enhanced_frames=job.enhanced_frames,
-        estimated_time_seconds=job.estimated_time_seconds,
+        estimated_time_seconds=estimate_remaining_seconds(job),
         elapsed_time_seconds=job.elapsed_time_seconds,
         can_start=actions["can_start"],
         can_cancel=actions["can_cancel"],

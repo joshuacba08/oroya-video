@@ -728,6 +728,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/{job_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream job progress as Server-Sent Events
+         * @description Pushes the same payload as GET /progress whenever it changes; closes when the job
+         *     reaches a terminal or paused state. Clients fall back to polling if this fails.
+         */
+        get: operations["job_events_route_api_v1_jobs__job_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}/preflight": {
         parameters: {
             query?: never;
@@ -1993,6 +2014,27 @@ export interface paths {
         };
         /** Get job progress */
         get: operations["get_job_progress_route_api_jobs__job_id__progress_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream job progress as Server-Sent Events
+         * @description Pushes the same payload as GET /progress whenever it changes; closes when the job
+         *     reaches a terminal or paused state. Clients fall back to polling if this fails.
+         */
+        get: operations["job_events_route_api_jobs__job_id__events_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6337,6 +6379,35 @@ export interface operations {
             };
         };
     };
+    job_events_route_api_v1_jobs__job_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_job_preflight_route_api_v1_jobs__job_id__preflight_get: {
         parameters: {
             query?: never;
@@ -8949,6 +9020,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["JobProgressResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    job_events_route_api_jobs__job_id__events_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

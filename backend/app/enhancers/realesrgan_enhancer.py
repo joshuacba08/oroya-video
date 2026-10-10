@@ -21,6 +21,11 @@ from app.services.ai_runtime_service import (
 )
 from app.utils.performance_utils import calculate_average_ms
 
+# Tiles a probar cuando la GPU se queda sin memoria (0 = imagen completa, sin tiles).
+OOM_TILE_LADDER = (512, 256, 128)
+# Vaciar la caché de CUDA en cada frame cuesta tiempo; basta con hacerlo periódicamente.
+CUDA_CACHE_CLEAR_INTERVAL = 25
+
 
 class RealESRGANFrameEnhancer(FrameEnhancer):
     name = "Real-ESRGAN Frame Enhancer"
@@ -56,9 +61,41 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         self.total_frame_time_ms = 0.0
         self.average_frame_time_ms: int | None = None
         self.model_load_time_ms: int | None = None
+        self.tile_fallbacks = 0
         self._upsampler: Any | None = None
         self._cv2: Any | None = None
         self._default_outscale = scale or 4
+
+    def reset_counters(self) -> None:
+        """Prepare a cached (already loaded) enhancer for a new job."""
+        self.processed_frames = 0
+        self.completed_frames = 0
+        self.failed_frames = 0
+        self.total_frame_time_ms = 0.0
+        self.average_frame_time_ms = None
+        self.tile_fallbacks = 0
+
+    def _reduce_memory_footprint(self) -> bool:
+        """Switch to the next smaller tile after a CUDA OOM. False when nothing is left."""
+        if self.device != "cuda" or self._upsampler is None:
+            return False
+        current = self.tile_size or 0
+        smaller = [tile for tile in OOM_TILE_LADDER if current == 0 or tile < current]
+        if not smaller:
+            return False
+        self.tile_size = smaller[0]
+        self._upsampler.tile_size = self.tile_size
+        self.tile_fallbacks += 1
+        return True
+
+    def _enhance_with_oom_fallback(self, frame: Path, output_path: Path) -> tuple[Path, int]:
+        while True:
+            try:
+                return self.enhance_single_frame(frame, output_path)
+            except CUDAOutOfMemoryError:
+                clear_cuda_cache_if_available()
+                if not self._reduce_memory_footprint():
+                    raise
 
     def enhance_frames(
         self,
@@ -91,11 +128,8 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
                 continue
 
             try:
-                _, elapsed_time_ms = self.enhance_single_frame(frame, output_path)
-            except CUDAOutOfMemoryError:
-                if self.clear_cuda_cache:
-                    clear_cuda_cache_if_available()
-                raise
+                # Un OOM que persiste con el tile más pequeño se propaga y falla el job.
+                _, elapsed_time_ms = self._enhance_with_oom_fallback(frame, output_path)
             except RealESRGANFrameProcessingFailedError:
                 self.failed_frames += 1
                 self.completed_frames += 1
@@ -114,7 +148,11 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
             )
             if progress_callback:
                 progress_callback(self.completed_frames, total)
-            if self.clear_cuda_cache and self.device == "cuda":
+            if (
+                self.clear_cuda_cache
+                and self.device == "cuda"
+                and self.processed_frames % CUDA_CACHE_CLEAR_INTERVAL == 0
+            ):
                 clear_cuda_cache_if_available()
 
         return self.processed_frames

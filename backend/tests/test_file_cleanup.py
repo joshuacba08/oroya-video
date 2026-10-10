@@ -110,3 +110,34 @@ def test_workspace_opens_when_preview_frames_were_deleted(cleanup_env) -> None:
 
     assert response.status_code == 200
     assert response.json()["preview"]["available"] is False
+
+
+def test_originals_are_trimmed_right_after_enhancement(cleanup_env) -> None:
+    from app.core.paths import get_job_original_frames_path
+    from app.services.cleanup_service import trim_original_frames_after_enhancement
+
+    client, source_file, settings = cleanup_env
+    project_id = _create_project(client, _import_video(client, source_file)["id"])["project"]["id"]
+    job_id = client.post("/api/jobs", json={"project_id": project_id}).json()["job"]["id"]
+    originals = get_job_original_frames_path(job_id, settings)
+    originals.mkdir(parents=True)
+    for index in range(30):
+        (originals / f"frame_{index:08d}.png").write_bytes(b"png")
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    try:
+        trim_original_frames_after_enhancement(db, job_id, settings)
+    finally:
+        db.close()
+
+    kept = sorted(path.name for path in originals.iterdir())
+    assert len(kept) == settings.cleanup_keep_preview_frames
+    assert kept[0] == "frame_00000000.png"
+
+
+def test_originals_are_kept_when_cleanup_on_success_is_disabled(tmp_path: Path) -> None:
+    from app.services.cleanup_service import trim_original_frames_after_enhancement
+
+    settings = Settings(storage_path=str(tmp_path / "s"), cleanup_temp_on_success=False)
+    assert trim_original_frames_after_enhancement(None, "any-job", settings) == 0  # type: ignore[arg-type]

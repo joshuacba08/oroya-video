@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import JobLog, ProcessingJob
 from app.schemas.job_schema import JobLogResponse, JobResponse
-from app.services.job_contract_service import build_job_actions
+from app.services.job_contract_service import build_job_actions, estimate_remaining_seconds
 
 
 def create_job(db: Session, data: dict) -> ProcessingJob:
@@ -115,7 +115,7 @@ def to_job_response(job: ProcessingJob) -> JobResponse:
         progress_percent=job.progress_percent,
         frames_total=job.frames_total,
         frames_processed=job.frames_processed,
-        estimated_time_seconds=job.estimated_time_seconds,
+        estimated_time_seconds=estimate_remaining_seconds(job),
         elapsed_time_seconds=job.elapsed_time_seconds,
         enhancement_config=_deserialize_json_object(job.enhancement_config_json),
         export_config=_deserialize_json_object(job.export_config_json),

@@ -281,10 +281,15 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
   const framesTotal = pickNumber(job, ['realesrgan_frames_total', 'frames_total'], 0);
   const framesDone = pickNumber(job, ['realesrgan_frames_processed', 'frames_processed'], 0);
   const avgFrameTimeMs = pickNumber(job, ['realesrgan_average_frame_time_ms'], 0);
+  // El backend estima el tiempo restante de todo el pipeline; si no lo envía (respuestas
+  // antiguas o mock), se estima solo la etapa de mejora.
+  const backendEta = pickNumber(job, ['estimated_time_seconds'], 0);
   const etaSeconds =
-    status === 'running' && stage === 'enhancing_frames' && avgFrameTimeMs > 0 && framesTotal > framesDone
-      ? ((framesTotal - framesDone) * avgFrameTimeMs) / 1000
-      : 0;
+    backendEta > 0
+      ? backendEta
+      : status === 'running' && stage === 'enhancing_frames' && avgFrameTimeMs > 0 && framesTotal > framesDone
+        ? ((framesTotal - framesDone) * avgFrameTimeMs) / 1000
+        : 0;
 
   return {
     id: pickString(job, ['job_id', 'id'], `job-${index}`),
@@ -315,6 +320,7 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     avgFrameTimeMs: avgFrameTimeMs > 0 ? Math.round(avgFrameTimeMs) : undefined,
     failedFrames: pickNumber(job, ['realesrgan_failed_frames'], 0),
     etaLabel: etaSeconds > 0 ? translate('job.etaLeft', { time: formatSeconds(etaSeconds) }) : undefined,
+    etaTime: etaSeconds > 0 ? `~${formatSeconds(etaSeconds)}` : undefined,
     framesProcessed: pickNumber(job, ['enhanced_frames', 'frames_processed'], framesDone),
     framesTotal,
   };

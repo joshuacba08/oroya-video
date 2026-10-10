@@ -1,9 +1,14 @@
 import asyncio
+import json
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.core.errors import JobNotFoundError
+from app.db import database
 from app.db.database import get_db
 from app.schemas.hardening_schema import (
     CleanupResponse,
@@ -165,6 +170,59 @@ def delete_job_route(job_id: str, request: Request, db: DbSession) -> JobDeleteR
 @router.get("/{job_id}/progress", response_model=JobProgressResponse, summary="Get job progress")
 def get_job_progress_route(job_id: str, db: DbSession) -> JobProgressResponse:
     return get_job_progress(db=db, job_id=job_id)
+
+
+SSE_POLL_INTERVAL_SECONDS = 0.5
+SSE_KEEPALIVE_SECONDS = 15.0
+SSE_TERMINAL_STATUSES = {"completed", "failed", "cancelled", "interrupted", "paused"}
+
+
+def _read_progress_json(job_id: str) -> str | None:
+    if database.SessionLocal is None:
+        return None
+    db = database.SessionLocal()
+    try:
+        return get_job_progress(db=db, job_id=job_id).model_dump_json()
+    except JobNotFoundError:
+        return None
+    finally:
+        db.close()
+
+
+@router.get(
+    "/{job_id}/events",
+    summary="Stream job progress as Server-Sent Events",
+    response_class=StreamingResponse,
+)
+async def job_events_route(job_id: str, request: Request) -> StreamingResponse:
+    """Pushes the same payload as GET /progress whenever it changes; closes when the job
+    reaches a terminal or paused state. Clients fall back to polling if this fails."""
+    if await asyncio.to_thread(_read_progress_json, job_id) is None:
+        raise JobNotFoundError()
+
+    async def stream():
+        last_payload: str | None = None
+        last_sent = time.monotonic()
+        while not await request.is_disconnected():
+            payload = await asyncio.to_thread(_read_progress_json, job_id)
+            if payload is None:
+                return
+            if payload != last_payload:
+                last_payload = payload
+                last_sent = time.monotonic()
+                yield f"data: {payload}\n\n"
+                if json.loads(payload)["status"] in SSE_TERMINAL_STATUSES:
+                    return
+            elif time.monotonic() - last_sent >= SSE_KEEPALIVE_SECONDS:
+                last_sent = time.monotonic()
+                yield ": keepalive\n\n"
+            await asyncio.sleep(SSE_POLL_INTERVAL_SECONDS)
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get(

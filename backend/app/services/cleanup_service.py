@@ -243,6 +243,41 @@ def _trim_frames_directory(
     return freed_bytes
 
 
+def trim_original_frames_after_enhancement(
+    db: Session,
+    job_id: str,
+    settings: Settings | None = None,
+) -> int:
+    """Free disk as soon as enhancement ends: encoding only reads the enhanced frames.
+
+    Keeps the same first N originals that the post-success cleanup keeps, so the
+    before/after preview is unaffected. Best effort: never raises into the pipeline.
+    """
+    active_settings = _get_active_settings(settings)
+    if not active_settings.cleanup_temp_on_success:
+        return 0
+    try:
+        job = _get_job_or_raise(db, job_id)
+        originals = get_job_original_frames_path(job.id, active_settings)
+        freed_bytes = _trim_frames_directory(
+            originals,
+            keep_frames=max(0, active_settings.cleanup_keep_preview_frames),
+            deleted_paths=[],
+        )
+        job_repository.update_job(
+            db,
+            job,
+            {"original_frames_size_bytes": get_directory_size_bytes(originals)},
+        )
+        db.commit()
+        logger.info("Original frames trimmed after enhancement: %s (%s bytes)", job.id, freed_bytes)
+        return freed_bytes
+    except (OSError, SQLAlchemyError, JobNotFoundError):
+        db.rollback()
+        logger.exception("Could not trim original frames for job %s", job_id)
+        return 0
+
+
 def cleanup_job_temp_after_success(
     db: Session,
     job_id: str,

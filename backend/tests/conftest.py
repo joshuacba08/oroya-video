@@ -39,3 +39,13 @@ def _assume_realesrgan_packages_installed(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         "app.services.realesrgan_service.get_missing_realesrgan_modules", lambda: []
     )
+
+
+@pytest.fixture(autouse=True)
+def _clear_enhancer_cache():
+    """The loaded Real-ESRGAN model is cached across jobs; never across tests."""
+    from app.services import realesrgan_service
+
+    realesrgan_service._enhancer_cache.clear()
+    yield
+    realesrgan_service._enhancer_cache.clear()

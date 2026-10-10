@@ -39,7 +39,10 @@ from app.db import database
 from app.db.repositories import job_repository, project_repository
 from app.services.audio_mux_service import mux_audio_for_job
 from app.services.audit_log_service import record_audit_event
-from app.services.cleanup_service import cleanup_job_temp_after_success
+from app.services.cleanup_service import (
+    cleanup_job_temp_after_success,
+    trim_original_frames_after_enhancement,
+)
 from app.services.export_service import create_final_export_for_job
 from app.services.frame_enhancement_service import enhance_frames_for_job
 from app.services.frame_extraction_service import extract_frames_for_job, time_to_datetime
@@ -276,6 +279,7 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
         db.refresh(job)
         if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
             return
+        trim_original_frames_after_enhancement(db, job_id, active_settings)
         encode_video_for_job(db, job_id, active_settings)
         db.refresh(job)
         if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
