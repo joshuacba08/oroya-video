@@ -77,13 +77,19 @@ def _set_state(key: str, **changes: object) -> None:
             setattr(state, name, value)
 
 
-def _run_download(
-    key: str,
+class DownloadChecksumError(RuntimeError):
+    pass
+
+
+def download_file(
     url: str,
     dest_path: Path,
-    sha256: str | None,
-    on_complete: Callable[[], None] | None,
+    *,
+    sha256: str | None = None,
+    progress_key: str | None = None,
 ) -> None:
+    """Blocking download to `dest_path` (atomic, SHA256-verified). Reports progress under
+    `progress_key` when given. Raises on network errors or checksum mismatch."""
     part_path = dest_path.with_name(f"{dest_path.name}.part")
     try:
         dest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,7 +100,8 @@ def _run_download(
         with urllib.request.urlopen(request, timeout=DOWNLOAD_TIMEOUT_SECONDS) as response:
             content_length = response.headers.get("Content-Length")
             bytes_total = int(content_length) if content_length else None
-            _set_state(key, bytes_total=bytes_total)
+            if progress_key:
+                _set_state(progress_key, bytes_total=bytes_total, bytes_done=0, percent=0.0)
 
             with open(part_path, "wb") as output:
                 while True:
@@ -104,22 +111,46 @@ def _run_download(
                     output.write(chunk)
                     digest.update(chunk)
                     bytes_done += len(chunk)
-                    percent = round(bytes_done / bytes_total * 100, 1) if bytes_total else 0.0
-                    _set_state(key, bytes_done=bytes_done, percent=percent)
+                    if progress_key:
+                        percent = round(bytes_done / bytes_total * 100, 1) if bytes_total else 0.0
+                        _set_state(progress_key, bytes_done=bytes_done, percent=percent)
 
         if sha256 is not None and digest.hexdigest().lower() != sha256.lower():
-            part_path.unlink(missing_ok=True)
-            _set_state(
-                key,
-                status="failed",
-                error_code="download_checksum_mismatch",
-                error_message="Downloaded file failed the SHA256 integrity check.",
-            )
-            logger.warning("Download checksum mismatch: %s", key)
-            return
-
+            raise DownloadChecksumError(f"SHA256 mismatch for {dest_path.name}")
         os.replace(part_path, dest_path)
+    finally:
+        part_path.unlink(missing_ok=True)
 
+
+def _run_download(
+    key: str,
+    url: str,
+    dest_path: Path,
+    sha256: str | None,
+    on_complete: Callable[[], None] | None,
+) -> None:
+    try:
+        download_file(url, dest_path, sha256=sha256, progress_key=key)
+    except DownloadChecksumError:
+        _set_state(
+            key,
+            status="failed",
+            error_code="download_checksum_mismatch",
+            error_message="Downloaded file failed the SHA256 integrity check.",
+        )
+        logger.warning("Download checksum mismatch: %s", key)
+        return
+    except Exception as exc:
+        _set_state(
+            key,
+            status="failed",
+            error_code="download_failed",
+            error_message=str(exc)[:300] or "Download failed.",
+        )
+        logger.exception("Download failed: %s", key)
+        return
+
+    try:
         if on_complete is not None:
             try:
                 on_complete()
@@ -137,8 +168,7 @@ def _run_download(
 
         _set_state(key, status="completed", percent=100.0)
         logger.info("Download completed: %s -> %s", key, dest_path)
-    except Exception as exc:
-        part_path.unlink(missing_ok=True)
+    except Exception as exc:  # noqa: BLE001 - never leave the state as "downloading"
         _set_state(
             key,
             status="failed",

@@ -67,17 +67,29 @@ def ensure_torchvision_compat() -> None:
         return
 
 
-def get_missing_realesrgan_modules() -> list[str]:
-    """Import check, not just find_spec: basicsr can be installed yet fail to import
-    against a newer torchvision."""
+# Módulos de la restauración facial opcional (GFPGAN + facexlib).
+FACE_RESTORE_RUNTIME_MODULES = ("gfpgan", "facexlib")
+
+
+def _missing_modules(module_names: tuple[str, ...]) -> list[str]:
     ensure_torchvision_compat()
     missing: list[str] = []
-    for module_name in REALESRGAN_RUNTIME_MODULES:
+    for module_name in module_names:
         try:
             importlib.import_module(module_name)
         except Exception:  # noqa: BLE001 - any import failure means the runtime is unusable
             missing.append(module_name.split(".", maxsplit=1)[0])
     return missing
+
+
+def get_missing_face_restore_modules() -> list[str]:
+    return _missing_modules(FACE_RESTORE_RUNTIME_MODULES)
+
+
+def get_missing_realesrgan_modules() -> list[str]:
+    """Import check, not just find_spec: basicsr can be installed yet fail to import
+    against a newer torchvision."""
+    return _missing_modules(REALESRGAN_RUNTIME_MODULES)
 
 
 def is_torch_available() -> bool:

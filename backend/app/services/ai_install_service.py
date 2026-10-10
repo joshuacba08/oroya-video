@@ -34,7 +34,7 @@ logger = get_logger(__name__)
 TORCH_INDEX_CUDA = "https://download.pytorch.org/whl/cu132"
 TORCH_INDEX_CPU = "https://download.pytorch.org/whl/cpu"
 TORCH_PACKAGES = ("torch", "torchvision")
-AI_PACKAGES = ("realesrgan==0.3.0",)
+AI_PACKAGES = ("realesrgan==0.3.0", "gfpgan==1.3.8", "facexlib==0.3.0")
 # Dependencias de basicsr/realesrgan (sin torch ni tb-nightly); numpy/Pillow llegan con torchvision.
 AI_DEPENDENCIES = (
     "addict",
@@ -50,6 +50,9 @@ AI_DEPENDENCIES = (
     "scipy",
     "tqdm",
     "yapf",
+    # facexlib (detección de caras para GFPGAN)
+    "filterpy",
+    "numba",
 )
 # Wheels empaquetados por scripts/build_installer.ps1 (resources/backend/wheels).
 BUNDLED_WHEELS_DIR = BACKEND_ROOT / "wheels"
@@ -94,8 +97,10 @@ def reset_ai_install_state() -> None:
 
 
 def is_ai_stack_installed() -> bool:
-    return ai_runtime_service.is_torch_available() and not (
-        ai_runtime_service.get_missing_realesrgan_modules()
+    return (
+        ai_runtime_service.is_torch_available()
+        and not ai_runtime_service.get_missing_realesrgan_modules()
+        and not ai_runtime_service.get_missing_face_restore_modules()
     )
 
 

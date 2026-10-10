@@ -49,3 +49,11 @@ def _clear_enhancer_cache():
     realesrgan_service._enhancer_cache.clear()
     yield
     realesrgan_service._enhancer_cache.clear()
+
+
+@pytest.fixture(autouse=True)
+def _assume_face_restore_packages_installed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Like the Real-ESRGAN check: tests must not depend on gfpgan/facexlib being installed."""
+    monkeypatch.setattr(
+        "app.services.ai_runtime_service.get_missing_face_restore_modules", lambda: []
+    )

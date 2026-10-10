@@ -221,6 +221,24 @@ class JobNotFoundError(OroyaVideoError):
         )
 
 
+class FaceRestoreNotAvailableError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Face restoration is not available: install the AI runtime and the GFPGAN model.",
+            error_code="face_restore_not_available",
+            status_code=503,
+        )
+
+
+class FaceRestoreFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Face restoration failed while processing frames.",
+            error_code="face_restore_failed",
+            status_code=500,
+        )
+
+
 class SettingsLockedByRunningJobError(OroyaVideoError):
     def __init__(self) -> None:
         super().__init__(

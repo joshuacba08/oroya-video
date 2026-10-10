@@ -16,6 +16,8 @@ from app.core.errors import (
     EncodedVideoNotFoundError,
     EnhancedFramesRequiredError,
     ExportAssetNotFoundError,
+    FaceRestoreFailedError,
+    FaceRestoreNotAvailableError,
     FFmpegNotAvailableError,
     FinalExportFailedError,
     FrameEnhancementFailedError,
@@ -44,6 +46,7 @@ from app.services.cleanup_service import (
     trim_original_frames_after_enhancement,
 )
 from app.services.export_service import create_final_export_for_job
+from app.services.face_restore_service import restore_faces_for_job
 from app.services.frame_enhancement_service import enhance_frames_for_job
 from app.services.frame_extraction_service import extract_frames_for_job, time_to_datetime
 from app.services.process_registry_service import (
@@ -280,6 +283,10 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
         if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
             return
         trim_original_frames_after_enhancement(db, job_id, active_settings)
+        restore_faces_for_job(db, job_id, active_settings)
+        db.refresh(job)
+        if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
+            return
         encode_video_for_job(db, job_id, active_settings)
         db.refresh(job)
         if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
@@ -329,6 +336,8 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
         CUDANotAvailableError,
         CUDAOutOfMemoryError,
         EncodedVideoNotFoundError,
+        FaceRestoreFailedError,
+        FaceRestoreNotAvailableError,
         ExportAssetNotFoundError,
         FrameEnhancerNotFoundError,
         OriginalFramesNotFoundError,

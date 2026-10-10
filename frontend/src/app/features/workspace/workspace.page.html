@@ -225,6 +225,36 @@
             <i></i>
           </label>
         </div>
+        <div class="enhance-row" [class.enhance-row--disabled]="!workspace.faceRestoreAvailable">
+          <span>{{ 'workspace.faceRestore' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [checked]="current.faceRestore && workspace.faceRestoreAvailable"
+              [disabled]="!workspace.faceRestoreAvailable"
+              (change)="setFaceRestore(workspace, $any($event.target).checked)"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (!workspace.faceRestoreAvailable) {
+          <p class="enhance-hint">
+            {{ 'workspace.faceRestoreUnavailable' | t }}
+            <a routerLink="/models">{{ 'nav.models' | t }}</a>
+          </p>
+        } @else if (current.faceRestore) {
+          <label class="slider-row">
+            <span>{{ 'workspace.faceStrength' | t }}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              [value]="current.faceStrength"
+              (input)="setFaceStrength(workspace, $any($event.target).value)"
+            />
+            <strong>{{ current.faceStrength }}</strong>
+          </label>
+        }
         <div class="enhance-row">
           <span>{{ 'workspace.keepAudio' | t }}</span>
           <label class="switch">

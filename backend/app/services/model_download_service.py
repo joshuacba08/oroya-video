@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -13,13 +15,14 @@ from app.schemas.ai_model_schema import (
 )
 from app.services import ai_model_service
 from app.services.audit_log_service import record_audit_event
-from app.services.download_service import get_download_state, start_download
+from app.services.download_service import download_file, get_download_state, start_download
 
 logger = get_logger(__name__)
 
-# Fuentes oficiales (releases de github.com/xinntao/Real-ESRGAN). Los SHA256
-# están verificados contra los archivos publicados.
-MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, str]] = {
+# Fuentes oficiales (releases de github.com/xinntao/Real-ESRGAN, TencentARC/GFPGAN y
+# xinntao/facexlib). Los SHA256 están verificados contra los archivos publicados.
+# `extra_files`: pesos auxiliares que se bajan tras el principal (rutas relativas a models/).
+MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, Any]] = {
     "realesrgan-x2": {
         "url": (
             "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth"
@@ -38,6 +41,28 @@ MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, str]] = {
             "v0.3.0/realesr-general-x4v3.pth"
         ),
         "sha256": "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292",
+    },
+    "gfpgan-v1.4": {
+        "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",
+        "sha256": "e2cd4703ab14f4d01fd1383a8a8b266f9a5833dacee8e6a79d3bf21a1b6be5ad",
+        "extra_files": [
+            {
+                "path": "facexlib/detection_Resnet50_Final.pth",
+                "url": (
+                    "https://github.com/xinntao/facexlib/releases/download/"
+                    "v0.1.0/detection_Resnet50_Final.pth"
+                ),
+                "sha256": "6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d",
+            },
+            {
+                "path": "facexlib/parsing_parsenet.pth",
+                "url": (
+                    "https://github.com/xinntao/facexlib/releases/download/"
+                    "v0.2.2/parsing_parsenet.pth"
+                ),
+                "sha256": "3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2",
+            },
+        ],
     },
 }
 
@@ -77,11 +102,24 @@ def start_model_download(
     model_id = model.id
     model_slug = model.slug
 
+    extra_files = source.get("extra_files", [])
+
     def on_complete() -> None:
+        # Pesos auxiliares (p. ej. facexlib para GFPGAN); un fallo deja la descarga en "failed".
+        for extra in extra_files:
+            extra_path = get_model_path(extra["path"], active_settings)
+            if not extra_path.is_file():
+                download_file(
+                    extra["url"],
+                    extra_path,
+                    sha256=extra["sha256"],
+                    progress_key=download_key,
+                )
         _refresh_after_download(model_id, model_slug, active_settings)
 
+    download_key = _download_key(model.slug)
     state = start_download(
-        _download_key(model.slug),
+        download_key,
         source["url"],
         dest_path,
         sha256=source["sha256"],

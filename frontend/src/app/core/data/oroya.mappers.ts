@@ -33,6 +33,7 @@ type UnknownRecord = Record<string, unknown>;
 const tones: ProjectTone[] = ['violet', 'green', 'rose', 'blue'];
 const pipelineOrder = ['import', 'extract', 'enhance', 'encode', 'export'];
 const pipelineIcons = ['upload', 'film', 'sparkles', 'box', 'download'];
+const FACE_RESTORE_CATEGORY = 'face_restoration';
 
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' ? (value as UnknownRecord) : {};
@@ -143,6 +144,7 @@ function stageToPipeline(stage: string, progress: number, status = ''): Pipeline
     queued: 0,
     extracting_frames: 1,
     enhancing_frames: 2,
+    restoring_faces: 2,
     encoding_video: 3,
     muxing_audio: 3,
     exporting: 4,
@@ -494,9 +496,11 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     (response.project as unknown as UnknownRecord)['workspace_state'],
   );
   const modelsRecord = record(response.models);
-  const available = Array.isArray(modelsRecord['available'])
+  const allModels = Array.isArray(modelsRecord['available'])
     ? modelsRecord['available'].map(mapModelLike)
     : [];
+  // GFPGAN no escala: se activa aparte (restauración facial), no es un modelo seleccionable.
+  const available = allModels.filter((model) => model.category !== FACE_RESTORE_CATEGORY);
   const selected = modelsRecord['selected']
     ? mapModelLike(modelsRecord['selected'])
     : (available[0] ?? emptyModelVm());
@@ -518,6 +522,13 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     denoise: numberValue(enhancement['denoise'], 0),
     sharpen: numberValue(enhancement['sharpen'], 0),
     compressionCleanup: booleanValue(enhancement['compression_cleanup']),
+    faceRestore: {
+      enabled: booleanValue(record(enhancement['face_restore'])['enabled']),
+      strength: numberValue(record(enhancement['face_restore'])['strength'], 0.5),
+    },
+    faceRestoreAvailable: allModels.some(
+      (model) => model.category === FACE_RESTORE_CATEGORY && model.installed && model.enabled,
+    ),
     scale: stringValue(enhancement['scale'], '2x') as WorkspaceVm['scale'],
     exportResolution: stringValue(exportConfig['output_resolution'], '2x') as WorkspaceVm['exportResolution'],
     keepAudio: booleanValue(exportConfig['keep_audio'], true),

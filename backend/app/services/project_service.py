@@ -56,6 +56,7 @@ DEFAULT_ENHANCEMENT_CONFIG = {
     "denoise": 0,
     "sharpen": 0,
     "compression_cleanup": False,
+    "face_restore": {"enabled": False, "strength": 0.5},
 }
 DEFAULT_EXPORT_CONFIG = {
     "format": "mp4",
@@ -85,6 +86,7 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "denoise",
     "sharpen",
     "compression_cleanup",
+    "face_restore",
 }
 ALLOWED_EXPORT_KEYS = {"format", "codec", "keep_audio", "output_resolution"}
 ALLOWED_WORKSPACE_KEYS = {
@@ -137,7 +139,24 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
         )
     if not isinstance(config.get("model_id"), str) or not config["model_id"].strip():
         raise InvalidProjectConfigurationError("Enhancement config model_id is required.")
+    face_restore = config.get("face_restore")
+    if face_restore is not None:
+        _validate_face_restore(face_restore)
     return config
+
+
+def _validate_face_restore(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) - {"enabled", "strength"}:
+        raise InvalidProjectConfigurationError("Enhancement config face_restore is invalid.")
+    if not isinstance(value.get("enabled"), bool):
+        raise InvalidProjectConfigurationError("face_restore.enabled must be boolean.")
+    strength = value.get("strength")
+    if (
+        isinstance(strength, bool)
+        or not isinstance(strength, (int, float))
+        or not 0 <= strength <= 1
+    ):
+        raise InvalidProjectConfigurationError("face_restore.strength must be between 0 and 1.")
 
 
 def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:

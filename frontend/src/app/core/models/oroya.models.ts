@@ -201,6 +201,10 @@ export interface WorkspaceVm {
   denoise: number;
   sharpen: number;
   compressionCleanup: boolean;
+  /** Restauración facial (GFPGAN) tras el escalado; strength 0-1. */
+  faceRestore: { enabled: boolean; strength: number };
+  /** El modelo GFPGAN está instalado y habilitado. */
+  faceRestoreAvailable: boolean;
   scale: 'original' | '2x' | '4x';
   exportResolution: 'original' | '2x' | '4x';
   keepAudio: boolean;

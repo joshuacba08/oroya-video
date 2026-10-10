@@ -202,11 +202,15 @@ Real-ESRGAN x4
 Real-ESRGAN General
 ```
 
+### Restauración facial (opcional, v0.2)
+
+```text
+GFPGAN v1.4
+```
+
 ### Modelos futuros
 
 ```text
-GFPGAN
-CodeFormer
 RIFE
 BasicVSR++
 ```

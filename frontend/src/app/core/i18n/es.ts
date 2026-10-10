@@ -236,6 +236,12 @@ export const es: Record<TranslationKey, string> = {
   'workspace.keepAudio': 'Conservar audio',
   'workspace.faceRestore': 'Restaurar rostros',
   'workspace.faceStrength': 'Intensidad en rostros',
+  'workspace.faceRestoreUnavailable': 'Descarga el modelo GFPGAN para restaurar rostros:',
+  'modelDescription.gfpgan-v1.4':
+    'Restauración de rostros aplicada tras el escalado (paso opcional).',
+  'errors.face_restore_not_available':
+    'La restauración facial no está disponible: instala el runtime de IA y el modelo GFPGAN.',
+  'errors.face_restore_failed': 'La restauración facial falló al procesar los frames.',
   'workspace.saving': 'Guardando ajustes...',
   'workspace.saved': 'Ajustes guardados',
   'workspace.saveFailed': 'No se pudieron guardar los ajustes',

@@ -40,6 +40,9 @@ type WorkspaceControls = {
   denoise: number;
   sharpen: number;
   compressionCleanup: boolean;
+  faceRestore: boolean;
+  /** 0-100 en la UI; el backend usa 0-1. */
+  faceStrength: number;
   keepAudio: boolean;
   compareMode: WorkspaceVm['compareMode'];
   zoom: WorkspaceVm['zoom'];
@@ -130,6 +133,7 @@ export class WorkspacePage {
             denoise: controls.denoise,
             sharpen: controls.sharpen,
             compression_cleanup: controls.compressionCleanup,
+            face_restore: this.faceRestoreConfig(workspace, controls),
           },
           export_config: {
             format: 'mp4',
@@ -381,6 +385,25 @@ export class WorkspacePage {
     this.updateControls(workspace, { compressionCleanup: checked });
   }
 
+  setFaceRestore(workspace: WorkspaceVm, checked: boolean): void {
+    this.updateControls(workspace, { faceRestore: checked });
+  }
+
+  setFaceStrength(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { faceStrength: this.clampPercent(value) });
+  }
+
+  /** Sin GFPGAN instalado no se envía activada (el preflight fallaría). */
+  private faceRestoreConfig(
+    workspace: WorkspaceVm,
+    controls: WorkspaceControls,
+  ): { enabled: boolean; strength: number } {
+    return {
+      enabled: controls.faceRestore && workspace.faceRestoreAvailable,
+      strength: controls.faceStrength / 100,
+    };
+  }
+
   setKeepAudio(workspace: WorkspaceVm, checked: boolean): void {
     this.updateControls(workspace, { keepAudio: checked });
   }
@@ -558,6 +581,7 @@ export class WorkspacePage {
             denoise: controls.denoise,
             sharpen: controls.sharpen,
             compression_cleanup: controls.compressionCleanup,
+            face_restore: this.faceRestoreConfig(workspace, controls),
           },
           export_config: {
             format: 'mp4',
@@ -601,6 +625,8 @@ export class WorkspacePage {
       denoise: workspace.denoise,
       sharpen: workspace.sharpen,
       compressionCleanup: workspace.compressionCleanup,
+      faceRestore: workspace.faceRestore.enabled,
+      faceStrength: Math.round(workspace.faceRestore.strength * 100),
       keepAudio: workspace.keepAudio,
       compareMode: workspace.compareMode,
       zoom: workspace.zoom,

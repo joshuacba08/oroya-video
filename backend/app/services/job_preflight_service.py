@@ -21,8 +21,10 @@ from app.db.repositories import (
     video_repository,
 )
 from app.schemas.hardening_schema import JobPreflightResponse
+from app.services import ai_runtime_service
 from app.services.ai_runtime_service import get_ai_runtime_status
 from app.services.audit_log_service import record_audit_event
+from app.services.face_restore_service import FACE_RESTORE_MODEL_SLUG, get_face_restore_strength
 from app.services.frame_extraction_service import resolve_job_input_video, validate_ffmpeg_available
 from app.services.realesrgan_service import validate_realesrgan_model
 from app.services.video_probe_service import _get_ffprobe_path
@@ -149,6 +151,20 @@ def run_job_preflight(
             warnings.append("CPU fallback selected for Real-ESRGAN.")
     else:
         checks["model_installed"] = bool(model)
+
+    if get_face_restore_strength(job) is not None:
+        face_model = ai_model_repository.get_ai_model_by_slug(db, FACE_RESTORE_MODEL_SLUG)
+        face_model_ready = bool(face_model and face_model.is_enabled and face_model.is_installed)
+        missing_modules = ai_runtime_service.get_missing_face_restore_modules()
+        checks["face_restore_ready"] = face_model_ready and not missing_modules
+        if not face_model_ready:
+            errors.append("Face restoration needs the GFPGAN model: download it in Models.")
+        if missing_modules:
+            errors.append(
+                "Face restoration packages are missing: "
+                + ", ".join(missing_modules)
+                + ". Install the AI runtime from Setup."
+            )
 
     if _has_active_process(job):
         errors.append("This job already has an active registered process.")

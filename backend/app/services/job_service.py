@@ -420,6 +420,7 @@ def pause_processing_job(db: Session, job_id: str) -> JobControlResponse:
         )
     if job.status == "running" and job.current_stage in {
         "extracting_frames",
+        "restoring_faces",
         "encoding_video",
         "muxing_audio",
         "exporting",

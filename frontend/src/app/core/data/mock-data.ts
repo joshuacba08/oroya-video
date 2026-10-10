@@ -336,6 +336,8 @@ export const MOCK_WORKSPACE: WorkspaceVm = {
   denoise: 45,
   sharpen: 60,
   compressionCleanup: true,
+  faceRestore: { enabled: false, strength: 0.5 },
+  faceRestoreAvailable: false,
   scale: '2x',
   exportResolution: '2x',
   keepAudio: true,

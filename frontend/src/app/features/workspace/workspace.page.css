@@ -439,3 +439,17 @@ input[type='range'] {
   background: var(--n-bg-canvas);
   padding: 16px;
 }
+
+.enhance-row--disabled {
+  opacity: 0.55;
+}
+
+.enhance-hint {
+  margin: 0;
+  color: var(--n-text-3);
+  font-size: 0.74rem;
+}
+
+.enhance-hint a {
+  color: var(--n-color-primary-light);
+}

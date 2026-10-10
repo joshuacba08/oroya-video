@@ -234,6 +234,11 @@ export const en = {
   'workspace.keepAudio': 'Keep Audio',
   'workspace.faceRestore': 'Face Restoration',
   'workspace.faceStrength': 'Face strength',
+  'workspace.faceRestoreUnavailable': 'Download the GFPGAN model to restore faces:',
+  'modelDescription.gfpgan-v1.4': 'Face restoration applied after upscaling (optional step).',
+  'errors.face_restore_not_available':
+    'Face restoration is not available: install the AI runtime and the GFPGAN model.',
+  'errors.face_restore_failed': 'Face restoration failed while processing frames.',
   'workspace.saving': 'Saving settings...',
   'workspace.saved': 'Settings saved',
   'workspace.saveFailed': 'Settings could not be saved',

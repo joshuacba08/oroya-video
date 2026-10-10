@@ -122,6 +122,44 @@ DEFAULT_MODELS = [
         ),
         "metadata_json": json.dumps({"quality_tier": "medium", "speed_tier": "fast"}),
     },
+    {
+        "name": "GFPGAN v1.4",
+        "slug": "gfpgan-v1.4",
+        "description": "Face restoration applied after upscaling (optional step).",
+        "provider": "GFPGAN",
+        "category": "face_restoration",
+        "model_type": "gfpgan",
+        "scale_factor": None,
+        "version": "1.4",
+        "status": "missing",
+        "is_enabled": True,
+        "is_installed": False,
+        "is_default": True,
+        "file_name": "GFPGANv1.4.pth",
+        "relative_path": "gfpgan/GFPGANv1.4.pth",
+        "estimated_vram_mb": 2048,
+        "supports_gpu": True,
+        "supports_cpu": True,
+        "capabilities_json": json.dumps(
+            {
+                "upscale": False,
+                "restore": False,
+                "frame_interpolation": False,
+                "face_enhancement": True,
+            }
+        ),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "high",
+                "speed_tier": "medium",
+                # Pesos de facexlib (detección y segmentación de caras) que GFPGAN necesita.
+                "auxiliary_files": [
+                    "facexlib/detection_Resnet50_Final.pth",
+                    "facexlib/parsing_parsenet.pth",
+                ],
+            }
+        ),
+    },
 ]
 
 
@@ -131,6 +169,16 @@ def _get_active_settings(settings: Settings | None = None) -> Settings:
 
 def _serialize_json(value: dict) -> str:
     return json.dumps(value)
+
+
+def get_auxiliary_files(model: AIModel) -> list[str]:
+    """Extra weight files (relative to the models dir) a model needs to be usable."""
+    try:
+        metadata = json.loads(model.metadata_json or "{}")
+    except json.JSONDecodeError:
+        return []
+    files = metadata.get("auxiliary_files")
+    return [item for item in files if isinstance(item, str)] if isinstance(files, list) else []
 
 
 def _resolve_model(model: AIModel, settings: Settings | None = None) -> AIModel:
@@ -160,7 +208,11 @@ def _get_installation_state(
 
     active_settings = _get_active_settings(settings)
     candidate_path = get_model_path(model.relative_path, active_settings)
-    if candidate_path.exists() and candidate_path.is_file():
+    auxiliary_ok = all(
+        get_model_path(relative, active_settings).is_file()
+        for relative in get_auxiliary_files(model)
+    )
+    if auxiliary_ok and candidate_path.exists() and candidate_path.is_file():
         try:
             file_size_bytes = candidate_path.stat().st_size
         except OSError:
