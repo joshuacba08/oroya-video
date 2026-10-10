@@ -4,6 +4,8 @@ from pathlib import Path
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.version import __version__
+
 # Raíz del backend: el .env se lee desde aquí, no desde el directorio de trabajo.
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
@@ -13,7 +15,6 @@ DEFAULT_DATABASE_URL = "sqlite:///storage/db/oroya-video.sqlite"
 
 class Settings(BaseSettings):
     app_name: str = "Oroya Video Backend"
-    app_version: str = "0.1.0"
     api_version: str = "v1"
     environment: str = "development"
     host: str = "127.0.0.1"
@@ -52,6 +53,11 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @property
+    def app_version(self) -> str:
+        # No configurable por .env: la versión la define el código (app/version.py).
+        return __version__
 
     @model_validator(mode="after")
     def _apply_data_dir_defaults(self) -> "Settings":

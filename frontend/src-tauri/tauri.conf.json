@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Oroya Video",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "identifier": "dev.oroya.video",
   "build": {
     "beforeDevCommand": "pnpm start",
@@ -21,7 +21,18 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:",
+        "img-src": "'self' data: blob: http://127.0.0.1:8001",
+        "media-src": "'self' blob: http://127.0.0.1:8001",
+        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:8001",
+        "object-src": "'none'",
+        "base-uri": "'self'",
+        "frame-ancestors": "'none'"
+      }
     }
   },
   "bundle": {

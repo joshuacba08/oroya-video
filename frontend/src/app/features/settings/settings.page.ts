@@ -6,10 +6,17 @@ import { NSelect } from '@neuralangular/angular-ui/select';
 import type { NSelectOption } from '@neuralangular/angular-ui/select';
 import { BehaviorSubject, catchError, firstValueFrom, of, switchMap } from 'rxjs';
 
+import { environment } from '../../../environments/environment';
 import type { SettingsUpdateRequest } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import type { ApiErrorVm } from '../../core/models/oroya.models';
 import { OvSettingsRowComponent } from '../../shared/ui/ov-settings-row.component';
+
+const ENGINE_OPTIONS_AI_ONLY: NSelectOption[] = [{ label: 'Real-ESRGAN', value: 'realesrgan' }];
+const ENGINE_OPTIONS_WITH_MOCK: NSelectOption[] = [
+  { label: 'Mock enhancer (no AI)', value: 'mock' },
+  ...ENGINE_OPTIONS_AI_ONLY,
+];
 
 @Component({
   selector: 'app-settings-page',
@@ -37,10 +44,15 @@ export class SettingsPage {
   ];
   // Solo existe el tema oscuro: "System" no tenía efecto y se retiró hasta que haya tema claro.
   readonly themeOptions: NSelectOption[] = [{ label: 'Dark', value: 'dark' }];
-  readonly engineOptions: NSelectOption[] = [
-    { label: 'Mock enhancer', value: 'mock' },
-    { label: 'Real-ESRGAN', value: 'realesrgan' },
-  ];
+  /**
+   * El motor "mock" solo copia frames (sirve para desarrollo). En producción se ofrece
+   * únicamente si es el valor actual, para que el select no quede vacío antes de instalar IA.
+   */
+  engineOptions(current: string): NSelectOption[] {
+    return !environment.production || current === 'mock'
+      ? ENGINE_OPTIONS_WITH_MOCK
+      : ENGINE_OPTIONS_AI_ONLY;
+  }
   readonly aiDeviceOptions: NSelectOption[] = [
     { label: 'Auto', value: 'auto' },
     { label: 'CPU', value: 'cpu' },

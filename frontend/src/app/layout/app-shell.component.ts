@@ -24,6 +24,7 @@ import {
 } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { APP_VERSION } from '../core/app-version';
 import { OroyaDataService } from '../core/data/oroya-data.service';
 import { mapGpu } from '../core/data/oroya.mappers';
 import { DesktopService } from '../core/desktop/desktop.service';
@@ -105,7 +106,7 @@ export class AppShellComponent {
             },
             ready: false,
             appName: 'Oroya Video',
-            appVersion: '0.1.0',
+            appVersion: APP_VERSION,
             queueCount: 0,
             interruptedCount: 0,
             warnings: [errorVm.message],
