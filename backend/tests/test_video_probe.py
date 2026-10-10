@@ -192,7 +192,10 @@ def test_video_probe_returns_422_when_video_stream_is_missing() -> None:
 
 
 def test_video_probe_returns_metadata_when_ffprobe_succeeds() -> None:
+    # La app arranca antes de parchear Path: su lifespan crea directorios con mkdir,
+    # que en Python 3.12 depende de Path.stat/exists.
     with (
+        TestClient(app) as client,
         patch("app.services.video_probe_service.Path.exists", return_value=True),
         patch("app.services.video_probe_service.Path.is_file", return_value=True),
         patch(
@@ -207,7 +210,6 @@ def test_video_probe_returns_metadata_when_ffprobe_succeeds() -> None:
             "app.services.video_probe_service.subprocess.run",
             return_value=_completed_process(json.dumps(VALID_FFPROBE_PAYLOAD)),
         ),
-        TestClient(app) as client,
     ):
         response = client.post("/api/videos/probe", json={"file_path": VIDEO_PATH})
 
@@ -232,7 +234,10 @@ def test_video_probe_returns_warning_when_audio_stream_is_missing() -> None:
         "format": VALID_FFPROBE_PAYLOAD["format"],
     }
 
+    # La app arranca antes de parchear Path: su lifespan crea directorios con mkdir,
+    # que en Python 3.12 depende de Path.stat/exists.
     with (
+        TestClient(app) as client,
         patch("app.services.video_probe_service.Path.exists", return_value=True),
         patch("app.services.video_probe_service.Path.is_file", return_value=True),
         patch(
@@ -247,7 +252,6 @@ def test_video_probe_returns_warning_when_audio_stream_is_missing() -> None:
             "app.services.video_probe_service.subprocess.run",
             return_value=_completed_process(json.dumps(ffprobe_payload)),
         ),
-        TestClient(app) as client,
     ):
         response = client.post("/api/videos/probe", json={"file_path": VIDEO_PATH})
 
