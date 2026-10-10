@@ -18,6 +18,7 @@ from app.schemas.video_schema import (
 )
 from app.services.job_workspace_service import prepare_job_workspace
 from app.services.video_encoding_service import (
+    build_enhancement_video_filters,
     build_video_encoding_command,
     encode_video_for_job,
     parse_ffmpeg_encoding_progress_line,
@@ -160,6 +161,8 @@ def encoding_client(tmp_path: Path):
         storage_path=str(storage_path),
         database_url=f"sqlite:///{db_path.as_posix()}",
         debug=True,
+        # These tests inspect pipeline intermediates after completion.
+        cleanup_temp_on_success=False,
     )
     app = create_app(settings)
 
@@ -258,6 +261,89 @@ def test_build_video_encoding_command_and_parse_progress() -> None:
     assert parse_ffmpeg_encoding_progress_line("frame=120") == {"frame": "120"}
 
 
+def test_build_enhancement_video_filters_returns_none_for_default_config() -> None:
+    assert build_enhancement_video_filters({}) is None
+    assert (
+        build_enhancement_video_filters(
+            {"denoise": 0, "sharpen": 0, "compression_cleanup": False}
+        )
+        is None
+    )
+
+
+def test_build_enhancement_video_filters_maps_slider_values() -> None:
+    assert build_enhancement_video_filters({"denoise": 50}) == "hqdn3d=4.00"
+    assert build_enhancement_video_filters({"sharpen": 100}) == "unsharp=5:5:1.50"
+    assert (
+        build_enhancement_video_filters({"compression_cleanup": True})
+        == "deblock=filter=strong:block=8"
+    )
+
+
+def test_build_enhancement_video_filters_orders_and_ignores_invalid_values() -> None:
+    combined = build_enhancement_video_filters(
+        {"denoise": 40, "sharpen": 30, "compression_cleanup": True}
+    )
+    assert combined == "deblock=filter=strong:block=8,hqdn3d=3.20,unsharp=5:5:0.45"
+    assert build_enhancement_video_filters({"denoise": "high", "sharpen": 500}) is None
+    assert build_enhancement_video_filters({"denoise": True, "compression_cleanup": 1}) is None
+
+
+def test_build_output_scale_filter_uses_original_dimensions() -> None:
+    from app.services.video_encoding_service import (
+        build_output_scale_filter,
+        combine_video_filters,
+    )
+
+    class Video:
+        width = 1920
+        height = 1080
+
+    video = Video()
+    assert (
+        build_output_scale_filter({"output_resolution": "2x"}, video, enhanced_scale=1)
+        == "scale=3840:2160:flags=lanczos"
+    )
+    assert (
+        build_output_scale_filter({"output_resolution": "original"}, video, enhanced_scale=2)
+        == "scale=1920:1080:flags=lanczos"
+    )
+    # Sin reescalado cuando la resolución pedida coincide con la escala IA.
+    assert build_output_scale_filter({"output_resolution": "2x"}, video, enhanced_scale=2) is None
+    assert build_output_scale_filter({}, video, enhanced_scale=1) is None
+    assert build_output_scale_filter({"output_resolution": "8x"}, video, enhanced_scale=1) is None
+
+    class NoDims:
+        width = None
+        height = None
+
+    assert (
+        build_output_scale_filter({"output_resolution": "2x"}, NoDims(), enhanced_scale=1) is None
+    )
+    assert combine_video_filters(None, None) is None
+    assert combine_video_filters("hqdn3d=4.00", None, "scale=10:10") == "hqdn3d=4.00,scale=10:10"
+
+
+def test_build_video_encoding_command_inserts_video_filters_before_codec() -> None:
+    command = build_video_encoding_command(
+        Path("C:/temp/job/frames/enhanced/frame_%08d.png"),
+        Path("C:/temp/job/encoded/video_silent.mp4"),
+        30.0,
+        video_filters="hqdn3d=4.00",
+    )
+
+    assert "-vf" in command
+    assert command[command.index("-vf") + 1] == "hqdn3d=4.00"
+    assert command.index("-vf") < command.index("-c:v")
+
+    plain_command = build_video_encoding_command(
+        Path("C:/temp/job/frames/enhanced/frame_%08d.png"),
+        Path("C:/temp/job/encoded/video_silent.mp4"),
+        30.0,
+    )
+    assert "-vf" not in plain_command
+
+
 def test_resolve_encoding_fps_uses_video_fps_and_fallback() -> None:
     class Video:
         fps = 23.976
@@ -347,8 +433,10 @@ def test_encode_video_for_job_updates_progress_and_output_metadata(encoding_clie
     project = _create_project(client, video["id"])
     job = _create_job(client, project["id"])
     _prepare_enhanced_frames(job["id"], settings, total=2)
+    popen_kwargs: dict[str, object] = {}
 
     def popen_factory(command, **kwargs):
+        popen_kwargs.update(kwargs)
         return FakeEncodingPopen(
             command,
             lines=["frame=1\n", "progress=continue\n", "frame=2\n", "progress=end\n"],
@@ -374,6 +462,8 @@ def test_encode_video_for_job_updates_progress_and_output_metadata(encoding_clie
     finally:
         db.close()
 
+    assert popen_kwargs["encoding"] == "utf-8"
+    assert popen_kwargs["errors"] == "replace"
     progress_response = client.get(f"/api/jobs/{job['id']}/progress")
     summary_response = client.get(f"/api/jobs/{job['id']}/video-encoding")
     encoded_response = client.get(f"/api/jobs/{job['id']}/encoded-video")
@@ -390,6 +480,70 @@ def test_encode_video_for_job_updates_progress_and_output_metadata(encoding_clie
     assert encoded_response.status_code == 200
     assert encoded_response.json()["available"] is True
     assert encoded_response.json()["size_bytes"] == len(b"mp4")
+
+
+def test_encode_video_for_job_applies_enhancement_filters(encoding_client) -> None:
+    client, source_file, settings = encoding_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    response = client.post(
+        "/api/jobs",
+        json={
+            "project_id": project["id"],
+            "enhancement_config": {
+                "denoise": 40,
+                "sharpen": 30,
+                "compression_cleanup": True,
+            },
+        },
+    )
+    assert response.status_code == 201
+    job = response.json()["job"]
+    _prepare_enhanced_frames(job["id"], settings, total=2)
+    captured_commands: list[list[str]] = []
+
+    def popen_factory(command, **kwargs):
+        captured_commands.append(command)
+        return FakeEncodingPopen(
+            command,
+            lines=["frame=2\n", "progress=end\n"],
+            returncode=0,
+            output_bytes=b"mp4",
+        )
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    try:
+        with (
+            patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
+            patch(
+                "app.services.video_encoding_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.video_encoding_service.subprocess.Popen",
+                side_effect=popen_factory,
+            ),
+        ):
+            encode_video_for_job(db, job["id"], settings=settings)
+    finally:
+        db.close()
+
+    assert len(captured_commands) == 1
+    command = captured_commands[0]
+    assert "-vf" in command
+    assert command[command.index("-vf") + 1] == (
+        "deblock=filter=strong:block=8,hqdn3d=3.20,unsharp=5:5:0.45,"
+        "scale=3840:2160:flags=lanczos,crop=trunc(iw/2)*2:trunc(ih/2)*2"
+    )
+    logs_response = client.get(f"/api/jobs/{job['id']}/logs")
+    messages = [item["message"] for item in logs_response.json()["items"]]
+    assert (
+        "Encoding filters: deblock=filter=strong:block=8,hqdn3d=3.20,unsharp=5:5:0.45,"
+        "scale=3840:2160:flags=lanczos"
+        in messages
+    )
+    assert "Filters apply to the final video, not to preview frames." in messages
 
 
 def test_worker_runs_extraction_enhancement_and_encoding(encoding_client) -> None:
@@ -471,6 +625,108 @@ def test_worker_runs_extraction_enhancement_and_encoding(encoding_client) -> Non
     assert "Video encoding completed." in messages
     assert "Audio mux completed." in messages
     assert "Final export completed." in messages
+
+
+def test_worker_cleans_temp_after_success_preserving_preview(tmp_path: Path) -> None:
+    source_file = tmp_path / "sample.mp4"
+    source_file.write_bytes(b"fake-video-content")
+    settings = Settings(
+        storage_path=str(tmp_path / "storage"),
+        database_url=f"sqlite:///{(tmp_path / 'cleanup.sqlite').as_posix()}",
+        debug=True,
+        cleanup_temp_on_success=True,
+        cleanup_keep_preview_frames=1,
+    )
+    app = create_app(settings)
+
+    with TestClient(app) as client:
+        video = _import_video(client, source_file)
+        project = _create_project(client, video["id"])
+        job = _create_job(client, project["id"])
+        _queue_job(client, job["id"])
+
+        def popen_dispatch(command, **kwargs):
+            if "-framerate" in command:
+                return FakeEncodingPopen(
+                    command,
+                    lines=["frame=1\n", "progress=continue\n", "frame=2\n", "progress=end\n"],
+                    returncode=0,
+                    output_bytes=b"mp4",
+                )
+            if "1:a:0?" in command or str(command[-1]).endswith("video_with_audio.mp4"):
+                return FakeEncodingPopen(
+                    command,
+                    lines=["progress=continue\n", "progress=end\n"],
+                    returncode=0,
+                    output_bytes=b"muxed",
+                )
+            return FakeExtractionPopen(
+                command,
+                lines=["frame=1\n", "progress=continue\n", "frame=2\n", "progress=end\n"],
+                returncode=0,
+                frames_to_create=2,
+            )
+
+        with (
+            patch(
+                "app.services.frame_extraction_service.shutil.which",
+                return_value="C:/ffmpeg.exe",
+            ),
+            patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
+            patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
+            patch(
+                "app.services.frame_extraction_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.frame_enhancement_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.video_encoding_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.audio_mux_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.export_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.frame_extraction_service.subprocess.Popen",
+                side_effect=popen_dispatch,
+            ),
+        ):
+            process_job_skeleton_sync(job["id"], settings)
+
+        progress_response = client.get(f"/api/jobs/{job['id']}/progress")
+        assert progress_response.json()["status"] == "completed"
+
+        job_temp_dir = Path(settings.storage_path) / "temp" / "jobs" / job["id"]
+        original_frames = sorted((job_temp_dir / "frames" / "original").glob("*.png"))
+        enhanced_frames = sorted((job_temp_dir / "frames" / "enhanced").glob("*.png"))
+        assert [frame.name for frame in original_frames] == ["frame_00000000.png"]
+        assert [frame.name for frame in enhanced_frames] == ["frame_00000000.png"]
+        assert not (job_temp_dir / "encoded").exists()
+        assert not (job_temp_dir / "muxed").exists()
+
+        preview_response = client.get(f"/api/jobs/{job['id']}/preview")
+        assert preview_response.status_code == 200
+        assert preview_response.json()["comparable_frames_count"] == 1
+        assert preview_response.json()["recommended_frame_index"] == 0
+        compare_response = client.get(f"/api/jobs/{job['id']}/preview/compare/0")
+        assert compare_response.status_code == 200
+
+        final_export_response = client.get(f"/api/jobs/{job['id']}/final-export")
+        assert final_export_response.status_code == 200
+        assert final_export_response.json()["export_id"] is not None
+        logs_response = client.get(f"/api/jobs/{job['id']}/logs")
+        assert any(
+            item["message"].startswith("Temp cleanup after success completed.")
+            for item in logs_response.json()["items"]
+        )
 
 
 def test_worker_marks_job_failed_when_encoding_fails(encoding_client) -> None:

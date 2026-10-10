@@ -35,14 +35,56 @@ Consulta [`.env.example`](.env.example). Las variables principales del MVP son:
 - `CORS_ORIGINS`
 - `FRAME_ENHANCER_ENGINE`, `AI_DEVICE`, `AI_ALLOW_CPU`, `AI_HALF_PRECISION`
 - `JOB_RECOVERY_ENABLED`, `MARK_RUNNING_JOBS_INTERRUPTED_ON_STARTUP`
-- `CLEANUP_TEMP_ON_SUCCESS`, `CLEANUP_TEMP_OLDER_THAN_HOURS`
+- `CLEANUP_TEMP_ON_SUCCESS`, `CLEANUP_KEEP_PREVIEW_FRAMES`, `CLEANUP_TEMP_OLDER_THAN_HOURS`
 - `MAX_JOB_RETRIES`, `PROCESS_SHUTDOWN_TIMEOUT_SECONDS`
 - `PREFLIGHT_MIN_FREE_DISK_GB`, `AUDIT_LOG_ENABLED`
+
+## Habilitar Real-ESRGAN
+
+Por defecto `FRAME_ENHANCER_ENGINE=mock` (la etapa de mejora solo copia frames,
+para que máquinas sin torch no fallen el preflight). Para activar la IA real:
+
+1. Instala las dependencias IA en el mismo entorno del backend:
+   `pip install -e .[ai]` (torch con CUDA si tienes GPU NVIDIA). Verificado con
+   Python 3.14 + torch 2.12.1+cu132 + basicsr 1.4.2.
+2. Coloca los pesos en `storage/models/realesrgan/`:
+   `realesrgan-x2.pth`, `realesrgan-x4.pth`, `realesrgan-general.pth`.
+3. En tu `.env` local: `FRAME_ENHANCER_ENGINE=realesrgan` y reinicia.
+4. Valida: `GET /api/v1/ai/runtime` (`available=true`), `POST /api/v1/models/refresh`
+   (modelos `is_installed=true`) y `POST /api/v1/ai/realesrgan/dry-run`.
+
+## Parámetros de mejora (denoise / sharpen / compression_cleanup)
+
+Los valores de `enhancement_config` se aplican como filtros FFmpeg en la etapa
+de codificación del video final:
+
+- `denoise` (0-100) -> `hqdn3d`
+- `sharpen` (0-100) -> `unsharp`
+- `compression_cleanup` (bool) -> `deblock`
+
+Limitación: los filtros afectan al video exportado, no a los frames del
+preview antes/después (que muestran solo el upscaling del modelo).
+
+## Pausa y reanudación
+
+- La pausa funciona con jobs en cola y durante la etapa `enhancing_frames`
+  (ambos motores). Durante la mejora, `POST /jobs/{id}/pause` marca
+  `pause_requested` y el worker confirma el estado `paused` en el siguiente
+  frame (puede tardar unos segundos con frames grandes).
+- `POST /jobs/{id}/resume` re-encola el job; los frames ya mejorados se
+  saltan automáticamente, así que reanudar no repite trabajo de GPU.
+
+## Limpieza de temporales
+
+Con `CLEANUP_TEMP_ON_SUCCESS=true` (default), al completar un job se eliminan
+los videos intermedios (`encoded/`, `muxed/`) y se conservan solo los primeros
+`CLEANUP_KEEP_PREVIEW_FRAMES` frames (default 24) en ambos directorios de
+frames, para que el preview antes/después siga funcionando.
 
 ## Ejecutar
 
 ```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+uvicorn app.main:app --host 127.0.0.1 --port 8001 --reload
 ```
 
 También está preparado:
@@ -51,7 +93,7 @@ También está preparado:
 python -m app
 ```
 
-Swagger queda disponible en `http://127.0.0.1:8000/docs`.
+Swagger queda disponible en `http://127.0.0.1:8001/docs`.
 
 ## Calidad
 
@@ -148,6 +190,7 @@ Endpoints de hardening:
   - `http://localhost:4200`
   - `http://127.0.0.1:4200`
   - `tauri://localhost`
+  - `http://tauri.localhost` (origen por defecto de Tauri 2 en Windows)
   - `https://tauri.localhost`
 - El frontend debe usar polling hasta que exista SSE/WebSocket.
 

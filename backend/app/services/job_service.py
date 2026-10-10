@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from datetime import UTC, datetime
@@ -73,6 +74,7 @@ from app.services import (
     audio_mux_service,
     export_service,
     frame_enhancement_service,
+    job_workspace_service,
     video_encoding_service,
 )
 from app.services.audit_log_service import record_audit_event
@@ -355,7 +357,8 @@ async def start_processing_job(
         logger.warning("Job invalid state transition on start: %s", job.status)
         raise JobInvalidStateError()
 
-    ensure_job_preflight_ready(db, job.id, active_settings)
+    # El preflight lanza subprocesos (ffmpeg, GPU) e importa torch: fuera del event loop.
+    await asyncio.to_thread(ensure_job_preflight_ready, db, job.id, active_settings)
 
     try:
         job = job_repository.update_job(
@@ -393,18 +396,33 @@ async def start_processing_job(
 
 def pause_processing_job(db: Session, job_id: str) -> JobControlResponse:
     job = _get_job_or_raise(db, job_id)
+    if job.status == "running" and job.current_stage == "enhancing_frames":
+        try:
+            job = job_repository.update_job(db, job, {"pause_requested": True})
+            job_repository.create_job_log(
+                db,
+                job.id,
+                "info",
+                "Job pause requested.",
+                stage=job.current_stage,
+            )
+            db.commit()
+            db.refresh(job)
+        except SQLAlchemyError as exc:
+            db.rollback()
+            raise JobStartFailedError() from exc
+
+        logger.info("Job pause requested: %s", job.id)
+        return JobControlResponse(
+            job=job_repository.to_job_response(job),
+            message="Job pause requested.",
+        )
     if job.status == "running" and job.current_stage in {
         "extracting_frames",
-        "enhancing_frames",
         "encoding_video",
         "muxing_audio",
         "exporting",
     }:
-        if job.current_stage == "enhancing_frames" and job.enhancer_engine == "realesrgan":
-            raise JobPauseNotSupportedError(
-                "Pausing during Real-ESRGAN enhancement is not supported yet. "
-                "Cancel the job instead."
-            )
         raise JobPauseNotSupportedError()
     if job.status not in {"queued", "running"}:
         raise JobInvalidStateError()
@@ -436,7 +454,8 @@ async def resume_processing_job(
     if job.status != "paused":
         raise JobInvalidStateError()
 
-    ensure_job_preflight_ready(db, job.id, active_settings)
+    # El preflight lanza subprocesos (ffmpeg, GPU) e importa torch: fuera del event loop.
+    await asyncio.to_thread(ensure_job_preflight_ready, db, job.id, active_settings)
     try:
         job = job_repository.update_job(
             db,
@@ -506,17 +525,24 @@ def cancel_processing_job(db: Session, job_id: str) -> JobControlResponse:
     return JobControlResponse(job=job_repository.to_job_response(job), message="Job cancelled.")
 
 
-def delete_processing_job(db: Session, job_id: str) -> dict[str, object]:
+def delete_processing_job(
+    db: Session,
+    job_id: str,
+    settings: Settings | None = None,
+) -> dict[str, object]:
     job = _get_job_or_raise(db, job_id)
     if job.status == "running":
         raise JobInvalidStateError()
 
+    project_id = job.project_id
     try:
         job_repository.delete_job(db, job)
         db.commit()
     except SQLAlchemyError as exc:
         db.rollback()
         raise JobDeleteFailedError() from exc
+
+    job_workspace_service.delete_job_files(job_id, project_id, _get_active_settings(settings))
 
     logger.info("Job deleted: %s", job_id)
     return {"deleted": True, "job_id": job_id}
@@ -650,6 +676,7 @@ def get_job_progress(db: Session, job_id: str) -> JobProgressResponse:
         enhanced_frames=job.enhanced_frames,
         estimated_time_seconds=job.estimated_time_seconds,
         elapsed_time_seconds=job.elapsed_time_seconds,
+        can_start=actions["can_start"],
         can_cancel=actions["can_cancel"],
         can_pause=actions["can_pause"],
         can_retry=actions["can_retry"],

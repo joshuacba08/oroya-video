@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import os
 import time
 from pathlib import Path
 from typing import Any
@@ -13,7 +14,7 @@ from app.core.errors import (
     RealESRGANNotAvailableError,
     RealESRGANUnsupportedModelError,
 )
-from app.enhancers.base import CancelCallback, FrameEnhancer, ProgressCallback
+from app.enhancers.base import CancelCallback, FrameEnhancer, PauseCallback, ProgressCallback
 from app.services.ai_runtime_service import clear_cuda_cache_if_available
 from app.utils.performance_utils import calculate_average_ms
 
@@ -62,6 +63,7 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         output_dir: Path,
         progress_callback: ProgressCallback | None = None,
         cancel_callback: CancelCallback | None = None,
+        pause_callback: PauseCallback | None = None,
     ) -> int:
         frame_files = sorted(frame for frame in input_dir.glob("*.png") if frame.is_file())
         if not frame_files:
@@ -74,8 +76,17 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         for frame in frame_files:
             if cancel_callback and cancel_callback():
                 break
+            if pause_callback and pause_callback():
+                break
 
             output_path = output_dir / frame.name
+            if output_path.is_file() and output_path.stat().st_size > 0:
+                self.processed_frames += 1
+                self.completed_frames += 1
+                if progress_callback:
+                    progress_callback(self.completed_frames, total)
+                continue
+
             try:
                 _, elapsed_time_ms = self.enhance_single_frame(frame, output_path)
             except CUDAOutOfMemoryError:
@@ -151,8 +162,16 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
             raise RealESRGANFrameProcessingFailedError() from exc
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self._cv2.imwrite(str(output_path), result):
+        temp_path = output_path.with_name(f"{output_path.name}.tmp")
+        encoded_ok, encoded_image = self._cv2.imencode(output_path.suffix, result)
+        if not encoded_ok:
             raise RealESRGANFrameProcessingFailedError()
+        try:
+            temp_path.write_bytes(encoded_image.tobytes())
+            os.replace(temp_path, output_path)
+        except OSError as exc:
+            temp_path.unlink(missing_ok=True)
+            raise RealESRGANFrameProcessingFailedError() from exc
 
         elapsed_time_ms = round((time.perf_counter() - started_at) * 1000)
         return output_path, elapsed_time_ms

@@ -20,7 +20,6 @@ from app.schemas.video_schema import (
 )
 from app.services.frame_enhancement_service import enhance_frames_for_job
 from app.services.job_workspace_service import prepare_job_workspace
-from tests.helpers import assert_error_response
 
 
 def _build_probe_response(source_path: Path) -> VideoProbeResponse:
@@ -202,6 +201,29 @@ def test_mock_frame_enhancer_stops_when_cancel_requested(tmp_path: Path) -> None
     assert not (output_dir / "frame_00000001.png").exists()
 
 
+def test_mock_frame_enhancer_stops_when_pause_requested(tmp_path: Path) -> None:
+    input_dir = tmp_path / "original"
+    output_dir = tmp_path / "enhanced"
+    input_dir.mkdir()
+    (input_dir / "frame_00000000.png").write_bytes(b"a")
+    (input_dir / "frame_00000001.png").write_bytes(b"b")
+    pause_checks = {"count": 0}
+
+    def pause_callback() -> bool:
+        pause_checks["count"] += 1
+        return pause_checks["count"] > 1
+
+    processed = MockFrameEnhancer().enhance_frames(
+        input_dir,
+        output_dir,
+        pause_callback=pause_callback,
+    )
+
+    assert processed == 1
+    assert (output_dir / "frame_00000000.png").exists()
+    assert not (output_dir / "frame_00000001.png").exists()
+
+
 def test_enhance_frames_for_job_fails_when_original_frames_are_missing(enhancement_client) -> None:
     client, source_file, settings = enhancement_client
     video = _import_video(client, source_file)
@@ -333,6 +355,55 @@ def test_cancel_during_enhancement_marks_job_cancelled(enhancement_client) -> No
     )
 
 
+def test_pause_during_enhancement_marks_job_paused(enhancement_client) -> None:
+    client, source_file, settings = enhancement_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_original_frames(job["id"], settings, total=3)
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    original_update_job = job_repository.update_job
+    pause_injected = False
+
+    def update_job_with_pause(db_session, job_obj, data):
+        nonlocal pause_injected
+        if "enhanced_frames" in data and not pause_injected:
+            pause_injected = True
+            data = {**data, "pause_requested": True}
+        return original_update_job(db_session, job_obj, data)
+
+    try:
+        with (
+            patch(
+                "app.services.frame_enhancement_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.frame_enhancement_service.job_repository.update_job",
+                side_effect=update_job_with_pause,
+            ),
+        ):
+            enhance_frames_for_job(db, job["id"], settings=settings)
+    finally:
+        db.close()
+
+    progress_response = client.get(f"/api/jobs/{job['id']}/progress")
+    summary_response = client.get(f"/api/jobs/{job['id']}/frame-enhancement")
+    logs_response = client.get(f"/api/jobs/{job['id']}/logs")
+
+    assert progress_response.status_code == 200
+    assert progress_response.json()["status"] == "paused"
+    assert progress_response.json()["current_stage"] == "enhancing_frames"
+    assert progress_response.json()["enhanced_frames"] == 1
+    assert summary_response.json()["enhancement_completed_at"] is None
+    assert any(
+        item["message"] == "Enhancement paused by user."
+        for item in logs_response.json()["items"]
+    )
+
+
 def test_delete_enhanced_frames_keeps_original_frames(enhancement_client) -> None:
     client, source_file, settings = enhancement_client
     video = _import_video(client, source_file)
@@ -364,7 +435,7 @@ def test_delete_enhanced_frames_keeps_original_frames(enhancement_client) -> Non
     assert summary_response.json()["enhanced_frames_dir"] == str(workspace["enhanced_frames_dir"])
 
 
-def test_pause_returns_409_during_enhancement(enhancement_client) -> None:
+def test_pause_requests_pause_during_enhancement(enhancement_client) -> None:
     client, source_file, _ = enhancement_client
     video = _import_video(client, source_file)
     project = _create_project(client, video["id"])
@@ -373,9 +444,7 @@ def test_pause_returns_409_during_enhancement(enhancement_client) -> None:
 
     response = client.post(f"/api/jobs/{job['id']}/pause")
 
-    assert_error_response(
-        response,
-        status_code=409,
-        error="job_pause_not_supported",
-        message="Pausing during processing is not supported yet. Cancel the job instead.",
-    )
+    assert response.status_code == 200
+    assert response.json()["message"] == "Job pause requested."
+    assert response.json()["job"]["status"] == "running"
+    assert response.json()["job"]["pause_requested"] is True

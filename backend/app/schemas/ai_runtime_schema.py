@@ -20,6 +20,10 @@ class AIRuntimeStatusResponse(BaseModel):
     allow_cpu: bool
     half_precision: bool
     warnings: list[str]
+    # Para que la UI genere el comando de instalación con el intérprete correcto.
+    python_executable: str = ""
+    python_version: str = ""
+    ai_extra_site_dir: str | None = None
 
 
 class AIModelValidationResponse(BaseModel):

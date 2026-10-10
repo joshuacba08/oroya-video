@@ -250,6 +250,48 @@
         }
       }
     },
+    "/api/v1/system/ffmpeg/download": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Download FFmpeg into the app data directory",
+        "operationId": "ffmpeg_download_route_api_v1_system_ffmpeg_download_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FFmpegDownloadStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/ffmpeg/download/progress": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get FFmpeg download progress",
+        "operationId": "ffmpeg_download_progress_route_api_v1_system_ffmpeg_download_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FFmpegDownloadProgressResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/storage": {
       "get": {
         "tags": [
@@ -1249,6 +1291,90 @@
         }
       }
     },
+    "/api/v1/models/{model_id_or_slug}/download": {
+      "post": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Download the model weights from the official source",
+        "operationId": "download_model_route_api_v1_models__model_id_or_slug__download_post",
+        "parameters": [
+          {
+            "name": "model_id_or_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id Or Slug"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelDownloadStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/{model_id_or_slug}/download/progress": {
+      "get": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Get model download progress",
+        "operationId": "model_download_progress_route_api_v1_models__model_id_or_slug__download_progress_get",
+        "parameters": [
+          {
+            "name": "model_id_or_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id Or Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelDownloadProgressResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/models/{model_id_or_slug}/enable": {
       "post": {
         "tags": [
@@ -1920,7 +2046,7 @@
         "tags": [
           "Jobs"
         ],
-        "summary": "Prepare a job retry",
+        "summary": "Prepare a job retry (and optionally queue it)",
         "operationId": "retry_job_route_api_v1_jobs__job_id__retry_post",
         "parameters": [
           {
@@ -2941,6 +3067,107 @@
         }
       }
     },
+    "/api/v1/jobs/{job_id}/preview/filtered/{frame_index}": {
+      "get": {
+        "tags": [
+          "Preview"
+        ],
+        "summary": "Get enhanced preview frame with export filters applied",
+        "operationId": "get_filtered_preview_frame_route_api_v1_jobs__job_id__preview_filtered__frame_index__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "frame_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Frame Index"
+            }
+          },
+          {
+            "name": "denoise",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Denoise"
+            }
+          },
+          {
+            "name": "sharpen",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sharpen"
+            }
+          },
+          {
+            "name": "compression_cleanup",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compression Cleanup"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs/{job_id}/preview/compare/{frame_index}": {
       "get": {
         "tags": [
@@ -3279,12 +3506,52 @@
         }
       }
     },
+    "/api/v1/exports/{export_id}/file": {
+      "get": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "Stream the exported video file",
+        "operationId": "get_export_file_route_api_v1_exports__export_id__file_get",
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/exports/{export_id}/open": {
       "post": {
         "tags": [
           "Exports"
         ],
-        "summary": "Validate export file for desktop open",
+        "summary": "Open export file with the default app",
         "operationId": "open_export_route_api_v1_exports__export_id__open_post",
         "parameters": [
           {
@@ -3326,7 +3593,7 @@
         "tags": [
           "Exports"
         ],
-        "summary": "Validate export folder for desktop open",
+        "summary": "Reveal export file in its folder",
         "operationId": "open_export_folder_route_api_v1_exports__export_id__open_folder_post",
         "parameters": [
           {
@@ -3705,6 +3972,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GPUResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/ffmpeg/download": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Download FFmpeg into the app data directory",
+        "operationId": "ffmpeg_download_route_api_system_ffmpeg_download_post",
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FFmpegDownloadStartResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/ffmpeg/download/progress": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Get FFmpeg download progress",
+        "operationId": "ffmpeg_download_progress_route_api_system_ffmpeg_download_progress_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FFmpegDownloadProgressResponse"
                 }
               }
             }
@@ -4711,6 +5020,90 @@
         }
       }
     },
+    "/api/models/{model_id_or_slug}/download": {
+      "post": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Download the model weights from the official source",
+        "operationId": "download_model_route_api_models__model_id_or_slug__download_post",
+        "parameters": [
+          {
+            "name": "model_id_or_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id Or Slug"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelDownloadStartResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/models/{model_id_or_slug}/download/progress": {
+      "get": {
+        "tags": [
+          "Models"
+        ],
+        "summary": "Get model download progress",
+        "operationId": "model_download_progress_route_api_models__model_id_or_slug__download_progress_get",
+        "parameters": [
+          {
+            "name": "model_id_or_slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Model Id Or Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIModelDownloadProgressResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/models/{model_id_or_slug}/enable": {
       "post": {
         "tags": [
@@ -5382,7 +5775,7 @@
         "tags": [
           "Jobs"
         ],
-        "summary": "Prepare a job retry",
+        "summary": "Prepare a job retry (and optionally queue it)",
         "operationId": "retry_job_route_api_jobs__job_id__retry_post",
         "parameters": [
           {
@@ -6403,6 +6796,107 @@
         }
       }
     },
+    "/api/jobs/{job_id}/preview/filtered/{frame_index}": {
+      "get": {
+        "tags": [
+          "Preview"
+        ],
+        "summary": "Get enhanced preview frame with export filters applied",
+        "operationId": "get_filtered_preview_frame_route_api_jobs__job_id__preview_filtered__frame_index__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "frame_index",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Frame Index"
+            }
+          },
+          {
+            "name": "denoise",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Denoise"
+            }
+          },
+          {
+            "name": "sharpen",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sharpen"
+            }
+          },
+          {
+            "name": "compression_cleanup",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Compression Cleanup"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/jobs/{job_id}/preview/compare/{frame_index}": {
       "get": {
         "tags": [
@@ -6741,12 +7235,52 @@
         }
       }
     },
+    "/api/exports/{export_id}/file": {
+      "get": {
+        "tags": [
+          "Exports"
+        ],
+        "summary": "Stream the exported video file",
+        "operationId": "get_export_file_route_api_exports__export_id__file_get",
+        "parameters": [
+          {
+            "name": "export_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Export Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/exports/{export_id}/open": {
       "post": {
         "tags": [
           "Exports"
         ],
-        "summary": "Validate export file for desktop open",
+        "summary": "Open export file with the default app",
         "operationId": "open_export_route_api_exports__export_id__open_post",
         "parameters": [
           {
@@ -6788,7 +7322,7 @@
         "tags": [
           "Exports"
         ],
-        "summary": "Validate export folder for desktop open",
+        "summary": "Reveal export file in its folder",
         "operationId": "open_export_folder_route_api_exports__export_id__open_folder_post",
         "parameters": [
           {
@@ -7090,6 +7624,93 @@
           "model_type"
         ],
         "title": "AIModelCreateRequest"
+      },
+      "AIModelDownloadProgressResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "bytes_done": {
+            "type": "integer",
+            "title": "Bytes Done"
+          },
+          "bytes_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "status",
+          "bytes_done",
+          "bytes_total",
+          "percent",
+          "error_code",
+          "error_message"
+        ],
+        "title": "AIModelDownloadProgressResponse"
+      },
+      "AIModelDownloadStartResponse": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "already_installed": {
+            "type": "boolean",
+            "title": "Already Installed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "status",
+          "already_installed"
+        ],
+        "title": "AIModelDownloadStartResponse"
       },
       "AIModelListResponse": {
         "properties": {
@@ -7599,6 +8220,27 @@
             },
             "type": "array",
             "title": "Warnings"
+          },
+          "python_executable": {
+            "type": "string",
+            "title": "Python Executable",
+            "default": ""
+          },
+          "python_version": {
+            "type": "string",
+            "title": "Python Version",
+            "default": ""
+          },
+          "ai_extra_site_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Extra Site Dir"
           }
         },
         "type": "object",
@@ -8113,9 +8755,16 @@
       "CleanupBatchRequest": {
         "properties": {
           "older_than_hours": {
-            "type": "integer",
-            "title": "Older Than Hours",
-            "default": 72
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Older Than Hours"
           },
           "dry_run": {
             "type": "boolean",
@@ -8227,6 +8876,17 @@
             ],
             "title": "Cleanup Temp On Success"
           },
+          "cleanup_keep_preview_frames": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cleanup Keep Preview Frames"
+          },
           "cleanup_temp_older_than_hours": {
             "anyOf": [
               {
@@ -8248,6 +8908,10 @@
             "type": "boolean",
             "title": "Cleanup Temp On Success"
           },
+          "cleanup_keep_preview_frames": {
+            "type": "integer",
+            "title": "Cleanup Keep Preview Frames"
+          },
           "cleanup_temp_older_than_hours": {
             "type": "integer",
             "title": "Cleanup Temp Older Than Hours"
@@ -8256,6 +8920,7 @@
         "type": "object",
         "required": [
           "cleanup_temp_on_success",
+          "cleanup_keep_preview_frames",
           "cleanup_temp_older_than_hours"
         ],
         "title": "CleanupSettingsResponse"
@@ -8832,6 +9497,11 @@
             "type": "boolean",
             "title": "Available"
           },
+          "opened": {
+            "type": "boolean",
+            "title": "Opened",
+            "default": false
+          },
           "message": {
             "type": "string",
             "title": "Message"
@@ -8845,6 +9515,83 @@
           "message"
         ],
         "title": "ExportOpenResponse"
+      },
+      "FFmpegDownloadProgressResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "bytes_done": {
+            "type": "integer",
+            "title": "Bytes Done"
+          },
+          "bytes_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bytes Total"
+          },
+          "percent": {
+            "type": "number",
+            "title": "Percent"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "bytes_done",
+          "bytes_total",
+          "percent",
+          "error_code",
+          "error_message"
+        ],
+        "title": "FFmpegDownloadProgressResponse"
+      },
+      "FFmpegDownloadStartResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "already_installed": {
+            "type": "boolean",
+            "title": "Already Installed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "already_installed"
+        ],
+        "title": "FFmpegDownloadStartResponse"
       },
       "FinalExportSummaryResponse": {
         "properties": {
@@ -10246,6 +10993,11 @@
               }
             ],
             "title": "Elapsed Time Seconds"
+          },
+          "can_start": {
+            "type": "boolean",
+            "title": "Can Start",
+            "default": false
           },
           "can_cancel": {
             "type": "boolean",
@@ -11995,6 +12747,11 @@
             "type": "boolean",
             "title": "Reset Progress",
             "default": true
+          },
+          "start": {
+            "type": "boolean",
+            "title": "Start",
+            "default": false
           }
         },
         "type": "object",
@@ -12955,6 +13712,122 @@
               }
             ],
             "title": "Started At"
+          },
+          "frames_total": {
+            "type": "integer",
+            "title": "Frames Total",
+            "default": 0
+          },
+          "frames_processed": {
+            "type": "integer",
+            "title": "Frames Processed",
+            "default": 0
+          },
+          "elapsed_time_seconds": {
+            "type": "integer",
+            "title": "Elapsed Time Seconds",
+            "default": 0
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "enhancer_engine": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enhancer Engine"
+          },
+          "realesrgan_device": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realesrgan Device"
+          },
+          "realesrgan_frames_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realesrgan Frames Total"
+          },
+          "realesrgan_frames_processed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realesrgan Frames Processed"
+          },
+          "realesrgan_failed_frames": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realesrgan Failed Frames"
+          },
+          "realesrgan_average_frame_time_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Realesrgan Average Frame Time Ms"
+          },
+          "retry_count": {
+            "type": "integer",
+            "title": "Retry Count",
+            "default": 0
+          },
+          "max_retries": {
+            "type": "integer",
+            "title": "Max Retries",
+            "default": 0
+          },
+          "actions": {
+            "$ref": "#/components/schemas/JobActions"
           }
         },
         "type": "object",
@@ -12967,7 +13840,8 @@
           "progress_percent",
           "model_slug",
           "created_at",
-          "started_at"
+          "started_at",
+          "actions"
         ],
         "title": "QueueItemResponse"
       },
@@ -12999,6 +13873,16 @@
           "interrupted": {
             "type": "integer",
             "title": "Interrupted"
+          },
+          "paused": {
+            "type": "integer",
+            "title": "Paused",
+            "default": 0
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed",
+            "default": 0
           },
           "limit": {
             "type": "integer",

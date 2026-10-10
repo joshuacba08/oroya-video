@@ -31,7 +31,7 @@ DbSession = Annotated[Session, Depends(get_db)]
     status_code=status.HTTP_201_CREATED,
     summary="Create a project from an imported video",
 )
-async def create_project_route(
+def create_project_route(
     payload: ProjectCreateRequest,
     db: DbSession,
 ) -> ProjectDetailResponse:
@@ -39,7 +39,7 @@ async def create_project_route(
 
 
 @router.get("", response_model=ProjectListResponse, summary="List projects")
-async def list_projects_route(
+def list_projects_route(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -54,7 +54,7 @@ async def list_projects_route(
     response_model=ProjectWorkspaceResponse,
     summary="Get project workspace bootstrap data",
 )
-async def get_project_workspace_route(
+def get_project_workspace_route(
     project_id: str,
     request: Request,
     db: DbSession,
@@ -71,7 +71,7 @@ async def get_project_workspace_route(
     response_model=ProjectDetailResponse,
     summary="Get a project with video details",
 )
-async def get_project_route(project_id: str, db: DbSession) -> ProjectDetailResponse:
+def get_project_route(project_id: str, db: DbSession) -> ProjectDetailResponse:
     return get_project_detail(db=db, project_id=project_id)
 
 
@@ -80,7 +80,7 @@ async def get_project_route(project_id: str, db: DbSession) -> ProjectDetailResp
     response_model=ProjectDetailResponse,
     summary="Update project metadata and workspace state",
 )
-async def update_project_route(
+def update_project_route(
     project_id: str,
     payload: ProjectUpdateRequest,
     db: DbSession,
@@ -93,5 +93,9 @@ async def update_project_route(
     response_model=ProjectDeleteResponse,
     summary="Delete a project",
 )
-async def delete_project_route(project_id: str, db: DbSession) -> ProjectDeleteResponse:
-    return delete_project(db=db, project_id=project_id)
+def delete_project_route(
+    project_id: str,
+    request: Request,
+    db: DbSession,
+) -> ProjectDeleteResponse:
+    return delete_project(db=db, project_id=project_id, settings=request.app.state.settings)

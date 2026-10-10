@@ -40,7 +40,12 @@ def build_job_actions(job: ProcessingJob) -> dict[str, bool]:
     return {
         "can_start": job.status in {"pending", "paused"},
         "can_cancel": job.status in {"pending", "queued", "running", "paused", "retrying"},
-        "can_pause": job.status in {"queued", "running"},
+        "can_pause": job.status == "queued"
+        or (
+            job.status == "running"
+            and job.current_stage == "enhancing_frames"
+            and not job.pause_requested
+        ),
         "can_retry": can_retry,
         "can_cleanup": job.status not in {"queued", "running", "retrying", "cleaning"},
         "can_delete": job.status != "running",

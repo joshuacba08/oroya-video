@@ -443,6 +443,42 @@ class PreviewFrameNotFoundError(OroyaVideoError):
         )
 
 
+class FilteredPreviewFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Filtered preview frame could not be rendered.",
+            error_code="filtered_preview_failed",
+            status_code=500,
+        )
+
+
+class DownloadAlreadyRunningError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A download is already running for this resource.",
+            error_code="download_already_running",
+            status_code=409,
+        )
+
+
+class DownloadSourceNotConfiguredError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "No download source is configured for this resource.",
+            error_code="download_source_not_configured",
+            status_code=400,
+        )
+
+
+class DownloadFailedError(OroyaVideoError):
+    def __init__(self, message: str = "Download failed.") -> None:
+        super().__init__(
+            message,
+            error_code="download_failed",
+            status_code=502,
+        )
+
+
 class InvalidFrameIndexError(OroyaVideoError):
     def __init__(self) -> None:
         super().__init__(

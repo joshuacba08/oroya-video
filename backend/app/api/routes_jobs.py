@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -81,7 +82,7 @@ DbSession = Annotated[Session, Depends(get_db)]
     status_code=status.HTTP_201_CREATED,
     summary="Create a processing job",
 )
-async def create_job_route(
+def create_job_route(
     payload: JobCreateRequest,
     request: Request,
     db: DbSession,
@@ -94,7 +95,7 @@ async def create_job_route(
 
 
 @router.get("", response_model=JobListResponse, summary="List processing jobs")
-async def list_jobs_route(
+def list_jobs_route(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -115,7 +116,7 @@ async def list_jobs_route(
     response_model=JobListResponse,
     summary="List interrupted jobs",
 )
-async def list_interrupted_jobs_route(
+def list_interrupted_jobs_route(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -124,7 +125,7 @@ async def list_interrupted_jobs_route(
 
 
 @router.get("/{job_id}", response_model=JobDetailResponse, summary="Get job detail")
-async def get_job_route(job_id: str, db: DbSession) -> JobDetailResponse:
+def get_job_route(job_id: str, db: DbSession) -> JobDetailResponse:
     return get_processing_job_detail(db=db, job_id=job_id)
 
 
@@ -138,7 +139,7 @@ async def start_job_route(
 
 
 @router.post("/{job_id}/pause", response_model=JobControlResponse, summary="Pause a job")
-async def pause_job_route(job_id: str, db: DbSession) -> JobControlResponse:
+def pause_job_route(job_id: str, db: DbSession) -> JobControlResponse:
     return pause_processing_job(db=db, job_id=job_id)
 
 
@@ -152,17 +153,17 @@ async def resume_job_route(
 
 
 @router.post("/{job_id}/cancel", response_model=JobControlResponse, summary="Cancel a job")
-async def cancel_job_route(job_id: str, db: DbSession) -> JobControlResponse:
+def cancel_job_route(job_id: str, db: DbSession) -> JobControlResponse:
     return cancel_processing_job(db=db, job_id=job_id)
 
 
 @router.delete("/{job_id}", response_model=JobDeleteResponse, summary="Delete a job")
-async def delete_job_route(job_id: str, db: DbSession) -> JobDeleteResponse:
-    return delete_processing_job(db=db, job_id=job_id)
+def delete_job_route(job_id: str, request: Request, db: DbSession) -> JobDeleteResponse:
+    return delete_processing_job(db=db, job_id=job_id, settings=request.app.state.settings)
 
 
 @router.get("/{job_id}/progress", response_model=JobProgressResponse, summary="Get job progress")
-async def get_job_progress_route(job_id: str, db: DbSession) -> JobProgressResponse:
+def get_job_progress_route(job_id: str, db: DbSession) -> JobProgressResponse:
     return get_job_progress(db=db, job_id=job_id)
 
 
@@ -171,7 +172,7 @@ async def get_job_progress_route(job_id: str, db: DbSession) -> JobProgressRespo
     response_model=JobPreflightResponse,
     summary="Run job preflight checks",
 )
-async def get_job_preflight_route(
+def get_job_preflight_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -180,7 +181,7 @@ async def get_job_preflight_route(
 
 
 @router.get("/{job_id}/logs", response_model=JobLogsResponse, summary="Get job logs")
-async def get_job_logs_route(
+def get_job_logs_route(
     job_id: str,
     db: DbSession,
     limit: int = Query(default=100, ge=1, le=500),
@@ -192,7 +193,7 @@ async def get_job_logs_route(
 @router.post(
     "/{job_id}/retry",
     response_model=JobControlResponse,
-    summary="Prepare a job retry",
+    summary="Prepare a job retry (and optionally queue it)",
 )
 async def retry_job_route(
     job_id: str,
@@ -200,16 +201,24 @@ async def retry_job_route(
     request: Request,
     db: DbSession,
 ) -> JobControlResponse:
-    return retry_processing_job(
+    response = await asyncio.to_thread(
+        retry_processing_job,
         db=db,
         job_id=job_id,
         request=payload,
         settings=request.app.state.settings,
     )
+    if not payload.start:
+        return response
+    return await start_processing_job(
+        db=db,
+        job_id=job_id,
+        settings=request.app.state.settings,
+    )
 
 
 @router.get("/{job_id}/frames", response_model=JobFramesResponse, summary="List extracted frames")
-async def get_job_frames_route(
+def get_job_frames_route(
     job_id: str,
     db: DbSession,
     limit: int = Query(default=100, ge=1, le=500),
@@ -223,7 +232,7 @@ async def get_job_frames_route(
     response_model=JobEnhancedFramesResponse,
     summary="List enhanced frames",
 )
-async def get_job_enhanced_frames_route(
+def get_job_enhanced_frames_route(
     job_id: str,
     db: DbSession,
     limit: int = Query(default=100, ge=1, le=500),
@@ -237,7 +246,7 @@ async def get_job_enhanced_frames_route(
     response_model=FrameExtractionSummaryResponse,
     summary="Get frame extraction summary",
 )
-async def get_job_frame_extraction_summary_route(
+def get_job_frame_extraction_summary_route(
     job_id: str,
     db: DbSession,
 ) -> FrameExtractionSummaryResponse:
@@ -249,7 +258,7 @@ async def get_job_frame_extraction_summary_route(
     response_model=FrameEnhancementSummaryResponse,
     summary="Get frame enhancement summary",
 )
-async def get_job_frame_enhancement_summary_route(
+def get_job_frame_enhancement_summary_route(
     job_id: str,
     db: DbSession,
 ) -> FrameEnhancementSummaryResponse:
@@ -261,7 +270,7 @@ async def get_job_frame_enhancement_summary_route(
     response_model=JobPipelineResponse,
     summary="Get job pipeline summary",
 )
-async def get_job_pipeline_route(
+def get_job_pipeline_route(
     job_id: str,
     db: DbSession,
 ) -> JobPipelineResponse:
@@ -273,7 +282,7 @@ async def get_job_pipeline_route(
     response_model=JobDiagnosticsResponse,
     summary="Get job diagnostics",
 )
-async def get_job_diagnostics_route(
+def get_job_diagnostics_route(
     job_id: str,
     db: DbSession,
 ) -> JobDiagnosticsResponse:
@@ -285,7 +294,7 @@ async def get_job_diagnostics_route(
     response_model=RealESRGANJobSummaryResponse,
     summary="Get Real-ESRGAN job summary",
 )
-async def get_job_realesrgan_summary_route(
+def get_job_realesrgan_summary_route(
     job_id: str,
     db: DbSession,
 ) -> RealESRGANJobSummaryResponse:
@@ -297,7 +306,7 @@ async def get_job_realesrgan_summary_route(
     response_model=RealESRGANJobValidationResponse,
     summary="Validate Real-ESRGAN job requirements",
 )
-async def validate_job_realesrgan_route(
+def validate_job_realesrgan_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -314,7 +323,7 @@ async def validate_job_realesrgan_route(
     response_model=VideoEncodingSummaryResponse,
     summary="Get video encoding summary",
 )
-async def get_job_video_encoding_summary_route(
+def get_job_video_encoding_summary_route(
     job_id: str,
     db: DbSession,
 ) -> VideoEncodingSummaryResponse:
@@ -326,7 +335,7 @@ async def get_job_video_encoding_summary_route(
     response_model=EncodedVideoResponse,
     summary="Get encoded video metadata",
 )
-async def get_job_encoded_video_route(
+def get_job_encoded_video_route(
     job_id: str,
     db: DbSession,
 ) -> EncodedVideoResponse:
@@ -338,7 +347,7 @@ async def get_job_encoded_video_route(
     response_model=AudioMuxSummaryResponse,
     summary="Get audio mux summary",
 )
-async def get_job_audio_mux_summary_route(
+def get_job_audio_mux_summary_route(
     job_id: str,
     db: DbSession,
 ) -> AudioMuxSummaryResponse:
@@ -350,7 +359,7 @@ async def get_job_audio_mux_summary_route(
     response_model=MuxedVideoResponse,
     summary="Get muxed video metadata",
 )
-async def get_job_muxed_video_route(
+def get_job_muxed_video_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -363,7 +372,7 @@ async def get_job_muxed_video_route(
     response_model=FinalExportSummaryResponse,
     summary="Get final export summary",
 )
-async def get_job_final_export_summary_route(
+def get_job_final_export_summary_route(
     job_id: str,
     db: DbSession,
 ) -> FinalExportSummaryResponse:
@@ -375,7 +384,7 @@ async def get_job_final_export_summary_route(
     response_model=DeleteFramesResponse,
     summary="Delete extracted frames",
 )
-async def delete_job_frames_route(
+def delete_job_frames_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -388,7 +397,7 @@ async def delete_job_frames_route(
     response_model=DeleteEnhancedFramesResponse,
     summary="Delete enhanced frames",
 )
-async def delete_job_enhanced_frames_route(
+def delete_job_enhanced_frames_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -405,7 +414,7 @@ async def delete_job_enhanced_frames_route(
     response_model=CleanupResponse,
     summary="Delete safe temporary files for a job",
 )
-async def cleanup_job_temp_route(
+def cleanup_job_temp_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -430,7 +439,7 @@ async def cleanup_job_temp_route(
     response_model=DeleteEncodedVideoResponse,
     summary="Delete encoded video",
 )
-async def delete_job_encoded_video_route(
+def delete_job_encoded_video_route(
     job_id: str,
     db: DbSession,
 ) -> DeleteEncodedVideoResponse:
@@ -442,7 +451,7 @@ async def delete_job_encoded_video_route(
     response_model=DeleteMuxedVideoResponse,
     summary="Delete muxed video",
 )
-async def delete_job_muxed_video_route(
+def delete_job_muxed_video_route(
     job_id: str,
     db: DbSession,
 ) -> DeleteMuxedVideoResponse:

@@ -1,7 +1,6 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
+from app.core.paths import get_logs_path
 from app.main import app
 
 
@@ -25,6 +24,6 @@ def test_version_endpoint_returns_configured_version() -> None:
 
 def test_startup_creates_log_file() -> None:
     with TestClient(app):
-        log_path = Path("storage/logs/backend.log")
+        log_path = get_logs_path() / "backend.log"
 
     assert log_path.exists()

@@ -27,6 +27,7 @@ class StorageSettingsResponse(BaseModel):
 
 class CleanupSettingsResponse(BaseModel):
     cleanup_temp_on_success: bool
+    cleanup_keep_preview_frames: int
     cleanup_temp_older_than_hours: int
 
 
@@ -54,6 +55,7 @@ class ProcessingSettingsPatch(BaseModel):
 
 class CleanupSettingsPatch(BaseModel):
     cleanup_temp_on_success: bool | None = None
+    cleanup_keep_preview_frames: int | None = None
     cleanup_temp_older_than_hours: int | None = None
 
 

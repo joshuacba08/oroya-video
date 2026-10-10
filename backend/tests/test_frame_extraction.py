@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
-from app.core.errors import FFmpegNotAvailableError
+from app.core.errors import FFmpegNotAvailableError, RealESRGANModelLoadFailedError
 from app.db import database
 from app.db.repositories import job_repository
 from app.main import create_app
@@ -110,6 +110,9 @@ class FakePopen:
 
     def wait(self, timeout: float | None = None) -> int:
         return self.returncode
+
+    def poll(self) -> int | None:
+        return None
 
     def terminate(self) -> None:
         self.terminated = True
@@ -297,8 +300,10 @@ def test_worker_extracts_frames_and_updates_progress(frame_client) -> None:
     _queue_job(client, job["id"])
 
     process_holder: dict[str, FakePopen] = {}
+    popen_kwargs: dict[str, object] = {}
 
     def popen_factory(command, **kwargs):
+        popen_kwargs.update(kwargs)
         process = FakePopen(
             command,
             lines=["frame=1\n", "progress=continue\n", "frame=3\n", "progress=end\n"],
@@ -322,6 +327,8 @@ def test_worker_extracts_frames_and_updates_progress(frame_client) -> None:
     ):
         process_job_skeleton_sync(job["id"], settings)
 
+    assert popen_kwargs["encoding"] == "utf-8"
+    assert popen_kwargs["errors"] == "replace"
     progress_response = client.get(f"/api/jobs/{job['id']}/progress")
     frames_response = client.get(f"/api/jobs/{job['id']}/frames")
     summary_response = client.get(f"/api/jobs/{job['id']}/frame-extraction")
@@ -394,6 +401,39 @@ def test_worker_marks_job_failed_when_ffmpeg_returns_error(frame_client) -> None
     )
 
 
+def test_worker_marks_job_failed_when_unexpected_exception_occurs(frame_client) -> None:
+    client, source_file, settings = frame_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+
+    decode_error = UnicodeDecodeError(
+        "cp932",
+        b"\xef",
+        0,
+        1,
+        "illegal multibyte sequence",
+    )
+
+    with patch("app.workers.job_runner.extract_frames_for_job", side_effect=decode_error):
+        process_job_skeleton_sync(job["id"], settings)
+
+    progress_response = client.get(f"/api/jobs/{job['id']}/progress")
+    logs_response = client.get(f"/api/jobs/{job['id']}/logs")
+
+    assert progress_response.status_code == 200
+    payload = progress_response.json()
+    assert payload["status"] == "failed"
+    assert payload["current_stage"] == "failed"
+    assert payload["error_code"] == "unknown_error"
+    assert payload["error_message"].startswith("Unexpected worker error: UnicodeDecodeError")
+    assert any(
+        item["message"].startswith("Unexpected worker error: UnicodeDecodeError")
+        for item in logs_response.json()["items"]
+    )
+
+
 def test_worker_terminates_ffmpeg_when_job_is_cancelled(frame_client) -> None:
     client, source_file, settings = frame_client
     video = _import_video(client, source_file)
@@ -456,6 +496,150 @@ def test_worker_terminates_ffmpeg_when_job_is_cancelled(frame_client) -> None:
         item["message"] == "Frame extraction cancelled by user."
         for item in logs_response.json()["items"]
     )
+
+
+def test_cancel_from_api_that_kills_ffmpeg_leaves_job_cancelled(frame_client) -> None:
+    client, source_file, settings = frame_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+
+    class KilledStdout:
+        """The API cancel kills ffmpeg: stdout just ends and the exit code is non-zero."""
+
+        def __iter__(self):
+            response = client.post(f"/api/jobs/{job['id']}/cancel")
+            assert response.status_code == 200
+            yield from ()
+
+    def popen_factory(command, **kwargs):
+        process = FakePopen(command, returncode=1, stderr_text="Exiting normally, received signal")
+        process.stdout = KilledStdout()
+        return process
+
+    enhance_mock = patch("app.workers.job_runner.enhance_frames_for_job")
+    with (
+        patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
+        patch(
+            "app.services.frame_extraction_service.shutil.disk_usage",
+            return_value=(1000, 100, 900),
+        ),
+        patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
+        enhance_mock as enhance,
+    ):
+        process_job_skeleton_sync(job["id"], settings)
+
+    payload = client.get(f"/api/jobs/{job['id']}/progress").json()
+    assert payload["status"] == "cancelled"
+    assert payload["error_code"] is None
+    assert not enhance.called
+
+
+def test_shutdown_killing_ffmpeg_leaves_job_for_startup_recovery(frame_client) -> None:
+    from app.services import process_registry_service
+
+    client, source_file, settings = frame_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+
+    class ShutdownStdout:
+        def __iter__(self):
+            process_registry_service.request_shutdown()
+            yield from ()
+
+    def popen_factory(command, **kwargs):
+        process = FakePopen(command, returncode=1, stderr_text="killed")
+        process.stdout = ShutdownStdout()
+        return process
+
+    try:
+        with (
+            patch(
+                "app.services.frame_extraction_service.shutil.which",
+                return_value="C:/ffmpeg.exe",
+            ),
+            patch(
+                "app.services.frame_extraction_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.frame_extraction_service.subprocess.Popen",
+                side_effect=popen_factory,
+            ),
+            patch("app.workers.job_runner.enhance_frames_for_job") as enhance,
+        ):
+            process_job_skeleton_sync(job["id"], settings)
+    finally:
+        process_registry_service.clear_shutdown()
+
+    payload = client.get(f"/api/jobs/{job['id']}/progress").json()
+    assert payload["status"] == "running"
+    assert payload["error_code"] is None
+    assert not enhance.called
+
+
+def test_worker_marks_job_failed_when_stage_raises_without_marking_it(frame_client) -> None:
+    client, source_file, settings = frame_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+
+    with (
+        patch("app.workers.job_runner.extract_frames_for_job"),
+        patch(
+            "app.workers.job_runner.enhance_frames_for_job",
+            side_effect=RealESRGANModelLoadFailedError(),
+        ),
+    ):
+        process_job_skeleton_sync(job["id"], settings)
+
+    payload = client.get(f"/api/jobs/{job['id']}/progress").json()
+    assert payload["status"] == "failed"
+    assert payload["error_code"] == "realesrgan_model_load_failed"
+    assert client.get(f"/api/projects/{project['id']}").json()["project"]["status"] == (
+        "failed"
+    )
+
+
+def test_worker_skips_job_paused_while_queued(frame_client) -> None:
+    client, source_file, settings = frame_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+    assert client.post(f"/api/jobs/{job['id']}/pause").status_code == 200
+
+    with patch("app.workers.job_runner.extract_frames_for_job") as extract:
+        process_job_skeleton_sync(job["id"], settings)
+
+    assert not extract.called
+    assert client.get(f"/api/jobs/{job['id']}/progress").json()["status"] == "paused"
+
+
+def test_worker_does_not_rerun_a_job_dequeued_twice(frame_client) -> None:
+    client, source_file, settings = frame_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+
+    with (
+        patch("app.workers.job_runner.extract_frames_for_job") as extract,
+        patch("app.workers.job_runner.enhance_frames_for_job"),
+        patch("app.workers.job_runner.encode_video_for_job"),
+        patch("app.workers.job_runner.mux_audio_for_job"),
+        patch("app.workers.job_runner.create_final_export_for_job"),
+        patch("app.workers.job_runner.cleanup_job_temp_after_success"),
+    ):
+        process_job_skeleton_sync(job["id"], settings)
+        process_job_skeleton_sync(job["id"], settings)
+
+    assert extract.call_count == 1
+    assert client.get(f"/api/jobs/{job['id']}/progress").json()["status"] == "completed"
 
 
 def test_pause_returns_409_during_frame_extraction(frame_client) -> None:

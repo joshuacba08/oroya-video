@@ -37,6 +37,8 @@ from app.schemas.export_schema import (
     ExportOpenResponse,
 )
 from app.schemas.job_schema import FinalExportSummaryResponse
+from app.schemas.video_schema import VideoProbeRequest
+from app.services import desktop_open_service, video_probe_service
 from app.services.audit_log_service import record_audit_event
 from app.services.frame_extraction_service import time_to_datetime
 from app.services.pipeline_progress import EXPORT_PROGRESS_END, EXPORT_PROGRESS_START
@@ -263,6 +265,10 @@ def create_final_export_for_job(
         return None
 
     copied_size = copied_path.stat().st_size
+    width, height = _probe_output_dimensions(copied_path)
+    if width is None or height is None:
+        width, height = video_asset.width, video_asset.height
+    resolution_label = f"{width}x{height}" if width and height else video_asset.resolution_label
     export_asset = export_repository.create_export_asset(
         db,
         {
@@ -280,9 +286,9 @@ def create_final_export_for_job(
             "audio_codec": job.audio_codec,
             "has_audio": job.audio_strategy not in {None, "none"},
             "audio_strategy": job.audio_strategy,
-            "resolution_label": video_asset.resolution_label,
-            "width": video_asset.width,
-            "height": video_asset.height,
+            "resolution_label": resolution_label,
+            "width": width,
+            "height": height,
             "fps": job.encoding_fps or video_asset.fps,
             "duration_seconds": video_asset.duration_seconds,
             "duration_label": video_asset.duration_label,
@@ -341,6 +347,19 @@ def get_export_by_id(
     if not export_asset:
         raise ExportAssetNotFoundError()
     return export_repository.to_export_asset_response(export_asset)
+
+
+def get_export_file_path(
+    db: Session,
+    export_id: str,
+) -> Path:
+    export_asset = export_repository.get_export_by_id(db, export_id)
+    if not export_asset or not export_asset.file_path:
+        raise ExportAssetNotFoundError()
+    file_path = Path(export_asset.file_path)
+    if not file_path.exists() or not file_path.is_file():
+        raise ExportAssetNotFoundError()
+    return file_path
 
 
 def list_exports(
@@ -452,11 +471,22 @@ def delete_export(
     )
 
 
+def _probe_output_dimensions(path: Path) -> tuple[int | None, int | None]:
+    """Real output size: after a 2x/4x upscale it differs from the source video."""
+    try:
+        probe = video_probe_service.probe_video(VideoProbeRequest(file_path=str(path)))
+    except Exception:  # noqa: BLE001 - metadata only; never fail the export over it
+        logger.warning("Could not probe export dimensions: %s", path)
+        return None, None
+    return probe.video.width, probe.video.height
+
+
 def build_export_open_response(
     db: Session,
     export_id: str,
     *,
     open_folder: bool = False,
+    launch: bool = False,
     settings: Settings | None = None,
 ) -> ExportOpenResponse:
     active_settings = _get_active_settings(settings)
@@ -464,20 +494,33 @@ def build_export_open_response(
     if not export_asset:
         raise ExportAssetNotFoundError()
 
-    target_path = Path(export_asset.file_path)
-    if open_folder:
-        target_path = target_path.parent
+    file_path = Path(export_asset.file_path)
+    target_path = file_path.parent if open_folder else file_path
 
     available = target_path.exists()
     label = "folder" if open_folder else "file"
-    path_value = to_client_path(target_path, active_settings)
+    opened = False
+    if available and launch:
+        if open_folder:
+            opened = desktop_open_service.reveal_in_folder(
+                file_path if file_path.exists() else target_path
+            )
+        else:
+            opened = desktop_open_service.open_file(target_path)
+
+    if not available:
+        message = f"Export {label} is not available."
+    elif launch and not opened:
+        message = f"Export {label} is available but could not be opened."
+    elif opened:
+        message = f"Export {label} opened."
+    else:
+        message = f"Export {label} is available."
+
     return ExportOpenResponse(
         export_id=export_id,
-        path=path_value,
+        path=to_client_path(target_path, active_settings),
         available=available,
-        message=(
-            f"Export {label} is available. Desktop open integration will be handled by Tauri."
-            if available
-            else f"Export {label} is not available."
-        ),
+        opened=opened,
+        message=message,
     )

@@ -200,6 +200,23 @@ def test_bootstrap_dashboard_app_state_queue_and_settings_contracts(contract_cli
         "limit",
         "offset",
     } <= set(queue_response.json())
+    queue_items = queue_response.json()["items"]
+    assert len(queue_items) >= 1
+    assert queue_items[0]["actions"]["can_start"] is True
+    assert queue_items[0]["actions"]["can_retry"] is False
+    assert {
+        "frames_total",
+        "frames_processed",
+        "elapsed_time_seconds",
+        "error_code",
+        "error_message",
+        "enhancer_engine",
+        "realesrgan_device",
+        "realesrgan_frames_total",
+        "realesrgan_frames_processed",
+        "realesrgan_failed_frames",
+        "realesrgan_average_frame_time_ms",
+    } <= set(queue_items[0])
     assert settings_response.status_code == 200
     assert set(settings_response.json()) == {"general", "processing", "storage", "cleanup"}
 
@@ -265,7 +282,10 @@ def test_settings_patch_and_openapi_export_are_ready_for_frontend(contract_clien
         json={
             "general": {"language": "es"},
             "processing": {"frame_enhancer_engine": "mock", "ai_device": "cpu"},
-            "cleanup": {"cleanup_temp_older_than_hours": 24},
+            "cleanup": {
+                "cleanup_temp_older_than_hours": 24,
+                "cleanup_keep_preview_frames": 12,
+            },
         },
     )
 
@@ -274,6 +294,7 @@ def test_settings_patch_and_openapi_export_are_ready_for_frontend(contract_clien
     assert response.json()["settings"]["general"]["language"] == "es"
     assert response.json()["settings"]["processing"]["ai_device"] == "cpu"
     assert response.json()["settings"]["cleanup"]["cleanup_temp_older_than_hours"] == 24
+    assert response.json()["settings"]["cleanup"]["cleanup_keep_preview_frames"] == 12
 
     subprocess.run(
         [sys.executable, "scripts/export_openapi.py"],

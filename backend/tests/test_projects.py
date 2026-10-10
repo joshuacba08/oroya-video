@@ -242,6 +242,32 @@ def test_patch_project_updates_name_and_merges_configs(project_client) -> None:
     assert payload["project"]["workspace_state"]["compare_mode"] == "split"
 
 
+def test_patch_project_accepts_model_uuid_and_normalizes_to_slug(project_client) -> None:
+    client, source_file = project_client
+    video = _import_video(client, source_file)
+    created = _create_project(client, video["id"])
+    project_id = created["project"]["id"]
+    model_response = client.get("/api/models/realesrgan-x4")
+    assert model_response.status_code == 200
+
+    response = client.patch(
+        f"/api/projects/{project_id}",
+        json={
+            "enhancement_config": {
+                "model_id": model_response.json()["id"],
+                "scale": "4x",
+            },
+            "export_config": {"output_resolution": "4x"},
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["project"]["enhancement_config"]["model_id"] == "realesrgan-x4"
+    assert payload["project"]["enhancement_config"]["scale"] == "4x"
+    assert payload["project"]["export_config"]["output_resolution"] == "4x"
+
+
 def test_patch_project_validates_configuration_values(project_client) -> None:
     client, source_file = project_client
     video = _import_video(client, source_file)
@@ -269,6 +295,62 @@ def test_delete_project_removes_project_but_keeps_video_asset(project_client) ->
     assert delete_response.json() == {"deleted": True, "project_id": project_id}
     assert client.get(f"/api/projects/{project_id}").status_code == 404
     assert client.get(f"/api/videos/{video['id']}").status_code == 200
+
+
+def test_delete_project_with_jobs_cascades_to_jobs(project_client) -> None:
+    client, source_file = project_client
+    video = _import_video(client, source_file)
+    project_id = _create_project(client, video["id"])["project"]["id"]
+    job_response = client.post("/api/jobs", json={"project_id": project_id})
+    assert job_response.status_code == 201
+    job_id = job_response.json()["job"]["id"]
+
+    delete_response = client.delete(f"/api/projects/{project_id}")
+
+    assert delete_response.status_code == 200
+    assert client.get(f"/api/jobs/{job_id}").status_code == 404
+
+
+def test_delete_project_is_blocked_while_a_job_is_running(project_client) -> None:
+    client, source_file = project_client
+    video = _import_video(client, source_file)
+    project_id = _create_project(client, video["id"])["project"]["id"]
+    job_id = client.post("/api/jobs", json={"project_id": project_id}).json()["job"]["id"]
+    _set_job_status(job_id, "running")
+
+    response = client.delete(f"/api/projects/{project_id}")
+
+    assert response.status_code == 409
+    assert client.get(f"/api/projects/{project_id}").status_code == 200
+
+
+def test_delete_video_with_projects_and_jobs_cascades(project_client) -> None:
+    client, source_file = project_client
+    video = _import_video(client, source_file)
+    project_id = _create_project(client, video["id"])["project"]["id"]
+    job_id = client.post("/api/jobs", json={"project_id": project_id}).json()["job"]["id"]
+
+    response = client.delete(f"/api/videos/{video['id']}")
+
+    assert response.status_code == 200
+    assert client.get(f"/api/videos/{video['id']}").status_code == 404
+    assert client.get(f"/api/projects/{project_id}").status_code == 404
+    assert client.get(f"/api/jobs/{job_id}").status_code == 404
+    assert source_file.exists()
+
+
+def _set_job_status(job_id: str, status: str) -> None:
+    from app.db import database
+    from app.db.repositories import job_repository
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    try:
+        job = job_repository.get_job_by_id(db, job_id)
+        job_repository.update_job(db, job, {"status": status})
+        db.commit()
+    finally:
+        db.close()
 
 
 def test_delete_project_returns_404_when_missing(project_client) -> None:

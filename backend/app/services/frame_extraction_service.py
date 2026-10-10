@@ -17,7 +17,7 @@ from app.core.errors import (
     VideoAssetFileMissingError,
 )
 from app.core.logging import get_logger
-from app.core.paths import get_directory_size_bytes, get_temp_path
+from app.core.paths import get_directory_size_bytes, get_temp_path, resolve_path
 from app.db.repositories import job_repository
 from app.services import job_workspace_service
 from app.services.pipeline_progress import (
@@ -25,7 +25,12 @@ from app.services.pipeline_progress import (
     EXTRACTION_PROGRESS_START,
     calculate_stage_progress,
 )
-from app.services.process_registry_service import register_process, unregister_process
+from app.services.process_registry_service import (
+    is_shutting_down,
+    register_process,
+    unregister_process,
+)
+from app.utils.process_output import StderrDrain
 
 logger = get_logger(__name__)
 FRAME_FILE_PATTERN = "frame_%08d.png"
@@ -43,7 +48,7 @@ def resolve_job_input_video(job) -> Path:
         raise VideoAssetFileMissingError()
 
     if video.source_mode == "copy" and video.stored_path:
-        candidate = Path(video.stored_path).expanduser().resolve()
+        candidate = resolve_path(video.stored_path)
     else:
         candidate = Path(video.source_path).expanduser().resolve()
 
@@ -100,7 +105,9 @@ def count_extracted_frames(frames_dir: Path) -> int:
 
 
 def validate_ffmpeg_available() -> str:
-    ffmpeg_path = shutil.which("ffmpeg")
+    from app.services.tool_detection_service import resolve_tool_path
+
+    ffmpeg_path = resolve_tool_path("ffmpeg")
     if not ffmpeg_path:
         raise FFmpegNotAvailableError()
     return ffmpeg_path
@@ -223,9 +230,12 @@ def extract_frames_for_job(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
         text=True,
         bufsize=1,
     )
+    stderr_drain = StderrDrain(process.stderr)
     process_id = int(getattr(process, "pid", 0) or id(process))
     register_process(job.id, process_id, "ffmpeg_extract", process)
     job_repository.update_job(
@@ -290,46 +300,25 @@ def extract_frames_for_job(
 
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":
-                    process.terminate()
-                    try:
-                        process.wait(timeout=3)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "status": "cancelled",
-                            "current_stage": "cancelled",
-                            "cancelled_at": time_to_datetime(time.time()),
-                        },
+                    return finish_cancelled_ffmpeg_stage(
+                        db, job, process, "Frame extraction cancelled by user."
                     )
-                    job_repository.create_job_log(
-                        db,
-                        job.id,
-                        "warning",
-                        "Frame extraction cancelled by user.",
-                        stage="cancelled",
-                    )
-                    unregister_process(job.id)
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "process_id": None,
-                            "process_kind": None,
-                            "process_ended_at": time_to_datetime(time.time()),
-                        },
-                    )
-                    db.commit()
-                    logger.warning("Frame extraction cancelled: %s", job_id)
-                    return job
 
-        stderr_output = ""
-        if process.stderr is not None:
-            stderr_output = process.stderr.read().strip()
+        stderr_output = stderr_drain.text()
 
         return_code = process.wait()
+        # El cancel desde la API mata ffmpeg: stdout termina sin pasar por el chequeo del
+        # bucle y el código de salida es != 0. No es un fallo, es una cancelación.
+        db.refresh(job)
+        if job.cancel_requested or job.status == "cancelled":
+            return finish_cancelled_ffmpeg_stage(
+                db, job, process, "Frame extraction cancelled by user."
+            )
+        if return_code != 0 and is_shutting_down():
+            # Apagado del backend: el job queda como está y se marca `interrupted` al arrancar.
+            unregister_process(job.id)
+            logger.warning("Frame extraction stopped by backend shutdown: %s", job.id)
+            return job
         if return_code != 0:
             _mark_job_failed(
                 db,
@@ -389,6 +378,38 @@ def extract_frames_for_job(
         )
         logger.exception("FFmpeg frame extraction failed")
         raise FrameExtractionFailedError() from exc
+
+
+def finish_cancelled_ffmpeg_stage(db: Session, job, process, log_message: str) -> object:
+    """Stop ffmpeg (if still alive) and leave the job cancelled, never failed."""
+    process.terminate()
+    try:
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+    unregister_process(job.id)
+    job_repository.update_job(
+        db,
+        job,
+        {
+            "status": "cancelled",
+            "current_stage": "cancelled",
+            "cancelled_at": job.cancelled_at or time_to_datetime(time.time()),
+            "process_id": None,
+            "process_kind": None,
+            "process_ended_at": time_to_datetime(time.time()),
+        },
+    )
+    job_repository.create_job_log(
+        db,
+        job.id,
+        "warning",
+        log_message,
+        stage="cancelled",
+    )
+    db.commit()
+    logger.warning("%s (%s)", log_message, job.id)
+    return job
 
 
 def time_to_datetime(epoch_seconds: float):

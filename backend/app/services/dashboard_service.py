@@ -179,6 +179,18 @@ def get_app_state_response(db: Session, settings: Settings | None = None) -> App
     )
 
 
+# Pausados y fallidos se muestran para poder reanudarlos o reintentarlos desde la cola.
+QUEUE_VISIBLE_STATUSES = (
+    "pending",
+    "queued",
+    "running",
+    "paused",
+    "retrying",
+    "interrupted",
+    "failed",
+)
+
+
 def get_queue_response(
     db: Session,
     *,
@@ -189,7 +201,7 @@ def get_queue_response(
         db.query(ProcessingJob, Project.name)
         .outerjoin(Project, Project.id == ProcessingJob.project_id)
         .filter(
-            ProcessingJob.status.in_(("pending", "queued", "running", "interrupted", "retrying"))
+            ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)
         )
         .order_by(ProcessingJob.created_at.desc())
         .offset(offset)
@@ -207,13 +219,27 @@ def get_queue_response(
             model_slug=job.ai_model_slug,
             created_at=job.created_at,
             started_at=job.started_at,
+            frames_total=job.frames_total or 0,
+            frames_processed=job.frames_processed or 0,
+            elapsed_time_seconds=job.elapsed_time_seconds or 0,
+            error_code=job.error_code,
+            error_message=job.error_message,
+            enhancer_engine=job.enhancer_engine,
+            realesrgan_device=job.realesrgan_device,
+            realesrgan_frames_total=job.realesrgan_frames_total,
+            realesrgan_frames_processed=job.realesrgan_frames_processed,
+            realesrgan_failed_frames=job.realesrgan_failed_frames,
+            realesrgan_average_frame_time_ms=job.realesrgan_average_frame_time_ms,
+            retry_count=job.retry_count or 0,
+            max_retries=job.max_retries or 0,
+            actions=build_job_actions(job),
         )
         for job, project_name in items
     ]
     total = (
         db.query(ProcessingJob)
         .filter(
-            ProcessingJob.status.in_(("pending", "queued", "running", "interrupted", "retrying"))
+            ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)
         )
         .count()
     )
@@ -224,6 +250,8 @@ def get_queue_response(
         queued=db.query(ProcessingJob).filter(ProcessingJob.status == "queued").count(),
         pending=db.query(ProcessingJob).filter(ProcessingJob.status == "pending").count(),
         interrupted=db.query(ProcessingJob).filter(ProcessingJob.status == "interrupted").count(),
+        paused=db.query(ProcessingJob).filter(ProcessingJob.status == "paused").count(),
+        failed=db.query(ProcessingJob).filter(ProcessingJob.status == "failed").count(),
         limit=limit,
         offset=offset,
     )

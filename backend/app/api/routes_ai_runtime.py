@@ -18,7 +18,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/runtime", response_model=AIRuntimeStatusResponse, summary="Get AI runtime status")
-async def get_ai_runtime_route(request: Request) -> AIRuntimeStatusResponse:
+def get_ai_runtime_route(request: Request) -> AIRuntimeStatusResponse:
     return get_ai_runtime_status(request.app.state.settings)
 
 
@@ -27,7 +27,7 @@ async def get_ai_runtime_route(request: Request) -> AIRuntimeStatusResponse:
     response_model=AIModelValidationResponse,
     summary="Validate a Real-ESRGAN model",
 )
-async def validate_realesrgan_model_route(
+def validate_realesrgan_model_route(
     model_slug: str,
     request: Request,
     db: DbSession,
@@ -44,7 +44,7 @@ async def validate_realesrgan_model_route(
     response_model=RealESRGANDryRunResponse,
     summary="Run a Real-ESRGAN dry-run on a single frame",
 )
-async def run_realesrgan_dry_run_route(
+def run_realesrgan_dry_run_route(
     payload: RealESRGANDryRunRequest,
     request: Request,
     db: DbSession,

@@ -1,5 +1,4 @@
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -104,7 +103,9 @@ def _validate_extension(file_path: Path) -> None:
 
 
 def _get_ffprobe_path() -> str:
-    ffprobe_path = shutil.which("ffprobe")
+    from app.services.tool_detection_service import resolve_tool_path
+
+    ffprobe_path = resolve_tool_path("ffprobe")
     if not ffprobe_path:
         logger.warning("FFprobe not available")
         raise FFprobeNotAvailableError()
@@ -126,6 +127,8 @@ def _run_ffprobe(ffprobe_path: str, file_path: Path) -> dict:
                 str(file_path),
             ],
             capture_output=True,
+            encoding="utf-8",
+            errors="replace",
             text=True,
             check=False,
             timeout=FFPROBE_TIMEOUT_SECONDS,
@@ -141,9 +144,13 @@ def _run_ffprobe(ffprobe_path: str, file_path: Path) -> dict:
         )
         raise VideoProbeFailedError()
 
+    if not command_result.stdout:
+        logger.warning("Video probe failed: ffprobe returned empty output")
+        raise VideoProbeFailedError()
+
     try:
         return json.loads(command_result.stdout)
-    except json.JSONDecodeError as exc:
+    except (TypeError, json.JSONDecodeError) as exc:
         logger.warning("Video probe failed: ffprobe returned invalid JSON")
         raise VideoProbeFailedError() from exc
 

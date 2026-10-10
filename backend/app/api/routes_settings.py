@@ -16,12 +16,12 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("", response_model=SettingsResponse, summary="Get backend settings")
-async def get_settings_route(request: Request) -> SettingsResponse:
+def get_settings_route(request: Request) -> SettingsResponse:
     return build_settings_response(request.app.state.settings)
 
 
 @router.patch("", response_model=SettingsUpdateResponse, summary="Update backend settings")
-async def patch_settings_route(
+def patch_settings_route(
     payload: SettingsUpdateRequest,
     request: Request,
     db: DbSession,

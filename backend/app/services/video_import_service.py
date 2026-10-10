@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     InsufficientStorageSpaceError,
+    JobInvalidStateError,
     VideoAssetNotFoundError,
     VideoCopyFailedError,
     VideoImportFailedError,
@@ -23,7 +24,7 @@ from app.schemas.video_schema import (
     VideoListResponse,
     VideoProbeRequest,
 )
-from app.services import video_probe_service
+from app.services import job_workspace_service, video_probe_service
 
 logger = get_logger(__name__)
 
@@ -202,21 +203,35 @@ def delete_video_asset(
     if not video_asset:
         raise VideoAssetNotFoundError()
 
+    if any(
+        job.status in {"queued", "running", "retrying"}
+        for project in video_asset.projects
+        for job in project.processing_jobs
+    ):
+        raise JobInvalidStateError()
+
     import_path = get_video_import_path(video_asset.id, active_settings)
+    delete_copied_file = video_asset.source_mode == "copy"
+    job_files = [
+        (job.id, project.id) for project in video_asset.projects for job in project.processing_jobs
+    ]
 
     try:
-        if video_asset.source_mode == "copy" and import_path.exists():
-            shutil.rmtree(import_path)
         video_repository.delete_video_asset(db, video_asset)
         db.commit()
-    except OSError as exc:
-        db.rollback()
-        logger.warning("Video import failed: %s", exc)
-        raise VideoImportFailedError() from exc
     except SQLAlchemyError as exc:
         db.rollback()
-        logger.exception("Video import failed while deleting %s", video_id)
+        logger.exception("Video delete failed for %s", video_id)
         raise VideoImportFailedError() from exc
+
+    # Los archivos se borran solo tras confirmar el borrado en la DB.
+    for job_id, project_id in job_files:
+        job_workspace_service.delete_job_files(job_id, project_id, active_settings)
+    if delete_copied_file and import_path.exists():
+        try:
+            shutil.rmtree(import_path)
+        except OSError as exc:
+            logger.warning("Could not remove imported files for %s: %s", video_id, exc)
 
     logger.info("Video asset deleted: %s", video_id)
     return VideoDeleteResponse(deleted=True, video_id=video_id)

@@ -1,7 +1,9 @@
 import shutil
 import subprocess
 
+from app.core.config import Settings
 from app.core.logging import get_logger
+from app.core.paths import get_data_bin_path
 from app.schemas.system_schema import ToolInfo, ToolsResponse
 
 logger = get_logger(__name__)
@@ -28,8 +30,17 @@ def _extract_version_text(command_result: subprocess.CompletedProcess[str]) -> s
     return output.splitlines()[0].strip()
 
 
+def resolve_tool_path(command: str, settings: Settings | None = None) -> str | None:
+    """Resuelve un ejecutable prefiriendo el bin del data dir sobre el PATH."""
+    bin_dir = get_data_bin_path(settings)
+    for candidate in (bin_dir / f"{command}.exe", bin_dir / command):
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which(command)
+
+
 def detect_tool(command: str, version_args: list[str] | None = None) -> ToolInfo:
-    executable_path = shutil.which(command)
+    executable_path = resolve_tool_path(command)
     if not executable_path:
         logger.warning("%s not detected", TOOL_LOG_LABELS.get(command, command))
         return ToolInfo(available=False)

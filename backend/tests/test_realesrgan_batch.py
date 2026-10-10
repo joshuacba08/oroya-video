@@ -260,6 +260,68 @@ def test_realesrgan_enhancement_updates_job_metrics_and_outputs(realesrgan_clien
     ]
 
 
+def test_resolve_enhancement_outscale_maps_scale_values() -> None:
+    from app.services.realesrgan_service import resolve_enhancement_outscale
+
+    class FakeModel:
+        scale_factor = 4
+
+    model = FakeModel()
+    assert resolve_enhancement_outscale({"scale": "original"}, model) == 1
+    assert resolve_enhancement_outscale({"scale": "2x"}, model) == 2
+    assert resolve_enhancement_outscale({"scale": "4x"}, model) == 4
+    assert resolve_enhancement_outscale({"scale": "invalid"}, model) == 4
+    assert resolve_enhancement_outscale({}, model) == 4
+
+
+def test_realesrgan_uses_configured_scale_as_outscale(realesrgan_client) -> None:
+    client, source_file, settings = realesrgan_client
+    _seed_model_file(settings)
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    response = client.post(
+        "/api/jobs",
+        json={
+            "project_id": project["id"],
+            "enhancement_config": {"model_id": "realesrgan-x2", "scale": "original"},
+        },
+    )
+    assert response.status_code == 201
+    job = response.json()["job"]
+    _prepare_original_frames(settings, job["id"], frame_count=1)
+
+    def fake_load_model(self) -> None:
+        self.model_load_time_ms = 5
+
+    def fake_enhance_frame(self, source: Path, destination: Path):
+        destination.write_bytes(source.read_bytes() + b"-enhanced")
+        return destination, 10
+
+    with (
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.load_model",
+            fake_load_model,
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.enhance_single_frame",
+            fake_enhance_frame,
+        ),
+    ):
+        assert database.SessionLocal is not None
+        db = database.SessionLocal()
+        try:
+            enhance_frames_for_job(db, job["id"], engine="realesrgan", settings=settings)
+        finally:
+            db.close()
+
+    refreshed_job = _get_job(job["id"])
+    assert refreshed_job.realesrgan_scale == 1
+
+
 def test_realesrgan_cancellation_stops_between_frames(realesrgan_client) -> None:
     client, source_file, settings = realesrgan_client
     _seed_model_file(settings)
@@ -305,6 +367,111 @@ def test_realesrgan_cancellation_stops_between_frames(realesrgan_client) -> None
     assert refreshed_job.enhanced_frames == 1
     assert refreshed_job.realesrgan_frames_processed == 1
     assert refreshed_job.cancelled_at is not None
+
+
+def test_realesrgan_pause_stops_between_frames_and_marks_job_paused(realesrgan_client) -> None:
+    client, source_file, settings = realesrgan_client
+    _seed_model_file(settings)
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_original_frames(settings, job["id"], frame_count=3)
+    processed = {"count": 0}
+
+    def fake_load_model(self) -> None:
+        self.model_load_time_ms = 5
+
+    def fake_enhance_frame(self, source: Path, destination: Path):
+        processed["count"] += 1
+        destination.write_bytes(source.read_bytes() + b"-enhanced")
+        if processed["count"] == 1:
+            _update_job(job["id"], pause_requested=True)
+        return destination, 12
+
+    with (
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.load_model",
+            fake_load_model,
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.enhance_single_frame",
+            fake_enhance_frame,
+        ),
+    ):
+        assert database.SessionLocal is not None
+        db = database.SessionLocal()
+        try:
+            enhance_frames_for_job(db, job["id"], engine="realesrgan", settings=settings)
+        finally:
+            db.close()
+
+    refreshed_job = _get_job(job["id"])
+    assert refreshed_job.status == "paused"
+    assert refreshed_job.current_stage == "enhancing_frames"
+    assert refreshed_job.enhanced_frames == 1
+    assert refreshed_job.realesrgan_frames_processed == 1
+    assert refreshed_job.enhancement_completed_at is None
+    logs_response = client.get(f"/api/jobs/{job['id']}/logs")
+    assert any(
+        item["message"] == "Enhancement paused by user."
+        for item in logs_response.json()["items"]
+    )
+
+
+def test_realesrgan_skips_already_enhanced_frames_on_resume(realesrgan_client) -> None:
+    client, source_file, settings = realesrgan_client
+    _seed_model_file(settings)
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_original_frames(settings, job["id"], frame_count=3)
+    enhanced_dir = (
+        Path(settings.storage_path) / "temp" / "jobs" / job["id"] / "frames" / "enhanced"
+    )
+    enhanced_dir.mkdir(parents=True, exist_ok=True)
+    (enhanced_dir / "frame_00000000.png").write_bytes(b"already-enhanced-0")
+    (enhanced_dir / "frame_00000001.png").write_bytes(b"already-enhanced-1")
+    processed = {"count": 0}
+
+    def fake_load_model(self) -> None:
+        self.model_load_time_ms = 5
+
+    def fake_enhance_frame(self, source: Path, destination: Path):
+        processed["count"] += 1
+        destination.write_bytes(source.read_bytes() + b"-enhanced")
+        return destination, 12
+
+    with (
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.load_model",
+            fake_load_model,
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.enhance_single_frame",
+            fake_enhance_frame,
+        ),
+    ):
+        assert database.SessionLocal is not None
+        db = database.SessionLocal()
+        try:
+            enhance_frames_for_job(db, job["id"], engine="realesrgan", settings=settings)
+        finally:
+            db.close()
+
+    assert processed["count"] == 1
+    refreshed_job = _get_job(job["id"])
+    assert refreshed_job.status == "running"
+    assert refreshed_job.enhanced_frames == 3
+    assert (enhanced_dir / "frame_00000000.png").read_bytes() == b"already-enhanced-0"
+    assert (enhanced_dir / "frame_00000002.png").read_bytes() == b"frame-2-enhanced"
 
 
 def test_realesrgan_fails_job_when_a_frame_fails_and_no_tolerance(realesrgan_client) -> None:
@@ -449,7 +616,7 @@ def test_realesrgan_job_endpoints_return_summary_and_validation(realesrgan_clien
     assert summary_response.json()["frames_processed"] == 2
 
 
-def test_pause_endpoint_returns_realesrgan_specific_message(realesrgan_client) -> None:
+def test_pause_endpoint_requests_pause_during_realesrgan_enhancement(realesrgan_client) -> None:
     client, source_file, _ = realesrgan_client
     video = _import_video(client, source_file)
     project = _create_project(client, video["id"])
@@ -463,6 +630,7 @@ def test_pause_endpoint_returns_realesrgan_specific_message(realesrgan_client) -
 
     response = client.post(f"/api/jobs/{job['id']}/pause")
 
-    assert response.status_code == 409
-    assert response.json()["error"] == "job_pause_not_supported"
-    assert "Real-ESRGAN enhancement" in response.json()["message"]
+    assert response.status_code == 200
+    assert response.json()["message"] == "Job pause requested."
+    assert response.json()["job"]["status"] == "running"
+    assert response.json()["job"]["pause_requested"] is True

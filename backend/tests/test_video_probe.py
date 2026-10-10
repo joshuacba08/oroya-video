@@ -95,7 +95,7 @@ def test_video_probe_returns_503_when_ffprobe_is_not_available() -> None:
     with (
         patch("app.services.video_probe_service.Path.exists", return_value=True),
         patch("app.services.video_probe_service.Path.is_file", return_value=True),
-        patch("app.services.video_probe_service.shutil.which", return_value=None),
+        patch("app.services.tool_detection_service.resolve_tool_path", return_value=None),
         TestClient(app) as client,
     ):
         response = client.post("/api/videos/probe", json={"file_path": VIDEO_PATH})
@@ -112,10 +112,37 @@ def test_video_probe_returns_422_when_ffprobe_fails() -> None:
     with (
         patch("app.services.video_probe_service.Path.exists", return_value=True),
         patch("app.services.video_probe_service.Path.is_file", return_value=True),
-        patch("app.services.video_probe_service.shutil.which", return_value="ffprobe"),
+        patch(
+            "app.services.tool_detection_service.resolve_tool_path",
+            return_value="ffprobe",
+        ),
         patch(
             "app.services.video_probe_service.subprocess.run",
             return_value=_completed_process("", returncode=1, stderr="ffprobe error"),
+        ),
+        TestClient(app) as client,
+    ):
+        response = client.post("/api/videos/probe", json={"file_path": VIDEO_PATH})
+
+    assert_error_response(
+        response,
+        status_code=422,
+        error="video_probe_failed",
+        message="The video metadata could not be analyzed.",
+    )
+
+
+def test_video_probe_returns_422_when_ffprobe_output_is_empty() -> None:
+    with (
+        patch("app.services.video_probe_service.Path.exists", return_value=True),
+        patch("app.services.video_probe_service.Path.is_file", return_value=True),
+        patch(
+            "app.services.tool_detection_service.resolve_tool_path",
+            return_value="ffprobe",
+        ),
+        patch(
+            "app.services.video_probe_service.subprocess.run",
+            return_value=_completed_process(None),
         ),
         TestClient(app) as client,
     ):
@@ -144,7 +171,10 @@ def test_video_probe_returns_422_when_video_stream_is_missing() -> None:
     with (
         patch("app.services.video_probe_service.Path.exists", return_value=True),
         patch("app.services.video_probe_service.Path.is_file", return_value=True),
-        patch("app.services.video_probe_service.shutil.which", return_value="ffprobe"),
+        patch(
+            "app.services.tool_detection_service.resolve_tool_path",
+            return_value="ffprobe",
+        ),
         patch(
             "app.services.video_probe_service.subprocess.run",
             return_value=_completed_process(json.dumps(ffprobe_payload)),
@@ -169,7 +199,10 @@ def test_video_probe_returns_metadata_when_ffprobe_succeeds() -> None:
             "app.services.video_probe_service.Path.stat",
             return_value=SimpleNamespace(st_size=VIDEO_SIZE_BYTES),
         ),
-        patch("app.services.video_probe_service.shutil.which", return_value="ffprobe"),
+        patch(
+            "app.services.tool_detection_service.resolve_tool_path",
+            return_value="ffprobe",
+        ),
         patch(
             "app.services.video_probe_service.subprocess.run",
             return_value=_completed_process(json.dumps(VALID_FFPROBE_PAYLOAD)),
@@ -206,7 +239,10 @@ def test_video_probe_returns_warning_when_audio_stream_is_missing() -> None:
             "app.services.video_probe_service.Path.stat",
             return_value=SimpleNamespace(st_size=VIDEO_SIZE_BYTES),
         ),
-        patch("app.services.video_probe_service.shutil.which", return_value="ffprobe"),
+        patch(
+            "app.services.tool_detection_service.resolve_tool_path",
+            return_value="ffprobe",
+        ),
         patch(
             "app.services.video_probe_service.subprocess.run",
             return_value=_completed_process(json.dumps(ffprobe_payload)),

@@ -2,6 +2,8 @@ import platform
 import shutil
 
 import psutil
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
@@ -11,6 +13,7 @@ from app.core.paths import (
     get_storage_path_strings,
     is_storage_writable,
 )
+from app.db import database
 from app.schemas.health_schema import (
     HealthFullAIResponse,
     HealthFullDatabaseResponse,
@@ -173,6 +176,18 @@ def get_requirements_status(settings: Settings | None = None) -> RequirementsRes
     return response
 
 
+def _is_database_connected() -> bool:
+    if database.engine is None:
+        return False
+    try:
+        with database.engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        logger.warning("Database health check failed.")
+        return False
+    return True
+
+
 def get_health_full_response(settings: Settings | None = None) -> HealthFullResponse:
     active_settings = _get_active_settings(settings)
     tools_status = get_tools_status()
@@ -183,7 +198,7 @@ def get_health_full_response(settings: Settings | None = None) -> HealthFullResp
         status="ok",
         service=active_settings.app_name,
         version=active_settings.app_version,
-        database=HealthFullDatabaseResponse(connected=True),
+        database=HealthFullDatabaseResponse(connected=_is_database_connected()),
         storage=HealthFullStorageResponse(
             writable=is_storage_writable(active_settings),
             free_bytes=int(storage_usage["free_bytes"]),

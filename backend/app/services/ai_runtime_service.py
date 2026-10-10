@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import importlib
+import platform
+import site
+import sys
+from pathlib import Path
 from typing import Any
 
 from app.core.config import Settings, get_settings
@@ -19,11 +23,41 @@ def _get_active_settings(settings: Settings | None = None) -> Settings:
     return settings or get_settings()
 
 
+def ensure_ai_extra_site_dir(settings: Settings | None = None) -> None:
+    """Make the post-install AI stack (pip --target) importable, also when it was
+    installed while the backend was already running."""
+    site_dir_value = _get_active_settings(settings).ai_extra_site_dir
+    if not site_dir_value:
+        return
+    site_dir = Path(site_dir_value)
+    if not site_dir.is_dir() or str(site_dir) in sys.path:
+        return
+    site.addsitedir(str(site_dir))
+    importlib.invalidate_caches()
+    logger.info("AI extra site dir registered: %s", site_dir)
+
+
 def get_torch_module() -> Any | None:
     try:
         return importlib.import_module("torch")
     except ImportError:
         return None
+
+
+# Módulos que Real-ESRGAN importa al cargar el modelo (realesrgan_enhancer._create_backend).
+REALESRGAN_RUNTIME_MODULES = ("cv2", "basicsr.archs.rrdbnet_arch", "realesrgan")
+
+
+def get_missing_realesrgan_modules() -> list[str]:
+    """Import check, not just find_spec: basicsr can be installed yet fail to import
+    against a newer torchvision."""
+    missing: list[str] = []
+    for module_name in REALESRGAN_RUNTIME_MODULES:
+        try:
+            importlib.import_module(module_name)
+        except Exception:  # noqa: BLE001 - any import failure means the runtime is unusable
+            missing.append(module_name.split(".", maxsplit=1)[0])
+    return missing
 
 
 def is_torch_available() -> bool:
@@ -125,6 +159,7 @@ def get_ai_runtime_status(
     settings: Settings | None = None,
 ) -> AIRuntimeStatusResponse:
     active_settings = _get_active_settings(settings)
+    ensure_ai_extra_site_dir(active_settings)
     warnings: list[str] = []
     torch_available = is_torch_available()
     torch_version = get_torch_version()
@@ -163,6 +198,9 @@ def get_ai_runtime_status(
         allow_cpu=active_settings.ai_allow_cpu,
         half_precision=active_settings.ai_half_precision,
         warnings=warnings,
+        python_executable=sys.executable,
+        python_version=platform.python_version(),
+        ai_extra_site_dir=active_settings.ai_extra_site_dir,
     )
 
 

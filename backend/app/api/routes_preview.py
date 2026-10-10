@@ -13,6 +13,7 @@ from app.schemas.preview_schema import (
 from app.services.preview_service import (
     get_compare_frame_info,
     get_enhanced_frame_path,
+    get_filtered_frame_path,
     get_original_frame_path,
     get_preview_info,
     get_recommended_preview_frame_index,
@@ -28,7 +29,7 @@ DbSession = Annotated[Session, Depends(get_db)]
     response_model=PreviewInfoResponse,
     summary="Get preview metadata",
 )
-async def get_preview_info_route(
+def get_preview_info_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -40,7 +41,7 @@ async def get_preview_info_route(
     "/jobs/{job_id}/preview/original/{frame_index}",
     summary="Get original preview frame",
 )
-async def get_original_preview_frame_route(
+def get_original_preview_frame_route(
     job_id: str,
     frame_index: int,
     db: DbSession,
@@ -53,7 +54,7 @@ async def get_original_preview_frame_route(
     "/jobs/{job_id}/preview/enhanced/{frame_index}",
     summary="Get enhanced preview frame",
 )
-async def get_enhanced_preview_frame_route(
+def get_enhanced_preview_frame_route(
     job_id: str,
     frame_index: int,
     db: DbSession,
@@ -63,11 +64,36 @@ async def get_enhanced_preview_frame_route(
 
 
 @router.get(
+    "/jobs/{job_id}/preview/filtered/{frame_index}",
+    summary="Get enhanced preview frame with export filters applied",
+)
+def get_filtered_preview_frame_route(
+    job_id: str,
+    frame_index: int,
+    request: Request,
+    db: DbSession,
+    denoise: int | None = Query(default=None, ge=0, le=100),
+    sharpen: int | None = Query(default=None, ge=0, le=100),
+    compression_cleanup: bool | None = Query(default=None),
+) -> FileResponse:
+    path = get_filtered_frame_path(
+        db=db,
+        job_id=job_id,
+        frame_index=frame_index,
+        denoise=denoise,
+        sharpen=sharpen,
+        compression_cleanup=compression_cleanup,
+        settings=request.app.state.settings,
+    )
+    return FileResponse(path, media_type="image/png")
+
+
+@router.get(
     "/jobs/{job_id}/preview/compare/{frame_index}",
     response_model=CompareFrameResponse,
     summary="Get compare preview metadata",
 )
-async def get_compare_preview_route(
+def get_compare_preview_route(
     job_id: str,
     frame_index: int,
     request: Request,
@@ -86,7 +112,7 @@ async def get_compare_preview_route(
     response_model=CompareFrameResponse,
     summary="Get recommended compare preview metadata",
 )
-async def get_recommended_preview_route(
+def get_recommended_preview_route(
     job_id: str,
     request: Request,
     db: DbSession,
@@ -105,7 +131,7 @@ async def get_recommended_preview_route(
     response_model=PreviewFrameListResponse,
     summary="List preview frames",
 )
-async def list_preview_frames_route(
+def list_preview_frames_route(
     job_id: str,
     db: DbSession,
     limit: int = Query(default=100, ge=1, le=500),

@@ -14,6 +14,7 @@ from app.db import database
 from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
+from app.services.ai_runtime_service import ensure_ai_extra_site_dir
 from app.services.job_recovery_service import recover_interrupted_jobs_on_startup
 from app.services.process_registry_service import clear_registry
 from app.services.settings_service import apply_persisted_settings
@@ -67,6 +68,7 @@ def create_lifespan(settings: Settings):
         active_settings = apply_persisted_settings(settings)
         ensure_storage_directories(settings)
         configure_logging(active_settings)
+        ensure_ai_extra_site_dir(active_settings)
         clear_registry()
         database.init_db(active_settings)
         app.state.settings = active_settings

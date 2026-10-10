@@ -301,3 +301,130 @@ def test_preview_routes_return_404_when_job_is_missing(preview_client) -> None:
 
     assert response.status_code == 404
     assert response.json()["error"] == "job_not_found"
+
+
+def _create_job_with_filters(client: TestClient, project_id: str) -> dict:
+    response = client.post(
+        "/api/jobs",
+        json={
+            "project_id": project_id,
+            "enhancement_config": {"denoise": 40, "sharpen": 30},
+        },
+    )
+    assert response.status_code == 201
+    return response.json()["job"]
+
+
+def test_filtered_preview_serves_enhanced_frame_when_no_filters(preview_client) -> None:
+    client, source_file, settings = preview_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_preview_frames(job["id"], settings, original=1, enhanced=1)
+
+    response = client.get(f"/api/jobs/{job['id']}/preview/filtered/0")
+
+    assert response.status_code == 200
+    assert response.content == b"png"
+
+
+def test_filtered_preview_renders_and_caches_filtered_frame(preview_client) -> None:
+    client, source_file, settings = preview_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job_with_filters(client, project["id"])
+    _prepare_preview_frames(job["id"], settings, original=1, enhanced=1)
+    run_calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        run_calls.append(command)
+        output_path = Path(command[-1])
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"filtered-png")
+
+        class Result:
+            returncode = 0
+            stderr = ""
+
+        return Result()
+
+    with (
+        patch(
+            "app.services.preview_service.validate_ffmpeg_available",
+            return_value="C:/ffmpeg.exe",
+        ),
+        patch("app.services.preview_service.subprocess.run", side_effect=fake_run),
+    ):
+        first = client.get(f"/api/jobs/{job['id']}/preview/filtered/0")
+        second = client.get(f"/api/jobs/{job['id']}/preview/filtered/0")
+
+    assert first.status_code == 200
+    assert first.content == b"filtered-png"
+    assert second.status_code == 200
+    assert len(run_calls) == 1
+    command = run_calls[0]
+    assert "-vf" in command
+    assert command[command.index("-vf") + 1] == "hqdn3d=3.20,unsharp=5:5:0.45"
+
+
+def test_filtered_preview_accepts_query_overrides(preview_client) -> None:
+    client, source_file, settings = preview_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job_with_filters(client, project["id"])
+    _prepare_preview_frames(job["id"], settings, original=1, enhanced=1)
+    run_calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        run_calls.append(command)
+        output_path = Path(command[-1])
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"filtered-override")
+
+        class Result:
+            returncode = 0
+            stderr = ""
+
+        return Result()
+
+    with (
+        patch(
+            "app.services.preview_service.validate_ffmpeg_available",
+            return_value="C:/ffmpeg.exe",
+        ),
+        patch("app.services.preview_service.subprocess.run", side_effect=fake_run),
+    ):
+        response = client.get(
+            f"/api/jobs/{job['id']}/preview/filtered/0"
+            "?denoise=0&sharpen=0&compression_cleanup=true"
+        )
+
+    assert response.status_code == 200
+    assert run_calls[0][run_calls[0].index("-vf") + 1] == "deblock=filter=strong:block=8"
+
+
+def test_filtered_preview_returns_500_when_render_fails(preview_client) -> None:
+    client, source_file, settings = preview_client
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job_with_filters(client, project["id"])
+    _prepare_preview_frames(job["id"], settings, original=1, enhanced=1)
+
+    def fake_run(command, **kwargs):
+        class Result:
+            returncode = 1
+            stderr = "filter failed"
+
+        return Result()
+
+    with (
+        patch(
+            "app.services.preview_service.validate_ffmpeg_available",
+            return_value="C:/ffmpeg.exe",
+        ),
+        patch("app.services.preview_service.subprocess.run", side_effect=fake_run),
+    ):
+        response = client.get(f"/api/jobs/{job['id']}/preview/filtered/0")
+
+    assert response.status_code == 500
+    assert response.json()["error"] == "filtered_preview_failed"

@@ -21,6 +21,7 @@ from app.core.paths import (
     ensure_job_muxed_directory,
     get_job_muxed_video_path,
     get_temp_path,
+    resolve_path,
     to_client_path,
 )
 from app.db.repositories import job_repository
@@ -29,9 +30,18 @@ from app.schemas.job_schema import (
     DeleteMuxedVideoResponse,
     MuxedVideoResponse,
 )
-from app.services.frame_extraction_service import time_to_datetime
+from app.services.frame_extraction_service import (
+    finish_cancelled_ffmpeg_stage,
+    time_to_datetime,
+)
 from app.services.pipeline_progress import MUX_PROGRESS_END, MUX_PROGRESS_START
-from app.services.process_registry_service import register_process, unregister_process
+from app.services.process_registry_service import (
+    is_shutting_down,
+    register_process,
+    unregister_process,
+)
+from app.utils.enhancement_config import parse_enhancement_config_json
+from app.utils.process_output import StderrDrain
 
 logger = get_logger(__name__)
 MUXED_VIDEO_FILE_NAME = "video_with_audio.mp4"
@@ -44,7 +54,9 @@ def _get_active_settings(settings: Settings | None = None) -> Settings:
 
 
 def _validate_ffmpeg_available() -> str:
-    ffmpeg_path = shutil.which("ffmpeg")
+    from app.services.tool_detection_service import resolve_tool_path
+
+    ffmpeg_path = resolve_tool_path("ffmpeg")
     if not ffmpeg_path:
         raise FFmpegNotAvailableError()
     return ffmpeg_path
@@ -55,7 +67,7 @@ def resolve_original_video_path(job) -> Path:
     if video is None:
         raise EncodedVideoNotFoundError()
     if video.source_mode == "copy" and video.stored_path:
-        return Path(video.stored_path).expanduser().resolve()
+        return resolve_path(video.stored_path)
     return Path(video.source_path).expanduser().resolve()
 
 
@@ -203,9 +215,12 @@ def _run_mux_command(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
         text=True,
         bufsize=1,
     )
+    stderr_drain = StderrDrain(process.stderr)
     process_id = int(getattr(process, "pid", 0) or id(process))
     register_process(job.id, process_id, "ffmpeg_mux", process)
     job_repository.update_job(
@@ -236,45 +251,21 @@ def _run_mux_command(
 
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":
-                    process.terminate()
-                    try:
-                        process.wait(timeout=3)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "status": "cancelled",
-                            "current_stage": "cancelled",
-                            "cancelled_at": time_to_datetime(time.time()),
-                        },
-                    )
-                    job_repository.create_job_log(
-                        db,
-                        job.id,
-                        "warning",
-                        "Audio mux cancelled by user.",
-                        stage="cancelled",
-                    )
-                    unregister_process(job.id)
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "process_id": None,
-                            "process_kind": None,
-                            "process_ended_at": time_to_datetime(time.time()),
-                        },
-                    )
-                    db.commit()
+                    finish_cancelled_ffmpeg_stage(db, job, process, "Audio mux cancelled by user.")
                     return "cancelled", ""
 
-        stderr_output = ""
-        if process.stderr is not None:
-            stderr_output = process.stderr.read().strip()
+        stderr_output = stderr_drain.text()
 
-        if process.wait() != 0:
+        return_code = process.wait()
+        db.refresh(job)
+        if job.cancel_requested or job.status == "cancelled":
+            finish_cancelled_ffmpeg_stage(db, job, process, "Audio mux cancelled by user.")
+            return "cancelled", ""
+        if return_code != 0 and is_shutting_down():
+            # Apagado del backend: el job queda como está y se marca `interrupted` al arrancar.
+            unregister_process(job.id)
+            return "stopped", ""
+        if return_code != 0:
             unregister_process(job.id)
             return "failed", stderr_output
 
@@ -356,7 +347,18 @@ def mux_audio_for_job(
     db.commit()
 
     video_asset = job.video_asset or getattr(job, "video_asset", None)
-    if has_audio_stream(video_asset):
+    export_config = parse_enhancement_config_json(job.export_config_json)
+    keep_audio = export_config.get("keep_audio", True) is not False
+    if not keep_audio and has_audio_stream(video_asset):
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            "Audio disabled by export settings.",
+            stage="muxing_audio",
+        )
+        db.commit()
+    if keep_audio and has_audio_stream(video_asset):
         job_repository.create_job_log(
             db,
             job.id,
@@ -368,7 +370,7 @@ def mux_audio_for_job(
         command = build_audio_copy_mux_command(silent_video_path, original_video_path, output_path)
         command[0] = ffmpeg_path
         status, stderr_output = _run_mux_command(db, job, command, started_at)
-        if status == "cancelled":
+        if status in {"cancelled", "stopped"}:
             return job
         if status == "failed":
             if output_path.exists():
@@ -395,7 +397,7 @@ def mux_audio_for_job(
             )
             fallback_command[0] = ffmpeg_path
             status, stderr_output = _run_mux_command(db, job, fallback_command, started_at)
-            if status == "cancelled":
+            if status in {"cancelled", "stopped"}:
                 return job
             if status == "failed":
                 _mark_mux_failed(
@@ -413,18 +415,20 @@ def mux_audio_for_job(
             audio_strategy = "copy"
             audio_codec = getattr(video_asset, "audio_codec", None)
     else:
-        job_repository.create_job_log(
-            db,
-            job.id,
-            "info",
-            "No audio stream detected. Exporting video without audio.",
-            stage="muxing_audio",
-        )
-        db.commit()
+        if keep_audio:
+            # Con keep_audio=False ya se registró "Audio disabled by export settings.".
+            job_repository.create_job_log(
+                db,
+                job.id,
+                "info",
+                "No audio stream detected. Exporting video without audio.",
+                stage="muxing_audio",
+            )
+            db.commit()
         command = build_no_audio_mux_command(silent_video_path, output_path)
         command[0] = ffmpeg_path
         status, stderr_output = _run_mux_command(db, job, command, started_at)
-        if status == "cancelled":
+        if status in {"cancelled", "stopped"}:
             return job
         if status == "failed":
             _mark_mux_failed(
