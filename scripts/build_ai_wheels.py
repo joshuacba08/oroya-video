@@ -14,9 +14,7 @@ def main() -> None:
 
     from app.services.ai_wheel_builder import build_basicsr_wheel  # noqa: PLC0415
 
-    output_dir = (
-        Path(sys.argv[1]) if len(sys.argv) > 1 else repo_root / "build" / "wheels"
-    )
+    output_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else repo_root / "build" / "wheels"
     wheel = build_basicsr_wheel(output_dir.resolve())
     print(f"basicsr wheel: {wheel}")
 
