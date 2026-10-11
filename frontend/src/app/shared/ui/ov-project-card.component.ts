@@ -57,7 +57,12 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
               </span>
             }
           </div>
-          <p>{{ project().model }} - {{ project().duration }}</p>
+          <p>
+            {{ project().model }}
+            @if (project().duration) {
+              - {{ project().duration }}
+            }
+          </p>
           <div class="ov-project-card__status" [class]="'ov-project-card__status ov-project-card__status--' + project().statusTone">
             <n-icon [name]="statusIcon()" size="sm" />
             <span>{{ 'status.' + project().status | t: undefined : project().status }} - {{ project().updatedLabel }}</span>

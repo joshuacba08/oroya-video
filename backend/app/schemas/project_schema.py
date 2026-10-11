@@ -48,6 +48,8 @@ class ProjectResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     last_opened_at: datetime | None
+    # Para las tarjetas de proyecto, sin pedir el video aparte.
+    video_duration_seconds: float | None = None
 
 
 class ProjectDetailResponse(BaseModel):

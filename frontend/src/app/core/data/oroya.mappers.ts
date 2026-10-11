@@ -193,9 +193,23 @@ function stageToPipeline(stage: string, progress: number, status = ''): Pipeline
   }));
 }
 
+// Nombres de los modelos por defecto (DEFAULT_MODELS del backend): proyectos y jobs solo traen el slug.
+const MODEL_DISPLAY_NAMES: Record<string, string> = {
+  'realesrgan-general': 'Real-ESRGAN General',
+  'realesrgan-x2': 'Real-ESRGAN x2',
+  'realesrgan-x4': 'Real-ESRGAN x4',
+  'gfpgan-v1.4': 'GFPGAN v1.4',
+};
+
+function modelDisplayName(slug: string): string {
+  return MODEL_DISPLAY_NAMES[slug] ?? slug;
+}
+
 function modelNameFromConfig(source: UnknownRecord): string {
   const config = record(source['enhancement_config']);
-  return pickString(source, ['model', 'model_slug', 'ai_model_slug'], stringValue(config['model_id'], 'Real-ESRGAN x2'));
+  return modelDisplayName(
+    pickString(source, ['model', 'model_slug', 'ai_model_slug'], stringValue(config['model_id'], 'realesrgan-x2')),
+  );
 }
 
 function resolutionFromConfig(source: UnknownRecord): string {
@@ -223,7 +237,14 @@ export function mapUnknownProject(value: unknown, index = 0): ProjectCardVm {
     latestExportId: stringValue(latestExport['id']) || undefined,
     name,
     model: modelNameFromConfig(item),
-    duration: pickString(item, ['duration', 'duration_label'], stringValue(video['duration_label'], formatSeconds(video['duration_seconds']))),
+    duration: pickString(
+      item,
+      ['duration', 'duration_label'],
+      stringValue(
+        video['duration_label'],
+        formatSeconds(item['video_duration_seconds'] ?? video['duration_seconds'], ''),
+      ),
+    ),
     resolution: resolutionFromConfig(item),
     status,
     statusTone: statusTone(status),
@@ -270,7 +291,13 @@ export function mapDashboard(response: DashboardResponse): DashboardVm {
   };
 }
 
-export function mapGpu(response: GPUResponse | null, base: SystemStatusVm): SystemStatusVm {
+export function mapGpu(
+  response: GPUResponse | null | undefined,
+  base: SystemStatusVm,
+): SystemStatusVm {
+  if (response === undefined) {
+    return base;
+  }
   const gpu = response?.gpus?.[0];
   if (!response?.available || !gpu) {
     return {
@@ -322,7 +349,7 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     statusTone: statusTone(status),
     stage: translate(`stage.${stage}`, undefined, pickString(job, ['stage_label'], stage.replaceAll('_', ' '))),
     progress,
-    model: pickString(job, ['model_slug', 'ai_model_slug'], 'Real-ESRGAN'),
+    model: modelDisplayName(pickString(job, ['model_slug', 'ai_model_slug'], 'realesrgan-x2')),
     resolution: resolutionFromConfig(job),
     duration: formatSeconds(jobElapsedSeconds(job, status)),
     framesLabel: translate('job.frames', {

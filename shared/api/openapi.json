@@ -13877,6 +13877,17 @@
               }
             ],
             "title": "Last Opened At"
+          },
+          "video_duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Duration Seconds"
           }
         },
         "type": "object",

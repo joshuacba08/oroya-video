@@ -4344,6 +4344,8 @@ export interface components {
             updated_at: string;
             /** Last Opened At */
             last_opened_at: string | null;
+            /** Video Duration Seconds */
+            video_duration_seconds?: number | null;
         };
         /** ProjectUpdateRequest */
         ProjectUpdateRequest: {

@@ -74,6 +74,9 @@ def to_project_response(project: Project) -> ProjectResponse:
         created_at=project.created_at,
         updated_at=project.updated_at,
         last_opened_at=project.last_opened_at,
+        video_duration_seconds=(
+            project.video_asset.duration_seconds if project.video_asset is not None else None
+        ),
     )
 
 

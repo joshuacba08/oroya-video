@@ -76,7 +76,8 @@ export class AppShellComponent {
   // El dashboard no trae datos de GPU: se combinan con /system/gpu para el medidor lateral.
   readonly dashboard$ = combineLatest([
     this.data.dashboard().pipe(catchError(() => of(null))),
-    this.data.pollGpu(10000).pipe(startWith(null)),
+    // undefined = aún sin respuesta ("Detectando..."); null = no hay GPU o falló la consulta.
+    this.data.pollGpu(10000).pipe(startWith(undefined)),
   ]).pipe(
     map(([dashboard, gpu]) =>
       dashboard && dashboard.source === 'api'
