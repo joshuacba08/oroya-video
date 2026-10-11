@@ -1,2 +1,2 @@
 /** Versión mostrada cuando el backend no responde. Debe coincidir con backend/app/version.py. */
-export const APP_VERSION = '0.2.0';
+export const APP_VERSION = '0.3.0';
