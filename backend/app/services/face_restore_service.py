@@ -64,9 +64,10 @@ def get_face_restore_strength(job: ProcessingJob) -> float | None:
 
 def get_face_restore_model_path(db: Session, settings: Settings | None = None) -> Path | None:
     model = ai_model_repository.get_ai_model_by_slug(db, FACE_RESTORE_MODEL_SLUG)
-    if model is None or not model.is_enabled or not model.relative_path:
+    if model is None or not model.is_enabled or not model.is_installed or not model.relative_path:
         return None
-    return get_model_path(model.relative_path, _get_active_settings(settings))
+    path = get_model_path(model.relative_path, _get_active_settings(settings))
+    return path if path.is_file() else None
 
 
 def _mark_failed(db: Session, job: ProcessingJob, exc: OroyaVideoError) -> None:
