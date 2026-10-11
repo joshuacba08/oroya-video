@@ -170,7 +170,7 @@ export const en = {
   'settings.previewKeptDescription': 'Frames preserved for the before/after preview after cleanup',
   'settings.tempMaxAge': 'Delete temp files older than',
   'settings.tempMaxAgeDescription':
-    'Used by the temporary files cleanup (active or paused jobs are kept)',
+    'Applied each time the app starts; active, paused or interrupted jobs are kept',
   'settings.hours': '{hours} h',
   'settings.performance': 'Performance',
   'settings.engine': 'Enhancer engine',

@@ -172,7 +172,7 @@ export const es: Record<TranslationKey, string> = {
     'Frames que se conservan para la comparación antes/después tras la limpieza',
   'settings.tempMaxAge': 'Borrar temporales con más de',
   'settings.tempMaxAgeDescription':
-    'Lo usa la limpieza de temporales (los jobs activos o pausados se conservan)',
+    'Se aplica cada vez que se abre la app; los jobs activos, pausados o interrumpidos se conservan',
   'settings.hours': '{hours} h',
   'settings.performance': 'Rendimiento',
   'settings.engine': 'Motor de mejora',
