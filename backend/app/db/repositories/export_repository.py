@@ -39,12 +39,7 @@ def list_exports(
         query = query.filter(ExportAsset.project_id == project_id)
     if job_id:
         query = query.filter(ExportAsset.job_id == job_id)
-    return (
-        query.order_by(ExportAsset.created_at.desc())
-        .offset(offset)
-        .limit(limit)
-        .all()
-    )
+    return query.order_by(ExportAsset.created_at.desc()).offset(offset).limit(limit).all()
 
 
 def count_exports(

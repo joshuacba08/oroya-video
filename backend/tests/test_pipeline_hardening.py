@@ -237,6 +237,30 @@ def test_retry_and_diagnostics_endpoints_follow_recovery_contract(hardening_env)
     assert retry_payload["message"] == "Job prepared for retry."
 
 
+def test_retry_with_start_queues_the_job(hardening_env) -> None:
+    source_file, settings = hardening_env
+
+    with TestClient(create_app(settings)) as client:
+        video = _import_video(client, source_file)
+        project = _create_project(client, video["id"])
+        job = _create_job(client, project["id"])
+        _update_job(job["id"], status="cancelled", current_stage="cancelled")
+
+        with (
+            patch_job_preflight_ready(),
+            patch("app.services.job_service.job_queue.enqueue") as enqueue,
+        ):
+            response = client.post(
+                f"/api/v1/jobs/{job['id']}/retry",
+                json={"cleanup_before_retry": False, "start": True},
+            )
+
+    assert response.status_code == 200
+    assert response.json()["job"]["status"] == "queued"
+    assert response.json()["job"]["retry_count"] == 1
+    enqueue.assert_called_once_with(job["id"])
+
+
 def test_cleanup_and_storage_usage_endpoints_report_deleted_bytes(hardening_env) -> None:
     source_file, settings = hardening_env
 

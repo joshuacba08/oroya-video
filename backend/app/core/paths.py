@@ -2,9 +2,7 @@ import shutil
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from app.core.config import Settings, get_settings
-
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
+from app.core.config import BACKEND_ROOT, Settings, get_settings
 
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
@@ -97,6 +95,17 @@ def get_job_original_frames_path(job_id: str, settings: Settings | None = None) 
 
 def get_job_enhanced_frames_path(job_id: str, settings: Settings | None = None) -> Path:
     return get_job_working_path(job_id, settings) / "frames" / "enhanced"
+
+
+def get_job_filtered_frames_path(job_id: str, settings: Settings | None = None) -> Path:
+    return get_job_working_path(job_id, settings) / "frames" / "filtered"
+
+
+def get_data_bin_path(settings: Settings | None = None) -> Path:
+    active_settings = settings or get_settings()
+    if active_settings.oroya_data_dir:
+        return Path(active_settings.oroya_data_dir) / "bin"
+    return BACKEND_ROOT / "bin"
 
 
 def get_job_logs_path(job_id: str, settings: Settings | None = None) -> Path:
@@ -259,10 +268,5 @@ def get_directory_size_bytes(path: Path) -> int:
 
 
 def to_client_path(path: Path, settings: Settings | None = None) -> str:
-    active_settings = _get_active_settings(settings)
-    storage_root = Path(active_settings.storage_path).resolve()
-    base_path = storage_root.parent
-    try:
-        return path.resolve().relative_to(base_path).as_posix()
-    except ValueError:
-        return str(path.resolve())
+    # Absolute: the client (Tauri opener, UI) cannot resolve paths relative to storage.
+    return str(path.resolve())

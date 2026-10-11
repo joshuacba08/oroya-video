@@ -6,7 +6,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
-from app.core.errors import InvalidProjectConfigurationError, JobInvalidStateError
+from app.core.errors import InvalidProjectConfigurationError, SettingsLockedByRunningJobError
 from app.core.logging import get_logger
 from app.core.paths import get_exports_path, get_models_path, get_settings_file_path, get_temp_path
 from app.db.models import ProcessingJob
@@ -69,6 +69,16 @@ def _save_ui_settings(data: dict, settings: Settings | None = None) -> None:
     settings_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
 
 
+def set_frame_enhancer_engine(engine: str, settings: Settings | None = None) -> None:
+    """Change and persist the enhancer engine (used after installing the AI runtime)."""
+    active_settings = _get_active_settings(settings)
+    ui_settings = _load_ui_settings(active_settings)
+    ui_settings.setdefault("processing", {})["frame_enhancer_engine"] = engine
+    _save_ui_settings(ui_settings, active_settings)
+    active_settings.frame_enhancer_engine = engine
+    logger.info("Frame enhancer engine set to %s", engine)
+
+
 def apply_persisted_settings(settings: Settings | None = None) -> Settings:
     active_settings = _get_active_settings(settings)
     saved_settings = _load_ui_settings(active_settings)
@@ -88,7 +98,11 @@ def apply_persisted_settings(settings: Settings | None = None) -> Settings:
         if value is not None:
             setattr(active_settings, field_name, value)
 
-    for field_name in ("cleanup_temp_on_success", "cleanup_temp_older_than_hours"):
+    for field_name in (
+        "cleanup_temp_on_success",
+        "cleanup_keep_preview_frames",
+        "cleanup_temp_older_than_hours",
+    ):
         value = cleanup_settings.get(field_name)
         if value is not None:
             setattr(active_settings, field_name, value)
@@ -122,6 +136,7 @@ def build_settings_response(settings: Settings | None = None) -> SettingsRespons
         ),
         cleanup=CleanupSettingsResponse(
             cleanup_temp_on_success=active_settings.cleanup_temp_on_success,
+            cleanup_keep_preview_frames=active_settings.cleanup_keep_preview_frames,
             cleanup_temp_older_than_hours=active_settings.cleanup_temp_older_than_hours,
         ),
     )
@@ -130,7 +145,7 @@ def build_settings_response(settings: Settings | None = None) -> SettingsRespons
 def _ensure_no_running_jobs(db: Session) -> None:
     running_job = db.query(ProcessingJob).filter(ProcessingJob.status == "running").first()
     if running_job is not None:
-        raise JobInvalidStateError()
+        raise SettingsLockedByRunningJobError()
 
 
 def update_settings(
@@ -185,6 +200,15 @@ def update_settings(
             ui_settings.setdefault("cleanup", {})["cleanup_temp_on_success"] = cleanup_update[
                 "cleanup_temp_on_success"
             ]
+        if cleanup_update.get("cleanup_keep_preview_frames") is not None:
+            if cleanup_update["cleanup_keep_preview_frames"] < 0:
+                raise InvalidProjectConfigurationError("cleanup_keep_preview_frames must be >= 0.")
+            active_settings.cleanup_keep_preview_frames = cleanup_update[
+                "cleanup_keep_preview_frames"
+            ]
+            ui_settings.setdefault("cleanup", {})["cleanup_keep_preview_frames"] = cleanup_update[
+                "cleanup_keep_preview_frames"
+            ]
         if cleanup_update.get("cleanup_temp_older_than_hours") is not None:
             if cleanup_update["cleanup_temp_older_than_hours"] <= 0:
                 raise InvalidProjectConfigurationError(
@@ -193,9 +217,9 @@ def update_settings(
             active_settings.cleanup_temp_older_than_hours = cleanup_update[
                 "cleanup_temp_older_than_hours"
             ]
-            ui_settings.setdefault("cleanup", {})["cleanup_temp_older_than_hours"] = (
-                cleanup_update["cleanup_temp_older_than_hours"]
-            )
+            ui_settings.setdefault("cleanup", {})["cleanup_temp_older_than_hours"] = cleanup_update[
+                "cleanup_temp_older_than_hours"
+            ]
 
     _save_ui_settings(ui_settings, active_settings)
     return SettingsUpdateResponse(updated=True, settings=build_settings_response(active_settings))

@@ -62,9 +62,7 @@ def ensure_enhancement_storage_capacity(
     _, _, free_bytes = shutil.disk_usage(temp_path)
     required_bytes = max(get_directory_size_bytes(original_frames_dir), 1)
     if free_bytes < required_bytes:
-        raise InsufficientTempStorageError(
-            "Not enough temporary storage space to enhance frames."
-        )
+        raise InsufficientTempStorageError("Not enough temporary storage space to enhance frames.")
 
 
 def _mark_enhancement_failed(
@@ -190,6 +188,10 @@ def enhance_frames_for_job(
         db.refresh(job)
         return job.cancel_requested or job.status == "cancelled"
 
+    def pause_callback() -> bool:
+        db.refresh(job)
+        return bool(job.pause_requested)
+
     job_repository.update_job(
         db,
         job,
@@ -238,6 +240,7 @@ def enhance_frames_for_job(
             enhanced_frames_dir,
             progress_callback=progress_callback,
             cancel_callback=cancel_callback,
+            pause_callback=pause_callback,
         )
     except (
         AIRuntimeNotAvailableError,
@@ -315,6 +318,31 @@ def enhance_frames_for_job(
         )
         db.commit()
         logger.warning("Frame enhancement cancelled: %s", job_id)
+        return job
+
+    if job.pause_requested:
+        job_repository.update_job(
+            db,
+            job,
+            {
+                "status": "paused",
+                "current_stage": "enhancing_frames",
+                "enhanced_frames": processed,
+                "elapsed_time_seconds": int(time.monotonic() - started_at),
+                "enhanced_frames_size_bytes": get_directory_size_bytes(enhanced_frames_dir),
+                "process_kind": None,
+                "process_ended_at": time_to_datetime(time.time()),
+            },
+        )
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            "Enhancement paused by user.",
+            stage="enhancing_frames",
+        )
+        db.commit()
+        logger.info("Frame enhancement paused: %s", job_id)
         return job
 
     enhanced_frames = count_enhanced_frames(enhanced_frames_dir)

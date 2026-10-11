@@ -61,7 +61,5 @@ def record_audit_event(
     audit_log_path.parent.mkdir(parents=True, exist_ok=True)
     audit_log_path.write_text("", encoding="utf-8") if not audit_log_path.exists() else None
     with audit_log_path.open("a", encoding="utf-8") as handle:
-        handle.write(
-            _serialize_entry(event_type, entity_type, entity_id, message, metadata) + "\n"
-        )
+        handle.write(_serialize_entry(event_type, entity_type, entity_id, message, metadata) + "\n")
     logger.info("Audit event recorded: %s %s", event_type, entity_id)

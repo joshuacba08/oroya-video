@@ -1,0 +1,18 @@
+[package]
+name = "oroya-video"
+version = "0.2.0"
+description = "Oroya Video desktop client"
+authors = ["Oroya Video"]
+edition = "2021"
+
+[lib]
+name = "oroya_video_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"

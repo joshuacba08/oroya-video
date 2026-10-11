@@ -1,0 +1,215 @@
+:host {
+  display: block;
+}
+
+.dashboard-page {
+  display: grid;
+  gap: 28px;
+  max-width: 1580px;
+  padding: 34px 36px 72px;
+}
+
+.dashboard-page__hero {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+h1,
+p {
+  margin: 0;
+}
+
+h1 {
+  color: var(--n-text-1);
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+
+p {
+  margin-top: 8px;
+  color: var(--n-text-3);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.dashboard-page__source {
+  padding: 5px 10px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-full);
+  color: var(--n-text-3);
+  font-family: var(--n-font-mono);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.dashboard-page__error {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--n-color-danger), transparent 70%);
+  border-radius: var(--n-radius-md);
+  background: color-mix(in srgb, var(--n-color-danger), transparent 91%);
+}
+
+.dashboard-page__error strong {
+  color: var(--n-text-1);
+  font-size: 0.86rem;
+}
+
+.dashboard-page__error span {
+  color: var(--n-text-3);
+  font-family: var(--n-font-mono);
+  font-size: 0.72rem;
+}
+
+.dashboard-page__projects {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.dashboard-page__new {
+  display: block;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dashboard-page__actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.quick-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 70px;
+  padding: 0 22px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-lg);
+  background: rgba(255, 255, 255, 0.018);
+  color: var(--n-text-2);
+  font-size: 0.92rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background var(--n-transition-fast),
+    color var(--n-transition-fast),
+    border-color var(--n-transition-fast);
+}
+
+.quick-action:hover {
+  border-color: rgba(66, 133, 244, 0.28);
+  background: rgba(66, 133, 244, 0.07);
+  color: var(--n-text-1);
+}
+
+.dashboard-page__system {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 18px;
+}
+
+.models-status {
+  display: grid;
+  gap: 12px;
+}
+
+.models-status header,
+.models-status__row,
+.models-status footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
+.models-status header {
+  justify-content: flex-start;
+  color: var(--n-text-3);
+}
+
+.models-status header strong {
+  color: var(--n-text-2);
+}
+
+.models-status__row span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--n-text-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.models-status__row strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--n-color-success);
+  font-family: var(--n-font-mono);
+  font-size: 0.78rem;
+}
+
+.models-status footer {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--n-border-0);
+  color: var(--n-text-2);
+  font-weight: 800;
+}
+
+.models-status footer a {
+  color: var(--n-color-primary-light);
+  font-family: var(--n-font-mono);
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+@media (max-width: 1240px) {
+  .dashboard-page__projects {
+    grid-template-columns: repeat(2, minmax(220px, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-page {
+    padding: 24px 18px 48px;
+  }
+
+  .dashboard-page__hero,
+  .dashboard-page__system {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-page__hero {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .dashboard-page__projects,
+  .dashboard-page__actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dashboard-page__notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid color-mix(in srgb, var(--n-color-success), transparent 70%);
+  border-radius: var(--n-radius-md);
+  background: color-mix(in srgb, var(--n-color-success), transparent 91%);
+  color: var(--n-text-1);
+  font-size: 0.86rem;
+}

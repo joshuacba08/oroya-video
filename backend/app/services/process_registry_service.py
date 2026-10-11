@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 
@@ -19,6 +20,21 @@ class ProcessInfo:
 
 
 _process_registry: dict[str, ProcessInfo] = {}
+# Se activa al apagar el backend: las etapas ffmpeg dejan el job tal cual (la recuperación
+# al arrancar lo marca `interrupted`) en vez de marcarlo como fallido.
+_shutdown_requested = threading.Event()
+
+
+def request_shutdown() -> None:
+    _shutdown_requested.set()
+
+
+def clear_shutdown() -> None:
+    _shutdown_requested.clear()
+
+
+def is_shutting_down() -> bool:
+    return _shutdown_requested.is_set()
 
 
 def register_process(
@@ -66,6 +82,17 @@ def terminate_process_for_job(job_id: str, timeout_seconds: int = 5) -> bool:
     unregister_process(job_id)
     logger.warning("Process terminated for job %s", job_id)
     return True
+
+
+def terminate_all_processes(timeout_seconds: int = 5) -> int:
+    terminated = 0
+    for job_id in list(_process_registry):
+        try:
+            if terminate_process_for_job(job_id, timeout_seconds=timeout_seconds):
+                terminated += 1
+        except (OSError, subprocess.SubprocessError):
+            logger.exception("Could not terminate process for job %s", job_id)
+    return terminated
 
 
 def clear_registry() -> None:

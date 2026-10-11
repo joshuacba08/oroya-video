@@ -1,0 +1,42 @@
+<section class="models-page">
+  <header class="models-page__top">
+    <h1>{{ 'models.titlePrefix' | t }} <span class="gt-text">{{ 'models.titleEmphasis' | t }}</span></h1>
+    <n-button variant="secondary" size="sm" [disabled]="refreshing()" (click)="refreshModels()">
+      <n-icon name="refresh-cw" size="sm" />
+      {{ (refreshing() ? 'common.refreshing' : 'common.refresh') | t }}
+    </n-button>
+  </header>
+
+  @if (error(); as errorVm) {
+    <div class="models-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
+      }
+    </div>
+  }
+
+  @if (models$ | async; as models) {
+    <ov-section-header [label]="'dashboard.installedModels' | t" />
+    <div class="models-page__installed">
+      @for (model of installed(models); track model.id) {
+        <ov-model-card
+          [model]="model"
+          [toggling]="togglingSlug() === model.slug"
+          (enabledToggled)="toggleEnabled($event)"
+        />
+      }
+    </div>
+
+    <ov-section-header [label]="'models.available' | t" />
+    <div class="models-page__available">
+      @for (model of available(models); track model.id) {
+        <ov-model-card
+          [model]="model"
+          [download]="downloadFor(model)"
+          (downloadRequested)="startDownload($event)"
+        />
+      }
+    </div>
+  }
+</section>

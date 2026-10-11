@@ -20,14 +20,17 @@ class ProjectCreateRequest(BaseModel):
 class ProjectUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     description: str | None = None
-    status: Literal[
-        "draft",
-        "ready",
-        "processing",
-        "completed",
-        "failed",
-        "archived",
-    ] | None = None
+    status: (
+        Literal[
+            "draft",
+            "ready",
+            "processing",
+            "completed",
+            "failed",
+            "archived",
+        ]
+        | None
+    ) = None
     enhancement_config: dict[str, Any] | None = None
     export_config: dict[str, Any] | None = None
     workspace_state: dict[str, Any] | None = None

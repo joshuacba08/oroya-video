@@ -61,10 +61,12 @@ class VideoAsset(Base):
     projects: Mapped[list[Project]] = relationship(
         "Project",
         back_populates="video_asset",
+        cascade="all, delete-orphan",
     )
     exports: Mapped[list[ExportAsset]] = relationship(
         "ExportAsset",
         back_populates="video_asset",
+        cascade="all, delete-orphan",
     )
 
 
@@ -100,10 +102,12 @@ class Project(Base):
     processing_jobs: Mapped[list[ProcessingJob]] = relationship(
         "ProcessingJob",
         back_populates="project",
+        cascade="all, delete-orphan",
     )
     exports: Mapped[list[ExportAsset]] = relationship(
         "ExportAsset",
         back_populates="project",
+        cascade="all, delete-orphan",
     )
 
 

@@ -14,6 +14,8 @@ from app.core.errors import (
     AIModelDisabledError,
     AIModelNotFoundError,
     InvalidProjectConfigurationError,
+    JobInvalidStateError,
+    OroyaVideoError,
     ProjectCreateFailedError,
     ProjectDeleteFailedError,
     ProjectNotFoundError,
@@ -39,10 +41,14 @@ from app.schemas.project_schema import (
     ProjectUpdateRequest,
     ProjectWorkspaceResponse,
 )
+from app.services import job_workspace_service
 from app.services.job_contract_service import build_job_actions, is_preview_available
 from app.services.preview_service import get_compare_frame_info, get_recommended_preview_frame_index
 
 logger = get_logger(__name__)
+
+# Jobs que el worker puede estar procesando: no se borran por cascada.
+ACTIVE_JOB_STATUSES = {"queued", "running", "retrying"}
 
 DEFAULT_ENHANCEMENT_CONFIG = {
     "model_id": "realesrgan-x2",
@@ -50,6 +56,7 @@ DEFAULT_ENHANCEMENT_CONFIG = {
     "denoise": 0,
     "sharpen": 0,
     "compression_cleanup": False,
+    "face_restore": {"enabled": False, "strength": 0.5},
 }
 DEFAULT_EXPORT_CONFIG = {
     "format": "mp4",
@@ -79,6 +86,7 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "denoise",
     "sharpen",
     "compression_cleanup",
+    "face_restore",
 }
 ALLOWED_EXPORT_KEYS = {"format", "codec", "keep_audio", "output_resolution"}
 ALLOWED_WORKSPACE_KEYS = {
@@ -131,7 +139,24 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
         )
     if not isinstance(config.get("model_id"), str) or not config["model_id"].strip():
         raise InvalidProjectConfigurationError("Enhancement config model_id is required.")
+    face_restore = config.get("face_restore")
+    if face_restore is not None:
+        _validate_face_restore(face_restore)
     return config
+
+
+def _validate_face_restore(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) - {"enabled", "strength"}:
+        raise InvalidProjectConfigurationError("Enhancement config face_restore is invalid.")
+    if not isinstance(value.get("enabled"), bool):
+        raise InvalidProjectConfigurationError("face_restore.enabled must be boolean.")
+    strength = value.get("strength")
+    if (
+        isinstance(strength, bool)
+        or not isinstance(strength, (int, float))
+        or not 0 <= strength <= 1
+    ):
+        raise InvalidProjectConfigurationError("face_restore.strength must be between 0 and 1.")
 
 
 def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:
@@ -199,12 +224,15 @@ def _ensure_video_asset_file_available(video_asset: VideoAsset) -> None:
         raise VideoAssetFileMissingError()
 
 
-def _validate_model_reference(db: Session, model_slug: str) -> None:
-    ai_model = ai_model_repository.get_ai_model_by_slug(db, model_slug)
+def _validate_model_reference(db: Session, model_id_or_slug: str) -> str:
+    ai_model = ai_model_repository.get_ai_model_by_id(db, model_id_or_slug)
+    if not ai_model:
+        ai_model = ai_model_repository.get_ai_model_by_slug(db, model_id_or_slug)
     if not ai_model:
         raise AIModelNotFoundError()
     if not ai_model.is_enabled:
         raise AIModelDisabledError()
+    return ai_model.slug
 
 
 def _serialize_config(data: dict[str, Any]) -> str:
@@ -238,10 +266,11 @@ def _build_project_configs(
         _merge_config(existing_enhancement, enhancement_config)
     )
     merged_export = _validate_export_config(_merge_config(existing_export, export_config))
-    merged_workspace = _validate_workspace_state(
-        _merge_config(existing_workspace, workspace_state)
+    merged_workspace = _validate_workspace_state(_merge_config(existing_workspace, workspace_state))
+    merged_enhancement["model_id"] = _validate_model_reference(
+        db,
+        merged_enhancement["model_id"],
     )
-    _validate_model_reference(db, merged_enhancement["model_id"])
     return merged_enhancement, merged_export, merged_workspace
 
 
@@ -359,16 +388,21 @@ def get_project_workspace(
     )
     preview_payload: dict[str, Any] = {"available": False, "recommended": None}
     if latest_job is not None and is_preview_available(latest_job):
-        frame_index = get_recommended_preview_frame_index(db, latest_job.id)
-        preview_payload = {
-            "available": True,
-            "recommended": get_compare_frame_info(
-                db,
-                latest_job.id,
-                frame_index,
-                settings=settings,
-            ).model_dump(mode="json"),
-        }
+        # Los frames pueden haberse borrado (limpieza con 0 frames conservados, borrado
+        # manual): el workspace debe abrir igualmente, solo que sin preview.
+        try:
+            frame_index = get_recommended_preview_frame_index(db, latest_job.id)
+            preview_payload = {
+                "available": True,
+                "recommended": get_compare_frame_info(
+                    db,
+                    latest_job.id,
+                    frame_index,
+                    settings=settings,
+                ).model_dump(mode="json"),
+            }
+        except OroyaVideoError as exc:
+            logger.warning("Workspace preview unavailable for %s: %s", latest_job.id, exc)
     latest_job_actions = build_job_actions(latest_job) if latest_job is not None else None
     return ProjectWorkspaceResponse(
         project=detail.project,
@@ -395,15 +429,11 @@ def get_project_workspace(
         preview=preview_payload,
         actions={
             "can_create_job": True,
-            "can_start_latest_job": bool(
-                latest_job_actions and latest_job_actions["can_start"]
-            ),
+            "can_start_latest_job": bool(latest_job_actions and latest_job_actions["can_start"]),
             "can_cancel_latest_job": latest_job is not None
             and latest_job_actions is not None
             and latest_job_actions["can_cancel"],
-            "can_retry_latest_job": bool(
-                latest_job_actions and latest_job_actions["can_retry"]
-            ),
+            "can_retry_latest_job": bool(latest_job_actions and latest_job_actions["can_retry"]),
             "can_export": latest_export is not None,
         },
     )
@@ -459,8 +489,15 @@ def update_project(
     )
 
 
-def delete_project(db: Session, project_id: str) -> ProjectDeleteResponse:
+def delete_project(
+    db: Session,
+    project_id: str,
+    settings: Settings | None = None,
+) -> ProjectDeleteResponse:
     project = _get_project_or_raise(db, project_id)
+    if any(job.status in ACTIVE_JOB_STATUSES for job in project.processing_jobs):
+        raise JobInvalidStateError()
+    job_ids = [job.id for job in project.processing_jobs]
     try:
         project_repository.delete_project(db, project)
         db.commit()
@@ -468,6 +505,9 @@ def delete_project(db: Session, project_id: str) -> ProjectDeleteResponse:
         db.rollback()
         logger.exception("Project delete failed")
         raise ProjectDeleteFailedError() from exc
+
+    for job_id in job_ids:
+        job_workspace_service.delete_job_files(job_id, project_id, settings)
 
     logger.info("Project deleted: %s", project_id)
     return ProjectDeleteResponse(deleted=True, project_id=project_id)

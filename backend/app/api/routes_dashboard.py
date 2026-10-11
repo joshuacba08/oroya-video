@@ -18,22 +18,22 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("/bootstrap", response_model=BootstrapResponse, summary="Get frontend bootstrap data")
-async def get_bootstrap_route(request: Request, db: DbSession) -> BootstrapResponse:
+def get_bootstrap_route(request: Request, db: DbSession) -> BootstrapResponse:
     return get_bootstrap_response(db=db, settings=request.app.state.settings)
 
 
 @router.get("/dashboard", response_model=DashboardResponse, summary="Get dashboard summary")
-async def get_dashboard_route(request: Request, db: DbSession) -> DashboardResponse:
+def get_dashboard_route(request: Request, db: DbSession) -> DashboardResponse:
     return get_dashboard_response(db=db, settings=request.app.state.settings)
 
 
 @router.get("/app-state", response_model=AppStateResponse, summary="Get global app state")
-async def get_app_state_route(request: Request, db: DbSession) -> AppStateResponse:
+def get_app_state_route(request: Request, db: DbSession) -> AppStateResponse:
     return get_app_state_response(db=db, settings=request.app.state.settings)
 
 
 @router.get("/queue", response_model=QueueResponse, summary="Get processing queue overview")
-async def get_queue_route(
+def get_queue_route(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),

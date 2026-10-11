@@ -90,12 +90,8 @@ def get_dashboard_response(db: Session, settings: Settings | None = None) -> Das
     active_settings = _get_active_settings(settings)
     requirements = get_requirements_status(active_settings)
     storage_usage = get_storage_usage(active_settings)
-    recent_projects = (
-        db.query(Project).order_by(Project.updated_at.desc()).limit(5).all()
-    )
-    recent_exports = (
-        db.query(ExportAsset).order_by(ExportAsset.created_at.desc()).limit(5).all()
-    )
+    recent_projects = db.query(Project).order_by(Project.updated_at.desc()).limit(5).all()
+    recent_exports = db.query(ExportAsset).order_by(ExportAsset.created_at.desc()).limit(5).all()
     active_jobs = (
         db.query(ProcessingJob)
         .filter(ProcessingJob.status.in_(("queued", "running", "retrying")))
@@ -179,6 +175,18 @@ def get_app_state_response(db: Session, settings: Settings | None = None) -> App
     )
 
 
+# Pausados y fallidos se muestran para poder reanudarlos o reintentarlos desde la cola.
+QUEUE_VISIBLE_STATUSES = (
+    "pending",
+    "queued",
+    "running",
+    "paused",
+    "retrying",
+    "interrupted",
+    "failed",
+)
+
+
 def get_queue_response(
     db: Session,
     *,
@@ -188,9 +196,7 @@ def get_queue_response(
     items = (
         db.query(ProcessingJob, Project.name)
         .outerjoin(Project, Project.id == ProcessingJob.project_id)
-        .filter(
-            ProcessingJob.status.in_(("pending", "queued", "running", "interrupted", "retrying"))
-        )
+        .filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES))
         .order_by(ProcessingJob.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -207,16 +213,24 @@ def get_queue_response(
             model_slug=job.ai_model_slug,
             created_at=job.created_at,
             started_at=job.started_at,
+            frames_total=job.frames_total or 0,
+            frames_processed=job.frames_processed or 0,
+            elapsed_time_seconds=job.elapsed_time_seconds or 0,
+            error_code=job.error_code,
+            error_message=job.error_message,
+            enhancer_engine=job.enhancer_engine,
+            realesrgan_device=job.realesrgan_device,
+            realesrgan_frames_total=job.realesrgan_frames_total,
+            realesrgan_frames_processed=job.realesrgan_frames_processed,
+            realesrgan_failed_frames=job.realesrgan_failed_frames,
+            realesrgan_average_frame_time_ms=job.realesrgan_average_frame_time_ms,
+            retry_count=job.retry_count or 0,
+            max_retries=job.max_retries or 0,
+            actions=build_job_actions(job),
         )
         for job, project_name in items
     ]
-    total = (
-        db.query(ProcessingJob)
-        .filter(
-            ProcessingJob.status.in_(("pending", "queued", "running", "interrupted", "retrying"))
-        )
-        .count()
-    )
+    total = db.query(ProcessingJob).filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)).count()
     return QueueResponse(
         items=response_items,
         total=total,
@@ -224,6 +238,8 @@ def get_queue_response(
         queued=db.query(ProcessingJob).filter(ProcessingJob.status == "queued").count(),
         pending=db.query(ProcessingJob).filter(ProcessingJob.status == "pending").count(),
         interrupted=db.query(ProcessingJob).filter(ProcessingJob.status == "interrupted").count(),
+        paused=db.query(ProcessingJob).filter(ProcessingJob.status == "paused").count(),
+        failed=db.query(ProcessingJob).filter(ProcessingJob.status == "failed").count(),
         limit=limit,
         offset=offset,
     )

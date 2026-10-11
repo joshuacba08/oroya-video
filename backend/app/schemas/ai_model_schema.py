@@ -39,6 +39,22 @@ class AIModelListResponse(BaseModel):
     offset: int
 
 
+class AIModelDownloadStartResponse(BaseModel):
+    slug: str
+    status: str
+    already_installed: bool
+
+
+class AIModelDownloadProgressResponse(BaseModel):
+    slug: str
+    status: str
+    bytes_done: int
+    bytes_total: int | None
+    percent: float
+    error_code: str | None
+    error_message: str | None
+
+
 class AIModelCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=160)
     slug: str = Field(..., min_length=1, max_length=120)

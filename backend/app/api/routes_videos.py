@@ -26,7 +26,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.post("/probe", response_model=VideoProbeResponse, summary="Analyze local video metadata")
-async def probe_video_file(payload: VideoProbeRequest) -> VideoProbeResponse:
+def probe_video_file(payload: VideoProbeRequest) -> VideoProbeResponse:
     return probe_video(payload)
 
 
@@ -36,7 +36,7 @@ async def probe_video_file(payload: VideoProbeRequest) -> VideoProbeResponse:
     status_code=status.HTTP_201_CREATED,
     summary="Import or register a local video asset",
 )
-async def import_video_file(
+def import_video_file(
     payload: VideoImportRequest,
     request: Request,
     response: Response,
@@ -54,7 +54,7 @@ async def import_video_file(
 
 
 @router.get("", response_model=VideoListResponse, summary="List imported video assets")
-async def get_videos(
+def get_videos(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -63,7 +63,7 @@ async def get_videos(
 
 
 @router.get("/{video_id}", response_model=VideoAssetResponse, summary="Get imported video asset")
-async def get_video(video_id: str, db: DbSession) -> VideoAssetResponse:
+def get_video(video_id: str, db: DbSession) -> VideoAssetResponse:
     return get_video_asset(db=db, video_id=video_id)
 
 
@@ -72,7 +72,7 @@ async def get_video(video_id: str, db: DbSession) -> VideoAssetResponse:
     response_model=VideoDeleteResponse,
     summary="Delete imported video asset",
 )
-async def delete_video(
+def delete_video(
     video_id: str,
     request: Request,
     db: DbSession,

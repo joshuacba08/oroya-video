@@ -47,4 +47,5 @@ class ExportOpenResponse(BaseModel):
     export_id: str
     path: str
     available: bool
+    opened: bool = False
     message: str

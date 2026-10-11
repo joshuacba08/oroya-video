@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 
 from app.core.config import Settings, get_settings
@@ -10,8 +11,10 @@ from app.core.paths import (
     ensure_job_directories,
     get_job_encoded_path,
     get_job_enhanced_frames_path,
+    get_job_export_path,
     get_job_original_frames_path,
     get_job_working_path,
+    get_project_exports_path,
 )
 
 logger = get_logger(__name__)
@@ -50,3 +53,23 @@ def get_job_workspace_summary(
 def clean_job_workspace(job_id: str, settings: Settings | None = None) -> None:
     active_settings = _get_active_settings(settings)
     delete_job_frames_directories(job_id, active_settings)
+
+
+def delete_job_files(
+    job_id: str,
+    project_id: str,
+    settings: Settings | None = None,
+) -> None:
+    """Remove a deleted job's temp workspace and export folder. Call only after the DB commit."""
+    active_settings = _get_active_settings(settings)
+    for path in (
+        get_job_working_path(job_id, active_settings),
+        get_job_export_path(project_id, job_id, active_settings),
+    ):
+        if path.exists():
+            shutil.rmtree(path, ignore_errors=True)
+
+    project_exports = get_project_exports_path(project_id, active_settings)
+    if project_exports.is_dir() and not any(project_exports.iterdir()):
+        project_exports.rmdir()
+    logger.info("Job files deleted: %s", job_id)

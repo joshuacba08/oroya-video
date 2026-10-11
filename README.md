@@ -172,7 +172,7 @@ GSAP
 ### Backend Local
 
 ```text
-Python 3.13+
+Python 3.12+
 FastAPI
 Uvicorn
 Pydantic
@@ -202,11 +202,15 @@ Real-ESRGAN x4
 Real-ESRGAN General
 ```
 
+### Restauración facial (opcional, v0.2)
+
+```text
+GFPGAN v1.4
+```
+
 ### Modelos futuros
 
 ```text
-GFPGAN
-CodeFormer
 RIFE
 BasicVSR++
 ```
@@ -932,6 +936,35 @@ La UI de Angular/Tauri podrá conectarse encima de esta base sin que el backend 
 
 ---
 
-## 24. Licencia
+## 24. Instalador de Windows
+
+El proyecto genera un instalador NSIS autocontenido:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1
+```
+
+El script empaqueta un runtime CPython portable (python-build-standalone 3.12) con el
+backend y sus dependencias core dentro de la app Tauri. Al instalar:
+
+- La app arranca el backend automáticamente (sidecar) y lo detiene al cerrar.
+- Todos los datos de usuario viven en `%LOCALAPPDATA%\dev.oroya.video\`:
+  - `storage/` — base de datos, imports, exports, temporales y modelos.
+  - `bin/` — FFmpeg/FFprobe descargados por el asistente.
+  - `ai-env/` — stack de IA (PyTorch) instalado bajo demanda.
+- En la primera ejecución, el asistente (`/setup`) descarga FFmpeg y los modelos
+  Real-ESRGAN (con verificación SHA256 desde los releases oficiales) e instala con un clic
+  el runtime de IA (PyTorch CUDA o CPU según la GPU, más Real-ESRGAN) en `ai-env/`.
+- Sin IA instalada, la app funciona en modo básico (motor mock); al instalarla pasa a Real-ESRGAN.
+
+Releases: al publicar un tag `v*`, el workflow `.github/workflows/release.yml` construye el
+instalador y lo adjunta al GitHub Release (también se puede lanzar a mano para obtener el
+instalador como artefacto).
+
+En desarrollo nada cambia: el backend se corre manualmente con uvicorn y la app
+con `pnpm tauri dev` (el sidecar solo se activa en builds de release con el
+backend empaquetado presente).
+
+## 25. Licencia
 
 Oroya Video se publica bajo licencia MIT. Consulta [LICENSE](LICENSE) para el texto completo.

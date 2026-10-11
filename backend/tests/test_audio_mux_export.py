@@ -263,6 +263,15 @@ def test_mux_audio_for_job_uses_copy_strategy_when_audio_exists(export_client) -
     project = _create_project(client, video["id"])
     job = _create_job(client, project["id"])
     _prepare_encoded_video(job["id"], settings)
+    popen_kwargs: dict[str, object] = {}
+
+    def popen_factory(command, **kwargs):
+        popen_kwargs.update(kwargs)
+        return FakePopen(
+            command,
+            lines=["progress=continue\n", "progress=end\n"],
+            output_bytes=b"muxed",
+        )
 
     assert database.SessionLocal is not None
     db = database.SessionLocal()
@@ -275,17 +284,15 @@ def test_mux_audio_for_job_uses_copy_strategy_when_audio_exists(export_client) -
             ),
             patch(
                 "app.services.audio_mux_service.subprocess.Popen",
-                side_effect=lambda command, **kwargs: FakePopen(
-                    command,
-                    lines=["progress=continue\n", "progress=end\n"],
-                    output_bytes=b"muxed",
-                ),
+                side_effect=popen_factory,
             ),
         ):
             mux_audio_for_job(db, job["id"], settings=settings)
     finally:
         db.close()
 
+    assert popen_kwargs["encoding"] == "utf-8"
+    assert popen_kwargs["errors"] == "replace"
     response = client.get(f"/api/jobs/{job['id']}/audio-mux")
     muxed_response = client.get(f"/api/jobs/{job['id']}/muxed-video")
 
@@ -295,6 +302,56 @@ def test_mux_audio_for_job_uses_copy_strategy_when_audio_exists(export_client) -
     assert muxed_response.status_code == 200
     assert muxed_response.json()["available"] is True
     assert muxed_response.json()["audio_strategy"] == "copy"
+
+
+def test_mux_audio_for_job_skips_audio_when_keep_audio_disabled(export_client) -> None:
+    client, source_file, settings = export_client
+    video = _import_video(client, source_file, has_audio=True)
+    project = _create_project(client, video["id"])
+    response = client.post(
+        "/api/jobs",
+        json={"project_id": project["id"], "export_config": {"keep_audio": False}},
+    )
+    assert response.status_code == 201
+    job = response.json()["job"]
+    _prepare_encoded_video(job["id"], settings)
+    captured_commands: list[list[str]] = []
+
+    def popen_factory(command, **kwargs):
+        captured_commands.append(command)
+        return FakePopen(
+            command,
+            lines=["progress=continue\n", "progress=end\n"],
+            output_bytes=b"muxed-silent",
+        )
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    try:
+        with (
+            patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
+            patch(
+                "app.services.audio_mux_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.audio_mux_service.subprocess.Popen",
+                side_effect=popen_factory,
+            ),
+        ):
+            mux_audio_for_job(db, job["id"], settings=settings)
+    finally:
+        db.close()
+
+    assert len(captured_commands) == 1
+    assert "1:a:0?" not in captured_commands[0]
+    summary_response = client.get(f"/api/jobs/{job['id']}/audio-mux")
+    logs_response = client.get(f"/api/jobs/{job['id']}/logs")
+
+    assert summary_response.status_code == 200
+    assert summary_response.json()["audio_strategy"] == "none"
+    messages = [item["message"] for item in logs_response.json()["items"]]
+    assert "Audio disabled by export settings." in messages
 
 
 def test_mux_audio_for_job_falls_back_to_aac_when_copy_fails(export_client) -> None:
@@ -404,7 +461,42 @@ def test_create_final_export_for_job_creates_export_record_and_job_fields(export
     assert exports_response.json()["items"][0]["id"] == export_asset.id
 
 
-def test_export_endpoints_support_detail_delete_open_and_job_summary(export_client) -> None:
+def test_final_export_records_upscaled_output_resolution(export_client) -> None:
+    from types import SimpleNamespace
+
+    client, source_file, settings = export_client
+    video = _import_video(client, source_file, has_audio=True)
+    project = _create_project(client, video["id"], name="Upscaled")
+    job = _create_job(client, project["id"])
+    _prepare_muxed_video(job["id"], settings)
+    upscaled_probe = SimpleNamespace(video=SimpleNamespace(width=3840, height=2160))
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    try:
+        with (
+            patch(
+                "app.services.export_service.shutil.disk_usage",
+                return_value=(1000, 100, 900),
+            ),
+            patch(
+                "app.services.export_service.video_probe_service.probe_video",
+                return_value=upscaled_probe,
+            ),
+        ):
+            export_asset = create_final_export_for_job(db, job["id"], settings=settings)
+    finally:
+        db.close()
+
+    assert export_asset is not None
+    exported = client.get(f"/api/exports/{export_asset.id}").json()
+    assert (exported["width"], exported["height"]) == (3840, 2160)
+    assert exported["resolution_label"] == "3840x2160"
+
+
+def test_export_endpoints_support_detail_delete_open_and_job_summary(
+    export_client, _no_desktop_open
+) -> None:
     client, source_file, settings = export_client
     video = _import_video(client, source_file, has_audio=True)
     project = _create_project(client, video["id"])
@@ -435,12 +527,50 @@ def test_export_endpoints_support_detail_delete_open_and_job_summary(export_clie
     assert job_summary_response.json()["export_id"] == export_asset.id
     assert open_response.status_code == 200
     assert open_response.json()["available"] is True
+    assert open_response.json()["opened"] is True
+    assert Path(open_response.json()["path"]).is_absolute()
     assert open_folder_response.status_code == 200
     assert open_folder_response.json()["available"] is True
+    assert open_folder_response.json()["opened"] is True
+    assert [kind for kind, _ in _no_desktop_open] == ["open", "reveal"]
     assert delete_response.status_code == 200
     assert delete_response.json()["deleted"] is True
     assert delete_response.json()["file_deleted"] is True
     assert missing_response.status_code == 404
+
+
+def test_export_file_endpoint_streams_video_and_supports_range(export_client) -> None:
+    client, source_file, settings = export_client
+    video = _import_video(client, source_file, has_audio=True)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_muxed_video(job["id"], settings)
+
+    assert database.SessionLocal is not None
+    db = database.SessionLocal()
+    try:
+        with patch(
+            "app.services.export_service.shutil.disk_usage",
+            return_value=(1000, 100, 900),
+        ):
+            export_asset = create_final_export_for_job(db, job["id"], settings=settings)
+    finally:
+        db.close()
+
+    file_response = client.get(f"/api/exports/{export_asset.id}/file")
+    range_response = client.get(
+        f"/api/exports/{export_asset.id}/file",
+        headers={"Range": "bytes=0-1"},
+    )
+    missing_response = client.get("/api/exports/missing-export-id/file")
+
+    assert file_response.status_code == 200
+    assert file_response.headers["content-type"] == "video/mp4"
+    assert len(file_response.content) > 0
+    assert range_response.status_code == 206
+    assert len(range_response.content) == 2
+    assert missing_response.status_code == 404
+    assert missing_response.json()["error"] == "export_asset_not_found"
 
 
 def test_delete_muxed_video_route_clears_only_muxed_artifact(export_client) -> None:

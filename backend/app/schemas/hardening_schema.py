@@ -5,6 +5,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from app.schemas.job_schema import JobActions
+
 
 class JobPreflightResponse(BaseModel):
     job_id: str
@@ -17,6 +19,8 @@ class JobPreflightResponse(BaseModel):
 class JobRetryRequest(BaseModel):
     cleanup_before_retry: bool = True
     reset_progress: bool = True
+    # True: tras preparar el reintento, pasa el preflight y encola el job (como /start).
+    start: bool = False
 
 
 class CleanupResponse(BaseModel):
@@ -28,7 +32,8 @@ class CleanupResponse(BaseModel):
 
 
 class CleanupBatchRequest(BaseModel):
-    older_than_hours: int = 72
+    # None: usa `cleanup_temp_older_than_hours` de la configuración.
+    older_than_hours: int | None = Field(default=None, ge=0)
     dry_run: bool = False
 
 
@@ -96,6 +101,20 @@ class QueueItemResponse(BaseModel):
     model_slug: str | None
     created_at: datetime
     started_at: datetime | None
+    frames_total: int = 0
+    frames_processed: int = 0
+    elapsed_time_seconds: int = 0
+    error_code: str | None = None
+    error_message: str | None = None
+    enhancer_engine: str | None = None
+    realesrgan_device: str | None = None
+    realesrgan_frames_total: int | None = None
+    realesrgan_frames_processed: int | None = None
+    realesrgan_failed_frames: int | None = None
+    realesrgan_average_frame_time_ms: int | None = None
+    retry_count: int = 0
+    max_retries: int = 0
+    actions: JobActions
 
 
 class QueueResponse(BaseModel):
@@ -105,5 +124,7 @@ class QueueResponse(BaseModel):
     queued: int
     pending: int
     interrupted: int
+    paused: int = 0
+    failed: int = 0
     limit: int = Field(default=50)
     offset: int = Field(default=0)

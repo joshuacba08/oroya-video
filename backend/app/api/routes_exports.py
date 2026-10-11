@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -14,6 +15,7 @@ from app.services.export_service import (
     build_export_open_response,
     delete_export,
     get_export_by_id,
+    get_export_file_path,
     list_exports,
 )
 
@@ -22,7 +24,7 @@ DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("", response_model=ExportListResponse, summary="List exports")
-async def list_exports_route(
+def list_exports_route(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -43,8 +45,17 @@ async def list_exports_route(
     response_model=ExportAssetResponse,
     summary="Get export detail",
 )
-async def get_export_route(export_id: str, db: DbSession) -> ExportAssetResponse:
+def get_export_route(export_id: str, db: DbSession) -> ExportAssetResponse:
     return get_export_by_id(db=db, export_id=export_id)
+
+
+@router.get(
+    "/{export_id}/file",
+    summary="Stream the exported video file",
+)
+def get_export_file_route(export_id: str, db: DbSession) -> FileResponse:
+    path = get_export_file_path(db=db, export_id=export_id)
+    return FileResponse(path, media_type="video/mp4", filename=path.name)
 
 
 @router.delete(
@@ -52,7 +63,7 @@ async def get_export_route(export_id: str, db: DbSession) -> ExportAssetResponse
     response_model=ExportDeleteResponse,
     summary="Delete export",
 )
-async def delete_export_route(
+def delete_export_route(
     export_id: str,
     db: DbSession,
     delete_file: bool = Query(default=False),
@@ -64,9 +75,9 @@ async def delete_export_route(
     "/{export_id}/open",
     response_model=ExportOpenResponse,
     status_code=status.HTTP_200_OK,
-    summary="Validate export file for desktop open",
+    summary="Open export file with the default app",
 )
-async def open_export_route(
+def open_export_route(
     export_id: str,
     request: Request,
     db: DbSession,
@@ -75,6 +86,7 @@ async def open_export_route(
         db=db,
         export_id=export_id,
         open_folder=False,
+        launch=True,
         settings=request.app.state.settings,
     )
 
@@ -83,9 +95,9 @@ async def open_export_route(
     "/{export_id}/open-folder",
     response_model=ExportOpenResponse,
     status_code=status.HTTP_200_OK,
-    summary="Validate export folder for desktop open",
+    summary="Reveal export file in its folder",
 )
-async def open_export_folder_route(
+def open_export_folder_route(
     export_id: str,
     request: Request,
     db: DbSession,
@@ -94,5 +106,6 @@ async def open_export_folder_route(
         db=db,
         export_id=export_id,
         open_folder=True,
+        launch=True,
         settings=request.app.state.settings,
     )

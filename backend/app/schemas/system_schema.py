@@ -56,6 +56,43 @@ class GPUResponse(BaseModel):
     gpus: list[GPUInfo]
 
 
+class FFmpegDownloadStartResponse(BaseModel):
+    status: str
+    already_installed: bool
+
+
+class FFmpegDownloadProgressResponse(BaseModel):
+    status: str
+    bytes_done: int
+    bytes_total: int | None
+    percent: float
+    error_code: str | None
+    error_message: str | None
+
+
+class AIInstallStartResponse(BaseModel):
+    status: str
+    already_installed: bool
+
+
+class AIInstallProgressResponse(BaseModel):
+    status: str
+    step: int
+    steps_total: int
+    step_label: str
+    percent: float
+    message: str
+    error_code: str | None
+    error_message: str | None
+    output_tail: list[str]
+
+
+class StorageOpenResponse(BaseModel):
+    target: str
+    path: str
+    opened: bool
+
+
 class StoragePaths(BaseModel):
     db: str
     temp: str

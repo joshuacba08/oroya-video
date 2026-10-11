@@ -30,13 +30,23 @@ from app.schemas.job_schema import (
     EncodedVideoResponse,
     VideoEncodingSummaryResponse,
 )
-from app.services.frame_extraction_service import time_to_datetime, validate_ffmpeg_available
+from app.services.frame_extraction_service import (
+    finish_cancelled_ffmpeg_stage,
+    time_to_datetime,
+    validate_ffmpeg_available,
+)
 from app.services.pipeline_progress import (
     ENCODING_PROGRESS_END,
     ENCODING_PROGRESS_START,
     calculate_stage_progress,
 )
-from app.services.process_registry_service import register_process, unregister_process
+from app.services.process_registry_service import (
+    is_shutting_down,
+    register_process,
+    unregister_process,
+)
+from app.utils.enhancement_config import parse_enhancement_config_json
+from app.utils.process_output import StderrDrain
 
 logger = get_logger(__name__)
 ENCODED_VIDEO_FILE_NAME = "video_silent.mp4"
@@ -58,12 +68,69 @@ def resolve_encoding_fps(job) -> float:
     return 30.0
 
 
+def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
+    filters: list[str] = []
+
+    if enhancement_config.get("compression_cleanup") is True:
+        filters.append("deblock=filter=strong:block=8")
+
+    denoise = enhancement_config.get("denoise")
+    if isinstance(denoise, int) and not isinstance(denoise, bool) and 0 < denoise <= 100:
+        filters.append(f"hqdn3d={denoise * 0.08:.2f}")
+
+    sharpen = enhancement_config.get("sharpen")
+    if isinstance(sharpen, int) and not isinstance(sharpen, bool) and 0 < sharpen <= 100:
+        filters.append(f"unsharp=5:5:{sharpen / 100 * 1.5:.2f}")
+
+    if not filters:
+        return None
+    return ",".join(filters)
+
+
+OUTPUT_RESOLUTION_FACTORS = {"original": 1, "2x": 2, "4x": 4}
+# libx264 + yuv420p exige ancho y alto pares; con dimensiones impares el encode falla.
+# Recorta como mucho 1 px por lado; es un no-op si ya son pares.
+EVEN_DIMENSIONS_FILTER = "crop=trunc(iw/2)*2:trunc(ih/2)*2"
+
+
+def build_output_scale_filter(
+    export_config: dict,
+    video_asset,
+    enhanced_scale: int | None,
+) -> str | None:
+    resolution = export_config.get("output_resolution")
+    if not isinstance(resolution, str):
+        return None
+    factor = OUTPUT_RESOLUTION_FACTORS.get(resolution.strip().lower())
+    if factor is None:
+        return None
+    if enhanced_scale is not None and factor == enhanced_scale:
+        return None
+
+    width = getattr(video_asset, "width", None)
+    height = getattr(video_asset, "height", None)
+    if not isinstance(width, int) or not isinstance(height, int) or width <= 0 or height <= 0:
+        return None
+
+    target_width = max(2, (width * factor) // 2 * 2)
+    target_height = max(2, (height * factor) // 2 * 2)
+    return f"scale={target_width}:{target_height}:flags=lanczos"
+
+
+def combine_video_filters(*filters: str | None) -> str | None:
+    active = [item for item in filters if item]
+    if not active:
+        return None
+    return ",".join(active)
+
+
 def build_video_encoding_command(
     input_pattern: Path,
     output_path: Path,
     fps: float,
     codec: str = FFMPEG_ENCODING_CODEC,
     pix_fmt: str = ENCODING_PIXEL_FORMAT,
+    video_filters: str | None = None,
 ) -> list[str]:
     command = [
         "ffmpeg",
@@ -75,6 +142,7 @@ def build_video_encoding_command(
         "0",
         "-i",
         str(input_pattern),
+        *(["-vf", video_filters] if video_filters else []),
         "-c:v",
         codec,
         "-pix_fmt",
@@ -106,9 +174,7 @@ def ensure_encoding_storage_capacity(
     _, _, free_bytes = shutil.disk_usage(temp_path)
     required_bytes = max(int(get_directory_size_bytes(enhanced_frames_dir) * 0.25), 1)
     if free_bytes < required_bytes:
-        raise InsufficientTempStorageError(
-            "Not enough temporary storage space to encode video."
-        )
+        raise InsufficientTempStorageError("Not enough temporary storage space to encode video.")
 
 
 def _mark_encoding_failed(
@@ -210,9 +276,22 @@ def encode_video_for_job(
         raise
 
     fps = resolve_encoding_fps(job)
+    enhancement_config = parse_enhancement_config_json(job.enhancement_config_json)
+    export_config = parse_enhancement_config_json(job.export_config_json)
+    enhanced_scale = job.realesrgan_scale if job.enhancer_engine == "realesrgan" else 1
+    user_filters = combine_video_filters(
+        build_enhancement_video_filters(enhancement_config),
+        build_output_scale_filter(export_config, job.video_asset, enhanced_scale),
+    )
+    video_filters = combine_video_filters(user_filters, EVEN_DIMENSIONS_FILTER)
     encoded_dir = ensure_job_encoded_directory(job.id, active_settings)
     output_path = get_job_silent_video_path(job.id, active_settings)
-    command = build_video_encoding_command(frame_pattern, output_path, fps)
+    command = build_video_encoding_command(
+        frame_pattern,
+        output_path,
+        fps,
+        video_filters=video_filters,
+    )
     command[0] = ffmpeg_path
     started_at = time.monotonic()
     now = time.time()
@@ -265,15 +344,33 @@ def encode_video_for_job(
         f"Encoding codec: {FFMPEG_ENCODING_CODEC}",
         stage="encoding_video",
     )
+    if user_filters:
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            f"Encoding filters: {user_filters}",
+            stage="encoding_video",
+        )
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            "Filters apply to the final video, not to preview frames.",
+            stage="encoding_video",
+        )
     db.commit()
 
     process = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        encoding="utf-8",
+        errors="replace",
         text=True,
         bufsize=1,
     )
+    stderr_drain = StderrDrain(process.stderr)
     process_id = int(getattr(process, "pid", 0) or id(process))
     register_process(job.id, process_id, "ffmpeg_encode", process)
     job_repository.update_job(
@@ -333,46 +430,23 @@ def encode_video_for_job(
 
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":
-                    process.terminate()
-                    try:
-                        process.wait(timeout=3)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "status": "cancelled",
-                            "current_stage": "cancelled",
-                            "cancelled_at": time_to_datetime(time.time()),
-                        },
+                    return finish_cancelled_ffmpeg_stage(
+                        db, job, process, "Video encoding cancelled by user."
                     )
-                    job_repository.create_job_log(
-                        db,
-                        job.id,
-                        "warning",
-                        "Video encoding cancelled by user.",
-                        stage="cancelled",
-                    )
-                    unregister_process(job.id)
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "process_id": None,
-                            "process_kind": None,
-                            "process_ended_at": time_to_datetime(time.time()),
-                        },
-                    )
-                    db.commit()
-                    logger.warning("Video encoding cancelled: %s", job_id)
-                    return job
 
-        stderr_output = ""
-        if process.stderr is not None:
-            stderr_output = process.stderr.read().strip()
+        stderr_output = stderr_drain.text()
 
         return_code = process.wait()
+        db.refresh(job)
+        if job.cancel_requested or job.status == "cancelled":
+            return finish_cancelled_ffmpeg_stage(
+                db, job, process, "Video encoding cancelled by user."
+            )
+        if return_code != 0 and is_shutting_down():
+            # Apagado del backend: el job queda como está y se marca `interrupted` al arrancar.
+            unregister_process(job.id)
+            logger.warning("Video encoding stopped by backend shutdown: %s", job.id)
+            return job
         if return_code != 0:
             _mark_encoding_failed(
                 db,

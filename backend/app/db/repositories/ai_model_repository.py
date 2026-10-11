@@ -42,10 +42,7 @@ def list_ai_models(
         query = query.filter(AIModel.is_enabled == enabled)
 
     return (
-        query.order_by(AIModel.category.asc(), AIModel.name.asc())
-        .offset(offset)
-        .limit(limit)
-        .all()
+        query.order_by(AIModel.category.asc(), AIModel.name.asc()).offset(offset).limit(limit).all()
     )
 
 

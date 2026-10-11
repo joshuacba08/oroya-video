@@ -9,11 +9,13 @@ from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import OroyaVideoError
 from app.core.logging import configure_logging, get_logger
+from app.core.parent_watchdog import start_parent_watchdog
 from app.core.paths import ensure_storage_directories, get_storage_path
 from app.db import database
 from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
+from app.services.ai_runtime_service import ensure_ai_extra_site_dir
 from app.services.job_recovery_service import recover_interrupted_jobs_on_startup
 from app.services.process_registry_service import clear_registry
 from app.services.settings_service import apply_persisted_settings
@@ -67,6 +69,7 @@ def create_lifespan(settings: Settings):
         active_settings = apply_persisted_settings(settings)
         ensure_storage_directories(settings)
         configure_logging(active_settings)
+        ensure_ai_extra_site_dir(active_settings)
         clear_registry()
         database.init_db(active_settings)
         app.state.settings = active_settings
@@ -78,6 +81,7 @@ def create_lifespan(settings: Settings):
             finally:
                 db.close()
         start_job_worker(active_settings)
+        start_parent_watchdog()
 
         logger.info("%s started", active_settings.app_name)
         logger.info("Environment: %s", active_settings.environment)
@@ -110,9 +114,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestIdMiddleware)
 
     @app.exception_handler(OroyaVideoError)
-    async def oroya_video_error_handler(
-        request: Request, exc: OroyaVideoError
-    ) -> JSONResponse:
+    async def oroya_video_error_handler(request: Request, exc: OroyaVideoError) -> JSONResponse:
         logger.warning("Handled application error on %s: %s", request.url.path, exc.message)
         return JSONResponse(
             status_code=exc.status_code,

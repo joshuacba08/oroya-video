@@ -1,0 +1,42 @@
+<section class="projects-page">
+  <h1>{{ 'projects.titlePrefix' | t }} <span class="gt-text">{{ 'projects.titleEmphasis' | t }}</span></h1>
+  @if (search$ | async; as search) {
+    <p class="projects-page__search">
+      {{ 'projects.searchResults' | t: { query: search } }}
+      <button type="button" (click)="clearSearch()">{{ 'projects.clearSearch' | t }}</button>
+    </p>
+  }
+  @if (error(); as errorVm) {
+    <div class="projects-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
+      }
+    </div>
+  }
+  @if (manualImportOpen()) {
+    <ov-manual-path-import
+      [busy]="importing()"
+      (pathSubmitted)="importPath($event)"
+      (cancelled)="manualImportOpen.set(false)"
+    />
+  }
+  @if (projects$ | async; as projects) {
+    <div class="projects-page__grid">
+      @for (project of projects; track project.id) {
+        <ov-project-card
+          [project]="project"
+          [actions]="true"
+          (renameRequested)="renameProject($event)"
+          (deleteRequested)="deleteProject($event)"
+        />
+      }
+      @if (!projects.length) {
+        <p class="projects-page__empty">{{ 'projects.empty' | t }}</p>
+      }
+      <button type="button" class="projects-page__new" (click)="newProject()">
+        <ov-project-card [project]="emptyProject" [empty]="true" />
+      </button>
+    </div>
+  }
+</section>

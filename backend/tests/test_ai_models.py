@@ -15,7 +15,7 @@ from app.schemas.video_schema import (
     VideoProbeResponse,
     VideoStreamInfo,
 )
-from app.services.ai_model_service import seed_default_models
+from app.services.ai_model_service import DEFAULT_MODELS, seed_default_models
 
 
 def _build_probe_response(source_path: Path) -> VideoProbeResponse:
@@ -99,7 +99,7 @@ def test_seed_creates_default_models_without_duplicates(model_client) -> None:
 
     list_response = client.get("/api/models")
     assert list_response.status_code == 200
-    assert list_response.json()["total"] == 3
+    assert list_response.json()["total"] == len(DEFAULT_MODELS)
 
     assert database.SessionLocal is not None
     db = database.SessionLocal()
@@ -110,7 +110,7 @@ def test_seed_creates_default_models_without_duplicates(model_client) -> None:
 
     second_list_response = client.get("/api/models")
     assert second_list_response.status_code == 200
-    assert second_list_response.json()["total"] == 3
+    assert second_list_response.json()["total"] == len(DEFAULT_MODELS)
 
 
 def test_get_models_and_get_model_by_slug(model_client) -> None:
@@ -121,7 +121,7 @@ def test_get_models_and_get_model_by_slug(model_client) -> None:
     missing_response = client.get("/api/models/unknown-model")
 
     assert list_response.status_code == 200
-    assert list_response.json()["total"] == 3
+    assert list_response.json()["total"] == len(DEFAULT_MODELS)
     assert detail_response.status_code == 200
     assert detail_response.json()["slug"] == "realesrgan-x2"
     assert missing_response.status_code == 404

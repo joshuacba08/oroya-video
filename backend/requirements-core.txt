@@ -1,0 +1,10 @@
+# Dependencias mínimas del backend para el instalador de Windows.
+# El stack IA (torch, basicsr, realesrgan, opencv) se instala bajo demanda
+# en OROYA_DATA_DIR/ai-env desde el asistente de primera ejecución.
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+python-dotenv
+psutil
+sqlalchemy

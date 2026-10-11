@@ -6,6 +6,7 @@ from pathlib import Path
 
 ProgressCallback = Callable[[int, int], None]
 CancelCallback = Callable[[], bool]
+PauseCallback = Callable[[], bool]
 
 
 class FrameEnhancer(ABC):
@@ -19,5 +20,6 @@ class FrameEnhancer(ABC):
         output_dir: Path,
         progress_callback: ProgressCallback | None = None,
         cancel_callback: CancelCallback | None = None,
+        pause_callback: PauseCallback | None = None,
     ) -> int:
         raise NotImplementedError

@@ -19,12 +19,16 @@ from app.core.paths import (
     get_jobs_temp_path,
     get_storage_path,
 )
+from app.db.models import ProcessingJob
 from app.db.repositories import job_repository
 from app.schemas.hardening_schema import CleanupBatchItem, CleanupBatchResponse, CleanupResponse
 from app.services.audit_log_service import record_audit_event
 from app.services.frame_extraction_service import time_to_datetime
 
 logger = get_logger(__name__)
+
+
+TEMP_PROTECTED_JOB_STATUSES = ("pending", "queued", "running", "paused", "retrying", "cleaning")
 
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
@@ -221,6 +225,160 @@ def cleanup_job_temp_files(
         raise JobCleanupFailedError() from exc
 
 
+def _trim_frames_directory(
+    frames_dir: Path,
+    *,
+    keep_frames: int,
+    deleted_paths: list[str],
+) -> int:
+    if not frames_dir.exists() or not frames_dir.is_dir():
+        return 0
+
+    freed_bytes = 0
+    frame_files = sorted(frame for frame in frames_dir.glob("*.png") if frame.is_file())
+    for frame in frame_files[keep_frames:]:
+        freed_bytes += frame.stat().st_size
+        frame.unlink()
+        deleted_paths.append(str(frame))
+    return freed_bytes
+
+
+def trim_original_frames_after_enhancement(
+    db: Session,
+    job_id: str,
+    settings: Settings | None = None,
+) -> int:
+    """Free disk as soon as enhancement ends: encoding only reads the enhanced frames.
+
+    Keeps the same first N originals that the post-success cleanup keeps, so the
+    before/after preview is unaffected. Best effort: never raises into the pipeline.
+    """
+    active_settings = _get_active_settings(settings)
+    if not active_settings.cleanup_temp_on_success:
+        return 0
+    try:
+        job = _get_job_or_raise(db, job_id)
+        originals = get_job_original_frames_path(job.id, active_settings)
+        freed_bytes = _trim_frames_directory(
+            originals,
+            keep_frames=max(0, active_settings.cleanup_keep_preview_frames),
+            deleted_paths=[],
+        )
+        job_repository.update_job(
+            db,
+            job,
+            {"original_frames_size_bytes": get_directory_size_bytes(originals)},
+        )
+        db.commit()
+        logger.info("Original frames trimmed after enhancement: %s (%s bytes)", job.id, freed_bytes)
+        return freed_bytes
+    except (OSError, SQLAlchemyError, JobNotFoundError):
+        db.rollback()
+        logger.exception("Could not trim original frames for job %s", job_id)
+        return 0
+
+
+def cleanup_job_temp_after_success(
+    db: Session,
+    job_id: str,
+    settings: Settings | None = None,
+) -> CleanupResponse | None:
+    """Best-effort temp cleanup after a completed job.
+
+    Keeps the first N frames in both frame directories so the before/after
+    preview keeps working, and never raises into the pipeline: a cleanup
+    failure must not mark a completed job as failed.
+    """
+    active_settings = _get_active_settings(settings)
+    try:
+        job = _get_job_or_raise(db, job_id)
+        keep_frames = max(0, active_settings.cleanup_keep_preview_frames)
+        deleted_paths: list[str] = []
+        freed_bytes = 0
+
+        freed_bytes += _trim_frames_directory(
+            get_job_original_frames_path(job.id, active_settings),
+            keep_frames=keep_frames,
+            deleted_paths=deleted_paths,
+        )
+        freed_bytes += _trim_frames_directory(
+            get_job_enhanced_frames_path(job.id, active_settings),
+            keep_frames=keep_frames,
+            deleted_paths=deleted_paths,
+        )
+        freed_bytes += _delete_path_if_requested(
+            get_job_encoded_path(job.id, active_settings),
+            enabled=True,
+            deleted_paths=deleted_paths,
+        )
+        freed_bytes += _delete_path_if_requested(
+            get_job_muxed_path(job.id, active_settings),
+            enabled=True,
+            deleted_paths=deleted_paths,
+        )
+
+        updated_sizes = calculate_job_temp_size(job.id, active_settings)
+        job_repository.update_job(
+            db,
+            job,
+            {
+                "cleanup_started_at": time_to_datetime(time.time()),
+                "cleanup_completed_at": time_to_datetime(time.time()),
+                "cleanup_error_code": None,
+                "cleanup_error_message": None,
+                "temp_size_bytes": updated_sizes["temp_size_bytes"],
+                "original_frames_size_bytes": updated_sizes["original_frames_size_bytes"],
+                "enhanced_frames_size_bytes": updated_sizes["enhanced_frames_size_bytes"],
+                "encoded_size_bytes": updated_sizes["encoded_size_bytes"],
+                "muxed_size_bytes": updated_sizes["muxed_size_bytes"],
+            },
+        )
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            f"Temp cleanup after success completed. Freed bytes: {freed_bytes}. "
+            f"Preview frames kept: {keep_frames}",
+            stage="completed",
+        )
+        db.commit()
+        record_audit_event(
+            "job_cleaned",
+            "job",
+            job.id,
+            "Job temporary files cleaned after successful completion.",
+            {"freed_bytes": freed_bytes, "kept_preview_frames": keep_frames},
+            active_settings,
+        )
+        return CleanupResponse(
+            deleted=True,
+            job_id=job.id,
+            freed_bytes=freed_bytes,
+            deleted_paths=deleted_paths,
+            warnings=[],
+        )
+    except (OSError, SQLAlchemyError, JobNotFoundError):
+        db.rollback()
+        logger.warning("Temp cleanup after success failed for job %s", job_id, exc_info=True)
+        try:
+            job = job_repository.get_job_by_id(db, job_id)
+            if job is not None:
+                job_repository.update_job(
+                    db,
+                    job,
+                    {
+                        "cleanup_error_code": "job_cleanup_failed",
+                        "cleanup_error_message": (
+                            "Job temporary files could not be cleaned after success."
+                        ),
+                    },
+                )
+                db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+        return None
+
+
 def cleanup_old_temp_files(
     db: Session,
     *,
@@ -237,9 +395,20 @@ def cleanup_old_temp_files(
     freed_total = 0
     jobs_cleaned = 0
     jobs_scanned = 0
+    warnings: list[str] = []
+    # Jobs que aún necesitan sus frames (en curso o pausados para reanudar).
+    protected_job_ids = {
+        job_id
+        for (job_id,) in db.query(ProcessingJob.id).filter(
+            ProcessingJob.status.in_(TEMP_PROTECTED_JOB_STATUSES)
+        )
+    }
 
     for job_dir in sorted(item for item in jobs_temp_path.iterdir() if item.is_dir()):
         jobs_scanned += 1
+        if job_dir.name in protected_job_ids:
+            warnings.append(f"Skipped active job {job_dir.name}.")
+            continue
         age_seconds = now - job_dir.stat().st_mtime
         if age_seconds < threshold_seconds:
             continue
@@ -265,7 +434,7 @@ def cleanup_old_temp_files(
         jobs_cleaned=jobs_cleaned,
         freed_bytes=freed_total,
         items=items,
-        warnings=[],
+        warnings=warnings,
     )
 
 

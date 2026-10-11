@@ -221,6 +221,33 @@ class JobNotFoundError(OroyaVideoError):
         )
 
 
+class FaceRestoreNotAvailableError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Face restoration is not available: install the AI runtime and the GFPGAN model.",
+            error_code="face_restore_not_available",
+            status_code=503,
+        )
+
+
+class FaceRestoreFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Face restoration failed while processing frames.",
+            error_code="face_restore_failed",
+            status_code=500,
+        )
+
+
+class SettingsLockedByRunningJobError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Processing settings cannot change while a job is running.",
+            error_code="settings_locked_by_running_job",
+            status_code=409,
+        )
+
+
 class JobInvalidStateError(OroyaVideoError):
     def __init__(self) -> None:
         super().__init__(
@@ -440,6 +467,42 @@ class PreviewFrameNotFoundError(OroyaVideoError):
             "Preview frame was not found.",
             error_code="preview_frame_not_found",
             status_code=404,
+        )
+
+
+class FilteredPreviewFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Filtered preview frame could not be rendered.",
+            error_code="filtered_preview_failed",
+            status_code=500,
+        )
+
+
+class DownloadAlreadyRunningError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A download is already running for this resource.",
+            error_code="download_already_running",
+            status_code=409,
+        )
+
+
+class DownloadSourceNotConfiguredError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "No download source is configured for this resource.",
+            error_code="download_source_not_configured",
+            status_code=400,
+        )
+
+
+class DownloadFailedError(OroyaVideoError):
+    def __init__(self, message: str = "Download failed.") -> None:
+        super().__init__(
+            message,
+            error_code="download_failed",
+            status_code=502,
         )
 
 

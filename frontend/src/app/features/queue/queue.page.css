@@ -1,0 +1,131 @@
+.queue-page {
+  display: grid;
+  gap: 28px;
+  padding: 38px 36px 72px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+header div {
+  display: flex;
+  gap: 10px;
+}
+
+h1 {
+  margin: 0;
+  color: var(--n-text-1);
+  font-size: clamp(1.6rem, 2vw, 2rem);
+  font-weight: 900;
+}
+
+.queue-page__list {
+  display: grid;
+  gap: 18px;
+}
+
+.queue-page__card-link {
+  cursor: pointer;
+  border-radius: var(--n-radius-lg);
+  transition: transform 0.12s ease;
+}
+
+.queue-page__card-link:hover {
+  transform: translateY(-1px);
+}
+
+.queue-page__card-link:focus-visible {
+  outline: 2px solid var(--n-color-primary);
+  outline-offset: 2px;
+}
+
+.queue-page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.queue-page__telemetry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.queue-page__telemetry-item {
+  padding: 3px 10px;
+  border: 1px solid var(--n-border-1);
+  border-radius: 999px;
+  color: var(--n-text-3);
+  font-family: var(--n-font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.queue-page__telemetry-item--device {
+  border-color: color-mix(in srgb, var(--n-color-primary), transparent 60%);
+  color: var(--n-color-primary);
+}
+
+.queue-page__telemetry-item--eta {
+  border-color: color-mix(in srgb, var(--n-color-success), transparent 60%);
+  color: var(--n-color-success);
+}
+
+.queue-page__telemetry-item--failed {
+  border-color: color-mix(in srgb, var(--n-color-danger), transparent 60%);
+  color: var(--n-color-danger);
+}
+
+.queue-page__job-error {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--n-color-danger), transparent 70%);
+  border-radius: var(--n-radius-md);
+  background: color-mix(in srgb, var(--n-color-danger), transparent 91%);
+  color: var(--n-text-1);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.queue-page__empty,
+.queue-page__error {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  color: var(--n-text-3);
+  font-weight: 700;
+}
+
+.queue-page__error {
+  display: grid;
+  gap: 4px;
+  border-color: color-mix(in srgb, var(--n-color-danger), transparent 70%);
+  background: color-mix(in srgb, var(--n-color-danger), transparent 91%);
+}
+
+.queue-page__error strong {
+  color: var(--n-text-1);
+}
+
+.queue-page__error span {
+  font-family: var(--n-font-mono);
+  font-size: 0.72rem;
+}
+
+@media (max-width: 760px) {
+  .queue-page {
+    padding: 24px 18px 48px;
+  }
+
+  header {
+    align-items: start;
+    flex-direction: column;
+  }
+}

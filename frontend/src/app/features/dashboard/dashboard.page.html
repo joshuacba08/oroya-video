@@ -1,0 +1,97 @@
+<section class="dashboard-page">
+  @if (error(); as errorVm) {
+    <div class="dashboard-page__error">
+      <strong>{{ errorVm.message }}</strong>
+      @if (errorVm.requestId) {
+        <span>{{ 'common.request' | t: { id: errorVm.requestId } }}</span>
+      }
+    </div>
+  }
+
+  @if (notice(); as noticeText) {
+    <div class="dashboard-page__notice">
+      <n-icon name="circle-check" size="sm" />
+      <span>{{ noticeText }}</span>
+    </div>
+  }
+
+  @if (manualImportOpen()) {
+    <ov-manual-path-import
+      [busy]="importing()"
+      (pathSubmitted)="importPath($event)"
+      (cancelled)="manualImportOpen.set(false)"
+    />
+  }
+
+  @if (dashboard$ | async; as dashboard) {
+    <div class="dashboard-page__hero">
+      <div>
+        <h1><span class="gt-text">Oroya Video</span></h1>
+        <p>{{ dashboard.subtitle }}</p>
+      </div>
+      <span class="dashboard-page__source">{{ dashboard.source }}</span>
+    </div>
+
+    <ov-section-header [label]="'dashboard.recentProjects' | t" />
+    <div class="dashboard-page__projects">
+      @for (project of dashboard.recentProjects; track project.id) {
+        <ov-project-card [project]="project" />
+      }
+      <button type="button" class="dashboard-page__new" (click)="newProject()">
+        <ov-project-card [project]="emptyProject" [empty]="true" />
+      </button>
+    </div>
+
+    <ov-section-header [label]="'dashboard.quickActions' | t" />
+    <div class="dashboard-page__actions">
+      <button type="button" class="quick-action" [disabled]="importing()" (click)="importVideo()">
+        <n-icon name="file-video" size="md" />
+        <span>{{ 'dashboard.importVideo' | t }}</span>
+      </button>
+      <button type="button" class="quick-action" [disabled]="importing()" (click)="newProject()">
+        <n-icon name="folder-open" size="md" />
+        <span>{{ 'common.newProject' | t }}</span>
+      </button>
+      <button type="button" class="quick-action" (click)="openExports()">
+        <n-icon name="download" size="md" />
+        <span>{{ 'dashboard.openExports' | t }}</span>
+      </button>
+    </div>
+
+    <ov-section-header [label]="'dashboard.systemStatus' | t" />
+    <div class="dashboard-page__system">
+      <n-card>
+        <n-card-content>
+          <ov-gpu-meter [system]="dashboard.system" />
+        </n-card-content>
+      </n-card>
+
+      <n-card>
+        <n-card-content>
+          <div class="models-status">
+            <header>
+              <n-icon name="box" size="md" />
+              <strong>{{ 'dashboard.installedModels' | t }}</strong>
+            </header>
+            @for (model of dashboard.installedModels.slice(0, 3); track model.id) {
+              <div class="models-status__row">
+                <span>{{ model.name }}</span>
+                <strong>{{ model.version }} <n-icon name="check" size="xs" /></strong>
+              </div>
+            }
+            <footer>
+              <span>{{ 'dashboard.modelsReady' | t: { count: dashboard.installedModels.length } }}</span>
+              <a routerLink="/models">
+                {{
+                  dashboard.availableModelsCount > 0
+                    ? ('dashboard.modelsAvailable' | t: { count: dashboard.availableModelsCount })
+                    : ('common.manage' | t)
+                }}
+              </a>
+            </footer>
+          </div>
+        </n-card-content>
+      </n-card>
+    </div>
+  }
+</section>

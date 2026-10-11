@@ -1,0 +1,78 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html. */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options. */
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "moduleResolution": "bundler",
+    "paths": {
+      "@neuralangular/angular-ui/ai-pipeline": [
+        "src/app/shared/neural/ai-pipeline.ts"
+      ],
+      "@neuralangular/angular-ui/avatar": [
+        "src/app/shared/neural/avatar.ts"
+      ],
+      "@neuralangular/angular-ui/button": [
+        "src/app/shared/neural/button.ts"
+      ],
+      "@neuralangular/angular-ui/card": [
+        "src/app/shared/neural/card.ts"
+      ],
+      "@neuralangular/angular-ui/icon": [
+        "src/app/shared/neural/icon.ts"
+      ],
+      "@neuralangular/angular-ui/image-compare": [
+        "src/app/shared/neural/image-compare.ts"
+      ],
+      "@neuralangular/angular-ui/input": [
+        "src/app/shared/neural/input.ts"
+      ],
+      "@neuralangular/angular-ui/job-card": [
+        "src/app/shared/neural/job-card.ts"
+      ],
+      "@neuralangular/angular-ui/progress": [
+        "src/app/shared/neural/progress.ts"
+      ],
+      "@neuralangular/angular-ui/select": [
+        "src/app/shared/neural/select.ts"
+      ],
+      "@neuralangular/angular-ui/shell": [
+        "src/app/shared/neural/shell.ts"
+      ],
+      "@neuralangular/angular-ui/sidebar": [
+        "src/app/shared/neural/sidebar.ts"
+      ],
+      "@neuralangular/angular-ui/theme": [
+        "src/app/shared/neural/theme.ts"
+      ],
+      "@neuralangular/angular-ui/overlay": [
+        "src/app/shared/neural/overlay.ts"
+      ]
+    },
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "ES2022",
+    "module": "preserve"
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.spec.json"
+    }
+  ]
+}

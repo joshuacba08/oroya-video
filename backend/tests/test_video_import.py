@@ -118,10 +118,7 @@ def test_post_import_returns_existing_video_when_already_imported(app_client) ->
     assert first_response.json()["already_imported"] is False
     assert second_response.status_code == 200
     assert second_response.json()["already_imported"] is True
-    assert (
-        first_response.json()["video"]["id"]
-        == second_response.json()["video"]["id"]
-    )
+    assert first_response.json()["video"]["id"] == second_response.json()["video"]["id"]
 
 
 def test_post_import_copy_mode_calls_copy2(app_client) -> None:

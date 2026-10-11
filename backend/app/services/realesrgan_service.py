@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,16 +45,30 @@ from app.schemas.realesrgan_schema import (
     RealESRGANJobSummaryResponse,
     RealESRGANJobValidationResponse,
 )
-from app.services.ai_runtime_service import get_ai_runtime_status, resolve_ai_device
+from app.services.ai_runtime_service import (
+    clear_cuda_cache_if_available,
+    get_ai_runtime_status,
+    get_missing_realesrgan_modules,
+    resolve_ai_device,
+)
 from app.services.frame_extraction_service import time_to_datetime
 from app.services.pipeline_progress import (
     ENHANCEMENT_PROGRESS_END,
     ENHANCEMENT_PROGRESS_START,
     calculate_stage_progress,
 )
+from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.image_utils import validate_input_image_path
 
 logger = get_logger(__name__)
+
+# Progreso y comprobaciones de cancelar/pausar como mucho cada este intervalo: con frames de
+# ~100 ms, hacerlo en cada frame era un commit y un SELECT por frame.
+DB_SYNC_INTERVAL_SECONDS = 0.5
+
+# El modelo cargado se conserva entre jobs (cargarlo cuesta segundos y VRAM). Una sola entrada:
+# si cambia el modelo o la configuración, se libera el anterior.
+_enhancer_cache: dict[tuple, RealESRGANFrameEnhancer] = {}
 
 
 @dataclass(slots=True)
@@ -92,14 +105,7 @@ def _get_model_or_raise(db: Session, model_slug: str) -> AIModel:
 
 
 def _deserialize_job_enhancement_config(job: ProcessingJob) -> dict[str, object]:
-    raw_value = job.enhancement_config_json
-    if not raw_value:
-        return {}
-    try:
-        value = json.loads(raw_value)
-    except json.JSONDecodeError:
-        return {}
-    return value if isinstance(value, dict) else {}
+    return parse_enhancement_config_json(job.enhancement_config_json)
 
 
 def _resolve_job_model_slug(job: ProcessingJob) -> str:
@@ -175,6 +181,13 @@ def validate_realesrgan_model(
         raise_on_unavailable=False,
     )
     warnings.extend(runtime_warnings)
+    if runtime_available:
+        missing_modules = get_missing_realesrgan_modules()
+        if missing_modules:
+            runtime_available = False
+            warnings.append(
+                "Real-ESRGAN Python packages are missing or broken: " + ", ".join(missing_modules)
+            )
 
     if not model.is_enabled:
         warnings.append("Selected Real-ESRGAN model is disabled.")
@@ -321,6 +334,21 @@ def run_realesrgan_dry_run(
     )
 
 
+ENHANCEMENT_SCALE_TO_OUTSCALE = {"original": 1, "2x": 2, "4x": 4}
+
+
+def resolve_enhancement_outscale(
+    enhancement_config: dict[str, object],
+    model: AIModel,
+) -> int | None:
+    configured_scale = enhancement_config.get("scale")
+    if isinstance(configured_scale, str):
+        outscale = ENHANCEMENT_SCALE_TO_OUTSCALE.get(configured_scale.strip().lower())
+        if outscale is not None:
+            return outscale
+    return model.scale_factor
+
+
 def prepare_realesrgan_context(
     db: Session,
     job: ProcessingJob,
@@ -347,11 +375,12 @@ def prepare_realesrgan_context(
     output_dir = get_job_enhanced_frames_path(job.id, active_settings)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    enhancement_config = _deserialize_job_enhancement_config(job)
     context = RealESRGANContext(
         model_slug=model.slug,
         model_path=model_path,
         device=device,
-        scale=model.scale_factor,
+        scale=resolve_enhancement_outscale(enhancement_config, model),
         tile_size=active_settings.realesrgan_tile_size,
         tile_pad=active_settings.realesrgan_tile_pad,
         pre_pad=active_settings.realesrgan_pre_pad,
@@ -419,8 +448,7 @@ def validate_realesrgan_job_requirements(
         and input_frames_available
         and device is not None
         and not any(
-            warning.startswith("Selected Real-ESRGAN model is disabled")
-            for warning in warnings
+            warning.startswith("Selected Real-ESRGAN model is disabled") for warning in warnings
         )
     )
     return RealESRGANJobValidationResponse(
@@ -478,6 +506,50 @@ def _mark_realesrgan_failed(
     db.commit()
 
 
+def _enhancer_cache_key(context: RealESRGANContext, settings: Settings) -> tuple:
+    return (
+        str(context.model_path),
+        context.model_slug,
+        context.device,
+        context.scale,
+        context.tile_size,
+        context.tile_pad,
+        context.pre_pad,
+        context.half_precision,
+        settings.realesrgan_max_failed_frames,
+        settings.realesrgan_clear_cuda_cache,
+    )
+
+
+def release_cached_enhancer() -> None:
+    if _enhancer_cache:
+        _enhancer_cache.clear()
+        clear_cuda_cache_if_available()
+
+
+def _get_enhancer(context: RealESRGANContext, settings: Settings) -> RealESRGANFrameEnhancer:
+    key = _enhancer_cache_key(context, settings)
+    cached = _enhancer_cache.get(key)
+    if cached is not None:
+        cached.reset_counters()
+        return cached
+    release_cached_enhancer()
+    enhancer = RealESRGANFrameEnhancer(
+        model_path=context.model_path,
+        model_slug=context.model_slug,
+        device=context.device,
+        scale=context.scale,
+        tile_size=context.tile_size,
+        tile_pad=context.tile_pad,
+        pre_pad=context.pre_pad,
+        half_precision=context.half_precision,
+        max_failed_frames=settings.realesrgan_max_failed_frames,
+        clear_cuda_cache=settings.realesrgan_clear_cuda_cache,
+    )
+    _enhancer_cache[key] = enhancer
+    return enhancer
+
+
 def process_realesrgan_frames_for_job(
     db: Session,
     job_id: str,
@@ -489,25 +561,15 @@ def process_realesrgan_frames_for_job(
         return job
 
     context = prepare_realesrgan_context(db, job, active_settings)
-    enhancer = RealESRGANFrameEnhancer(
-        model_path=context.model_path,
-        model_slug=context.model_slug,
-        device=context.device,
-        scale=context.scale,
-        tile_size=context.tile_size,
-        tile_pad=context.tile_pad,
-        pre_pad=context.pre_pad,
-        half_precision=context.half_precision,
-        max_failed_frames=active_settings.realesrgan_max_failed_frames,
-        clear_cuda_cache=active_settings.realesrgan_clear_cuda_cache,
-    )
+    enhancer = _get_enhancer(context, active_settings)
     started_at = time.monotonic()
     now = time.time()
     last_logged_frame = 0
+    last_sync = 0.0
     log_step = max(1, min(100, max(context.total_frames // 20, 1)))
 
     def progress_callback(processed: int, total: int) -> None:
-        nonlocal last_logged_frame
+        nonlocal last_logged_frame, last_sync
         progress_percent = calculate_stage_progress(
             processed,
             total,
@@ -538,11 +600,26 @@ def process_realesrgan_frames_for_job(
                 f"Real-ESRGAN progress: {processed}/{total}",
                 stage="enhancing_frames",
             )
+        if processed >= total or time.monotonic() - last_sync >= DB_SYNC_INTERVAL_SECONDS:
+            db.commit()
+            last_sync = time.monotonic()
+
+    def sync_job_state() -> None:
+        nonlocal last_sync
+        if time.monotonic() - last_sync < DB_SYNC_INTERVAL_SECONDS:
+            return
+        # Guardar el progreso pendiente antes de recargar el job (refresh lo descartaría).
         db.commit()
+        db.refresh(job)
+        last_sync = time.monotonic()
 
     def cancel_callback() -> bool:
-        db.refresh(job)
+        sync_job_state()
         return job.cancel_requested or job.status == "cancelled"
+
+    def pause_callback() -> bool:
+        sync_job_state()
+        return bool(job.pause_requested)
 
     job_repository.update_job(
         db,
@@ -622,6 +699,7 @@ def process_realesrgan_frames_for_job(
             context.output_dir,
             progress_callback=progress_callback,
             cancel_callback=cancel_callback,
+            pause_callback=pause_callback,
         )
     except (
         AIModelFileNotFoundError,
@@ -646,7 +724,19 @@ def process_realesrgan_frames_for_job(
         _mark_realesrgan_failed(db, job, wrapped_exc)
         raise wrapped_exc from exc
 
+    db.commit()
     db.refresh(job)
+    if enhancer.tile_fallbacks:
+        job_repository.update_job(db, job, {"realesrgan_tile_size": enhancer.tile_size})
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "warning",
+            "GPU memory was insufficient; Real-ESRGAN continued with tile size "
+            f"{enhancer.tile_size}.",
+            stage="enhancing_frames",
+        )
+        db.commit()
     if job.cancel_requested or job.status == "cancelled":
         cancelled_at = time_to_datetime(time.time())
         job_repository.update_job(
@@ -676,6 +766,35 @@ def process_realesrgan_frames_for_job(
         )
         db.commit()
         logger.warning("Real-ESRGAN enhancement cancelled: %s", job.id)
+        return job
+
+    if job.pause_requested:
+        paused_at = time_to_datetime(time.time())
+        job_repository.update_job(
+            db,
+            job,
+            {
+                "status": "paused",
+                "current_stage": "enhancing_frames",
+                "enhanced_frames": enhancer.processed_frames,
+                "frames_processed": enhancer.completed_frames,
+                "elapsed_time_seconds": int(time.monotonic() - started_at),
+                "realesrgan_frames_processed": enhancer.processed_frames,
+                "realesrgan_failed_frames": enhancer.failed_frames,
+                "realesrgan_average_frame_time_ms": enhancer.average_frame_time_ms,
+                "process_kind": None,
+                "process_ended_at": paused_at,
+            },
+        )
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            "Enhancement paused by user.",
+            stage="enhancing_frames",
+        )
+        db.commit()
+        logger.info("Real-ESRGAN enhancement paused: %s", job.id)
         return job
 
     completed_at = time_to_datetime(time.time())

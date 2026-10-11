@@ -1,0 +1,161 @@
+<n-shell class="ov-shell" sidebarMode="fixed">
+  <n-sidebar [ariaLabel]="'shell.navLabel' | t">
+    <div nSidebarBrand class="ov-brand">
+      <div class="ov-brand__mark">OV</div>
+      <div>
+        <strong>Oroya Video</strong>
+        <small>{{ 'shell.tagline' | t }}</small>
+      </div>
+    </div>
+
+    <n-sidebar-section>
+      @for (item of navItems; track item.path) {
+        <n-sidebar-item
+          [icon]="item.icon"
+          [label]="item.label | t"
+          [badge]="item.path === '/queue' ? ((queueBadge$ | async) ?? undefined) : item.badge"
+          [active]="active(item.path)"
+          (itemClick)="navigate(item.path)"
+        />
+      }
+    </n-sidebar-section>
+
+    <div nSidebarFooter class="ov-sidebar-footer">
+      @if (dashboard$ | async; as dashboard) {
+        <ov-gpu-meter [system]="dashboard.system" />
+      }
+      <div class="ov-app-info">
+        <div>
+          <strong>Oroya Video</strong>
+          <small>{{ 'shell.version' | t: { version: (startup$ | async)?.appVersion ?? appVersion } }}</small>
+        </div>
+        <span
+          class="ov-backend-chip"
+          [class.ov-backend-chip--api]="data.backendStatus().isApi"
+          [class.ov-backend-chip--mock]="data.backendStatus().isMock"
+          [class.ov-backend-chip--offline]="data.backendStatus().isOffline || data.backendStatus().wrongBackend"
+        >
+          {{
+            data.backendStatus().isApi
+              ? ('shell.connected' | t)
+              : data.backendStatus().isMock
+                ? ('shell.mock' | t)
+                : data.backendStatus().state === 'checking'
+                  ? '...'
+                  : ('shell.offline' | t)
+          }}
+        </span>
+      </div>
+    </div>
+  </n-sidebar>
+
+  <main nShellContent class="ov-main">
+    <header class="ov-topbar">
+      <nav class="ov-breadcrumb" [attr.aria-label]="'shell.breadcrumb' | t">
+        <span>Oroya Video</span>
+        <n-icon name="chevron-right" size="sm" />
+        <strong>{{ pageTitle() }}</strong>
+      </nav>
+
+      <div class="ov-topbar__actions">
+        <div class="ov-search">
+          <n-icon name="search" size="sm" />
+          <n-input
+            [placeholder]="'shell.searchPlaceholder' | t"
+            size="sm"
+            [value]="searchQuery()"
+            (valueChange)="updateSearch($event)"
+          />
+        </div>
+        <i class="ov-divider"></i>
+        <n-button variant="secondary" size="sm" (click)="newProject()">
+          <n-icon name="plus" size="sm" />
+          {{ 'common.newProject' | t }}
+        </n-button>
+      </div>
+    </header>
+
+    <div class="ov-banner-stack">
+      @if (startup$ | async; as startup) {
+        @if (showSetupBanner(startup)) {
+          <aside class="ov-status-banner ov-status-banner--setup">
+            <n-icon name="wand-sparkles" size="sm" />
+            <div>
+              <strong>{{ 'shell.setupBanner' | t }}</strong>
+            </div>
+            <n-button variant="secondary" size="sm" (click)="openSetup()">
+              {{ 'shell.openSetup' | t }}
+            </n-button>
+          </aside>
+        }
+      }
+      @if (startup$ | async; as startup) {
+        @if (!startup.backend.isApi || startup.warnings.length) {
+          <aside class="ov-status-banner" [class.ov-status-banner--danger]="startup.backend.wrongBackend">
+            <n-icon [name]="startup.backend.wrongBackend ? 'circle-x' : startup.backend.isMock ? 'flask-conical' : 'alert-triangle'" size="sm" />
+            <div>
+              <strong>{{ startup.backend.message }}</strong>
+              @if (startup.warnings.length && startup.warnings[0] !== startup.backend.message) {
+                <span>{{ startup.warnings[0] }}</span>
+              }
+            </div>
+          </aside>
+        }
+      }
+
+      @if (actionError(); as error) {
+        <aside class="ov-status-banner ov-status-banner--danger">
+          <n-icon name="circle-x" size="sm" />
+          <div>
+            <strong>{{ error.message }}</strong>
+            @if (error.requestId) {
+              <span>{{ 'common.request' | t: { id: error.requestId } }}</span>
+            }
+          </div>
+        </aside>
+      }
+
+      @if (manualImportOpen()) {
+        <div class="ov-manual-import">
+          <ov-manual-path-import
+            [busy]="importing()"
+            (pathSubmitted)="importPath($event)"
+            (cancelled)="manualImportOpen.set(false)"
+          />
+        </div>
+      }
+    </div>
+
+    <section class="ov-router-surface">
+      @if (startup$ | async; as startup) {
+        @if (showOfflinePanel(startup)) {
+          <div class="ov-offline-panel">
+            <n-icon name="plug-zap" size="xl" />
+            <h2>{{ 'shell.offlineTitle' | t }}</h2>
+            <p>{{ 'shell.offlineBody' | t }}</p>
+            <dl>
+              <dt>URL</dt>
+              <dd>{{ apiBaseUrl }}</dd>
+              @if (startup.backend.error?.code; as code) {
+                <dt>Error</dt>
+                <dd>{{ code }}</dd>
+              }
+              @if (startup.backend.error?.message; as message) {
+                <dt>{{ 'shell.offlineDetail' | t }}</dt>
+                <dd>{{ message }}</dd>
+              }
+            </dl>
+            <n-button variant="primary" size="md" (click)="retryBackend()">
+              <n-icon name="rotate-ccw" size="sm" />
+              {{ 'shell.offlineRetry' | t }}
+            </n-button>
+          </div>
+        } @else {
+          <router-outlet />
+        }
+      } @else {
+        <router-outlet />
+      }
+    </section>
+  </main>
+</n-shell>

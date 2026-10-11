@@ -167,6 +167,7 @@ class JobProgressResponse(BaseModel):
     enhanced_frames: int
     estimated_time_seconds: int | None
     elapsed_time_seconds: int | None
+    can_start: bool = False
     can_cancel: bool
     can_pause: bool
     can_retry: bool

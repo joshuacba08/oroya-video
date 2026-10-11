@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.schemas.ai_model_schema import (
     AIModelCreateRequest,
+    AIModelDownloadProgressResponse,
+    AIModelDownloadStartResponse,
     AIModelListResponse,
     AIModelRefreshResponse,
     AIModelResponse,
@@ -20,13 +22,17 @@ from app.services.ai_model_service import (
     set_model_enabled_state,
     update_model,
 )
+from app.services.model_download_service import (
+    get_model_download_progress,
+    start_model_download,
+)
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 
 
 @router.get("", response_model=AIModelListResponse, summary="List AI models")
-async def list_models_route(
+def list_models_route(
     db: DbSession,
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -52,7 +58,7 @@ async def list_models_route(
     status_code=status.HTTP_201_CREATED,
     summary="Register a custom AI model",
 )
-async def create_model_route(
+def create_model_route(
     payload: AIModelCreateRequest,
     request: Request,
     db: DbSession,
@@ -61,7 +67,7 @@ async def create_model_route(
 
 
 @router.post("/refresh", response_model=AIModelRefreshResponse, summary="Refresh AI model states")
-async def refresh_models_route(request: Request, db: DbSession) -> AIModelRefreshResponse:
+def refresh_models_route(request: Request, db: DbSession) -> AIModelRefreshResponse:
     return refresh_models(db=db, settings=request.app.state.settings)
 
 
@@ -70,8 +76,38 @@ async def refresh_models_route(request: Request, db: DbSession) -> AIModelRefres
     response_model=AIModelResponse,
     summary="Get an AI model by id or slug",
 )
-async def get_model_route(model_id_or_slug: str, db: DbSession) -> AIModelResponse:
+def get_model_route(model_id_or_slug: str, db: DbSession) -> AIModelResponse:
     return get_model(db=db, model_id_or_slug=model_id_or_slug)
+
+
+@router.post(
+    "/{model_id_or_slug}/download",
+    response_model=AIModelDownloadStartResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Download the model weights from the official source",
+)
+def download_model_route(
+    model_id_or_slug: str,
+    request: Request,
+    db: DbSession,
+) -> AIModelDownloadStartResponse:
+    return start_model_download(
+        db=db,
+        model_id_or_slug=model_id_or_slug,
+        settings=request.app.state.settings,
+    )
+
+
+@router.get(
+    "/{model_id_or_slug}/download/progress",
+    response_model=AIModelDownloadProgressResponse,
+    summary="Get model download progress",
+)
+def model_download_progress_route(
+    model_id_or_slug: str,
+    db: DbSession,
+) -> AIModelDownloadProgressResponse:
+    return get_model_download_progress(db=db, model_id_or_slug=model_id_or_slug)
 
 
 @router.patch(
@@ -79,7 +115,7 @@ async def get_model_route(model_id_or_slug: str, db: DbSession) -> AIModelRespon
     response_model=AIModelResponse,
     summary="Update AI model metadata",
 )
-async def update_model_route(
+def update_model_route(
     model_id_or_slug: str,
     payload: AIModelUpdateRequest,
     request: Request,
@@ -98,7 +134,7 @@ async def update_model_route(
     response_model=AIModelResponse,
     summary="Enable an AI model",
 )
-async def enable_model_route(
+def enable_model_route(
     model_id_or_slug: str,
     request: Request,
     db: DbSession,
@@ -116,7 +152,7 @@ async def enable_model_route(
     response_model=AIModelResponse,
     summary="Disable an AI model",
 )
-async def disable_model_route(
+def disable_model_route(
     model_id_or_slug: str,
     request: Request,
     db: DbSession,
@@ -130,5 +166,5 @@ async def disable_model_route(
 
 
 @router.delete("/{model_id_or_slug}", summary="Delete a custom AI model")
-async def delete_model_route(model_id_or_slug: str, db: DbSession) -> dict[str, object]:
+def delete_model_route(model_id_or_slug: str, db: DbSession) -> dict[str, object]:
     return delete_model(db=db, model_id_or_slug=model_id_or_slug)

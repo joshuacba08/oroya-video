@@ -219,9 +219,12 @@ def test_runtime_endpoint_warns_when_cuda_is_required_but_missing(tmp_path: Path
     )
     app = create_app(settings)
 
-    with TestClient(app) as client, patch(
-        "app.services.ai_runtime_service.get_torch_module",
-        return_value=FakeTorch(cuda_available=False),
+    with (
+        TestClient(app) as client,
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
     ):
         response = client.get("/api/ai/runtime")
 
@@ -245,6 +248,28 @@ def test_model_validate_endpoint_reports_model_ready(prep_client) -> None:
     assert payload["can_run"] is True
     assert payload["is_installed"] is True
     assert payload["device"] == "cpu"
+
+
+def test_model_validate_reports_missing_realesrgan_packages(prep_client) -> None:
+    client, _, settings = prep_client
+    _seed_model_file(settings, "realesrgan-x2")
+
+    with (
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
+        patch(
+            "app.services.realesrgan_service.get_missing_realesrgan_modules",
+            return_value=["basicsr"],
+        ),
+    ):
+        response = client.get("/api/ai/models/realesrgan-x2/validate")
+
+    payload = response.json()
+    assert payload["runtime_available"] is False
+    assert payload["can_run"] is False
+    assert any("basicsr" in warning for warning in payload["warnings"])
 
 
 def test_model_validate_endpoint_returns_404_for_unknown_model(prep_client) -> None:

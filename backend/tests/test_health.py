@@ -1,8 +1,8 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
+from app.core.paths import get_logs_path
 from app.main import app
+from app.version import __version__
 
 
 def test_health_endpoint_returns_ok() -> None:
@@ -19,12 +19,12 @@ def test_version_endpoint_returns_configured_version() -> None:
         response = client.get("/api/version")
 
     assert response.status_code == 200
-    assert response.json()["version"] == "0.1.0"
+    assert response.json()["version"] == __version__
     assert response.json()["environment"] == "development"
 
 
 def test_startup_creates_log_file() -> None:
     with TestClient(app):
-        log_path = Path("storage/logs/backend.log")
+        log_path = get_logs_path() / "backend.log"
 
     assert log_path.exists()
