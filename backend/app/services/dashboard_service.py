@@ -111,6 +111,7 @@ def get_dashboard_response(db: Session, settings: Settings | None = None) -> Das
             {
                 "id": project.id,
                 "name": project.name,
+                "video_asset_id": project.video_asset_id,
                 "status": project.status,
                 "updated_at": project.updated_at,
             }

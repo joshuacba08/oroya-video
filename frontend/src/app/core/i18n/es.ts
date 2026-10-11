@@ -269,6 +269,7 @@ export const es: Record<TranslationKey, string> = {
   'preview.filtersHint': 'Los filtros de ruido y nitidez se aplican en esta vista previa',
   'preview.fit': 'Ajustar',
   'preview.emptyTitle': 'Aún no hay vista previa',
+  'preview.originalOnlyHint': 'Procesa el video para compararlo con la versión mejorada.',
   'preview.emptyBody': 'Procesa el video para ver aquí la comparación antes/después.',
   'preview.originalAlt': 'Frame original',
   'preview.enhancedAlt': 'Frame mejorado',

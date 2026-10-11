@@ -266,6 +266,7 @@ export const en = {
   'preview.filtersHint': 'Denoise/sharpen filters are rendered into this preview',
   'preview.fit': 'Fit',
   'preview.emptyTitle': 'No preview yet',
+  'preview.originalOnlyHint': 'Process the video to compare it with the enhanced version.',
   'preview.emptyBody': 'Start processing to see the before/after comparison here.',
   'preview.originalAlt': 'Original frame',
   'preview.enhancedAlt': 'Enhanced frame',

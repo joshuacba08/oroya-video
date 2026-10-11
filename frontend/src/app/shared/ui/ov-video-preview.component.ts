@@ -56,6 +56,15 @@ export type PreviewZoom = 'fit' | '100%';
             <strong>{{ 'preview.emptyTitle' | t }}</strong>
             <span>{{ 'preview.emptyBody' | t }}</span>
           </div>
+        } @else if (!afterSrc()) {
+          <figure class="ov-video-preview__original-only">
+            <figcaption>{{ beforeLabel() }}</figcaption>
+            <img [src]="beforeSrc()" [alt]="'preview.originalAlt' | t" />
+            <span class="ov-video-preview__hint">
+              <n-icon name="sparkles" size="sm" />
+              {{ 'preview.originalOnlyHint' | t }}
+            </span>
+          </figure>
         } @else if (compareMode() === 'slider') {
           <n-image-compare
             [beforeSrc]="beforeSrc()"
@@ -229,6 +238,46 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__stage n-image-compare {
         width: min(100%, 1180px);
+      }
+
+      .ov-video-preview__original-only {
+        position: relative;
+        display: grid;
+        gap: 6px;
+        width: min(100%, 1180px);
+        margin: 0;
+      }
+
+      .ov-video-preview__original-only figcaption {
+        color: var(--n-text-3);
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .ov-video-preview__original-only img {
+        width: 100%;
+        max-height: 62vh;
+        object-fit: contain;
+        border-radius: var(--n-radius-md);
+        background: #000;
+      }
+
+      .ov-video-preview__hint {
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border: 1px solid var(--n-border-1);
+        border-radius: var(--n-radius-full);
+        background: color-mix(in srgb, var(--n-bg-canvas), transparent 15%);
+        color: var(--n-text-2);
+        font-size: 0.78rem;
+        transform: translateX(-50%);
+        white-space: nowrap;
       }
 
       .ov-video-preview__split {

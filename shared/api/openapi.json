@@ -545,6 +545,41 @@
         }
       }
     },
+    "/api/v1/videos/{video_id}/thumbnail": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Poster frame of the video (PNG), generated on first request",
+        "operationId": "get_video_thumbnail_route_api_v1_videos__video_id__thumbnail_get",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/videos/probe": {
       "post": {
         "tags": [
@@ -4385,6 +4420,41 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/videos/{video_id}/thumbnail": {
+      "get": {
+        "tags": [
+          "Videos"
+        ],
+        "summary": "Poster frame of the video (PNG), generated on first request",
+        "operationId": "get_video_thumbnail_route_api_videos__video_id__thumbnail_get",
+        "parameters": [
+          {
+            "name": "video_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Video Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",

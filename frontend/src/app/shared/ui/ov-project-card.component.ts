@@ -1,4 +1,4 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { NProgress } from '@neuralangular/angular-ui/progress';
@@ -19,6 +19,15 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
         </div>
       } @else {
         <div class="ov-project-card__thumb" [class]="'ov-project-card__thumb ov-project-card__thumb--' + project().thumbnailTone">
+          @if (project().thumbnailUrl && !thumbnailFailed()) {
+            <img
+              class="ov-project-card__img"
+              [src]="project().thumbnailUrl"
+              alt=""
+              loading="lazy"
+              (error)="thumbnailFailed.set(true)"
+            />
+          }
           <span class="ov-project-card__dot"></span>
           @if (project().resolution) {
             <span class="ov-project-card__badge">{{ project().resolution }}</span>
@@ -222,6 +231,14 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
         color: var(--n-color-success);
       }
 
+      .ov-project-card__img {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
       .ov-project-card__title {
         display: flex;
         align-items: start;
@@ -272,6 +289,8 @@ export class OvProjectCardComponent {
   readonly empty = input(false);
   /** Muestra renombrar/eliminar (página de proyectos). */
   readonly actions = input(false);
+  /** Sin FFmpeg o con el video movido, se vuelve al fondo de color. */
+  readonly thumbnailFailed = signal(false);
   readonly renameRequested = output<ProjectCardVm>();
   readonly deleteRequested = output<ProjectCardVm>();
 

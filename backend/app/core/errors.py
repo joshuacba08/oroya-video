@@ -452,6 +452,15 @@ class InsufficientExportStorageError(OroyaVideoError):
         )
 
 
+class VideoThumbnailFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "A preview image could not be generated for this video.",
+            error_code="video_thumbnail_failed",
+            status_code=422,
+        )
+
+
 class PreviewNotAvailableError(OroyaVideoError):
     def __init__(self) -> None:
         super().__init__(

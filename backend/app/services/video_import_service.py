@@ -24,7 +24,7 @@ from app.schemas.video_schema import (
     VideoListResponse,
     VideoProbeRequest,
 )
-from app.services import job_workspace_service, video_probe_service
+from app.services import job_workspace_service, video_probe_service, video_thumbnail_service
 
 logger = get_logger(__name__)
 
@@ -225,6 +225,7 @@ def delete_video_asset(
         raise VideoImportFailedError() from exc
 
     # Los archivos se borran solo tras confirmar el borrado en la DB.
+    video_thumbnail_service.delete_thumbnail(video_id, active_settings)
     for job_id, project_id in job_files:
         job_workspace_service.delete_job_files(job_id, project_id, active_settings)
     if delete_copied_file and import_path.exists():
