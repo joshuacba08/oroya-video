@@ -1,5 +1,13 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  Injector,
+  afterNextRender,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
 import { BehaviorSubject, catchError, firstValueFrom, of, switchMap } from 'rxjs';
@@ -8,7 +16,7 @@ import { OroyaApiError } from '../../core/api/oroya-api-client';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import type { ApiErrorVm, ExportVm } from '../../core/models/oroya.models';
+import type { ApiErrorVm, ExportVm, ExportsPageVm } from '../../core/models/oroya.models';
 import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.component';
 
 @Component({
@@ -20,10 +28,14 @@ import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.comp
 })
 export class ExportsPage {
   private readonly data = inject(OroyaDataService);
+  private readonly injector = inject(Injector);
   private readonly reload$ = new BehaviorSubject(0);
+  private readonly player = viewChild<ElementRef<HTMLVideoElement>>('player');
 
   readonly error = signal<ApiErrorVm | null>(null);
   readonly busyExportId = signal<string | null>(null);
+  /** Exportación elegida en el historial; sin elegir, la más reciente. */
+  readonly selectedExportId = signal<string | null>(null);
   readonly exports$ = this.reload$.pipe(
     switchMap(() => this.data.exports()),
     catchError((error: unknown) => {
@@ -31,6 +43,27 @@ export class ExportsPage {
       return of(null);
     }),
   );
+
+  featuredOf(page: ExportsPageVm): ExportVm {
+    const selected = this.selectedExportId();
+    return page.history.find((item) => item.id === selected) ?? page.featured;
+  }
+
+  /** Reproduce en la página; "Abrir exportación" sigue usando el reproductor del sistema. */
+  playExport(item: ExportVm): void {
+    this.selectedExportId.set(item.id);
+    afterNextRender(
+      () => {
+        const video = this.player()?.nativeElement;
+        if (!video) {
+          return;
+        }
+        video.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        void video.play().catch(() => undefined);
+      },
+      { injector: this.injector },
+    );
+  }
 
   async openExport(item: ExportVm): Promise<void> {
     await this.runExportAction(item.id, async () => {
@@ -62,6 +95,9 @@ export class ExportsPage {
     }
     await this.runExportAction(item.id, async () => {
       await firstValueFrom(this.data.deleteExport(item.id));
+      if (this.selectedExportId() === item.id) {
+        this.selectedExportId.set(null);
+      }
       this.reload$.next(Date.now());
     });
   }

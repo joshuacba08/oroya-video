@@ -9,34 +9,35 @@
   }
 
   @if (exports$ | async; as exportsPage) {
+    @let featured = featuredOf(exportsPage);
     <div class="exports-page__featured">
-      <div class="exports-page__preview" [class.exports-page__preview--playing]="exportsPage.featured.mediaUrl">
-        @if (exportsPage.featured.mediaUrl) {
-          <video controls preload="metadata" [src]="exportsPage.featured.mediaUrl"></video>
+      <div class="exports-page__preview" [class.exports-page__preview--playing]="featured.mediaUrl">
+        @if (featured.mediaUrl) {
+          <video #player controls preload="metadata" [src]="featured.mediaUrl"></video>
         } @else {
-          <span>{{ exportsPage.featured.resolution }}</span>
+          <span>{{ featured.resolution }}</span>
           <n-icon name="play" size="xl" />
         }
       </div>
       <div class="exports-page__summary">
-        <h2>{{ exportsPage.featured.fileName }}</h2>
+        <h2>{{ featured.fileName }}</h2>
         <p>
-          {{ exportsPage.featured.resolution }} - {{ exportsPage.featured.fpsLabel || 'fps --' }} -
-          {{ exportsPage.featured.duration }} - {{ exportsPage.featured.codec }} - {{ exportsPage.featured.sizeLabel }}
+          {{ featured.resolution }} - {{ featured.fpsLabel || 'fps --' }} -
+          {{ featured.duration }} - {{ featured.codec }} - {{ featured.sizeLabel }}
         </p>
       </div>
       <div class="exports-page__settings">
-        <div><span>{{ 'exports.resolution' | t }}</span><strong>{{ exportsPage.featured.resolution }}</strong></div>
-        <div><span>{{ 'exports.codec' | t }}</span><strong>{{ exportsPage.featured.codec }}</strong></div>
-        <div><span>{{ 'exports.frameRate' | t }}</span><strong>{{ exportsPage.featured.fpsLabel || '-' }}</strong></div>
-        <div><span>{{ 'exports.outputFolder' | t }}</span><strong>{{ exportsPage.featured.outputFolder || '-' }}</strong></div>
-        <div><span>{{ 'exports.size' | t }}</span><strong class="gt-text">{{ exportsPage.featured.sizeLabel }}</strong></div>
+        <div><span>{{ 'exports.resolution' | t }}</span><strong>{{ featured.resolution }}</strong></div>
+        <div><span>{{ 'exports.codec' | t }}</span><strong>{{ featured.codec }}</strong></div>
+        <div><span>{{ 'exports.frameRate' | t }}</span><strong>{{ featured.fpsLabel || '-' }}</strong></div>
+        <div><span>{{ 'exports.outputFolder' | t }}</span><strong>{{ featured.outputFolder || '-' }}</strong></div>
+        <div><span>{{ 'exports.size' | t }}</span><strong class="gt-text">{{ featured.sizeLabel }}</strong></div>
         <n-button
           variant="gemini"
           size="lg"
           fullWidth
-          [disabled]="!exportsPage.history.length || busyExportId() === exportsPage.featured.id"
-          (click)="openExport(exportsPage.featured)"
+          [disabled]="!exportsPage.history.length || busyExportId() === featured.id"
+          (click)="openExport(featured)"
         >
           <n-icon name="download" size="md" />
           {{ 'exports.open' | t }}
@@ -54,13 +55,13 @@
         <span>{{ 'exports.actions' | t }}</span>
       </div>
       @for (item of exportsPage.history; track item.id) {
-        <div class="exports-page__row">
+        <div class="exports-page__row" [class.exports-page__row--selected]="item.id === featured.id">
           <strong>{{ item.fileName }}</strong>
           <span>{{ item.dateLabel }}</span>
           <span>{{ item.resolution }}</span>
           <span>{{ item.sizeLabel }}</span>
           <div class="exports-page__actions">
-            <button type="button" [disabled]="busyExportId() === item.id" (click)="openExport(item)" [attr.aria-label]="'exports.play' | t" [title]="'exports.play' | t">
+            <button type="button" [disabled]="busyExportId() === item.id" (click)="playExport(item)" [attr.aria-label]="'exports.play' | t" [title]="'exports.play' | t">
               <n-icon name="play" size="sm" />
             </button>
             <button type="button" [disabled]="busyExportId() === item.id" (click)="openFolder(item)" [attr.aria-label]="'common.openFolder' | t" [title]="'common.openFolder' | t">

@@ -6,12 +6,15 @@
 .workspace-page {
   display: grid;
   grid-template-columns: 390px minmax(0, 1fr);
-  grid-template-rows: auto 58px minmax(0, calc(100vh - 122px));
-  min-height: 100%;
+  /* Avisos, cabecera, banner de exportación y editor: el editor ocupa el alto restante,
+     así los avisos no lo empujan fuera de la pantalla. */
+  grid-template-rows: auto 58px auto minmax(0, 1fr);
+  height: calc(100vh - 64px);
 }
 
 .workspace-page__notices {
   grid-column: 1 / -1;
+  grid-row: 1;
   display: grid;
   gap: 8px;
 }
@@ -70,6 +73,15 @@
   font-size: 0.74rem;
   font-weight: 700;
   text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.workspace-page__live-status--paused {
+  border-color: color-mix(in srgb, var(--n-color-warning), transparent 50%);
+}
+
+.workspace-page__live-status strong {
+  color: var(--n-color-warning);
 }
 
 .workspace-page__live-status em {
@@ -79,6 +91,7 @@
 
 .workspace-page__export-ready {
   grid-column: 1 / -1;
+  grid-row: 3;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -125,8 +138,9 @@
 
 .workspace-page__top {
   grid-column: 1 / -1;
+  grid-row: 2;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
   align-items: center;
   gap: 18px;
   min-width: 0;
@@ -162,10 +176,12 @@
 
 .workspace-page__top div {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 
 .workspace-page__inspector {
+  grid-row: 4;
   min-height: 0;
   overflow: auto;
   border-right: 1px solid var(--n-border-1);
@@ -173,6 +189,7 @@
 }
 
 .workspace-page__preview {
+  grid-row: 4;
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -389,7 +406,14 @@ input[type='range'] {
 @media (max-width: 1120px) {
   .workspace-page {
     grid-template-columns: 1fr;
-    grid-template-rows: auto auto auto minmax(460px, 1fr);
+    /* En una columna, la vista previa va antes que el inspector (que es muy largo). */
+    grid-template-rows: auto auto auto minmax(460px, auto) auto;
+    height: auto;
+    min-height: 100%;
+  }
+
+  .workspace-page__preview {
+    grid-row: 4;
   }
 
   .workspace-page__top {
@@ -404,6 +428,7 @@ input[type='range'] {
   }
 
   .workspace-page__inspector {
+    grid-row: 5;
     max-height: none;
     border-right: 0;
     border-bottom: 1px solid var(--n-border-1);

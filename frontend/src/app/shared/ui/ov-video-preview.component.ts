@@ -156,6 +156,8 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview {
         display: grid;
+        /* Sin columna explícita, el min-content del pie ensancha todo el panel. */
+        grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto minmax(320px, 1fr) auto;
         min-height: 0;
       }
@@ -163,8 +165,9 @@ export type PreviewZoom = 'fit' | '100%';
       .ov-video-preview__toolbar {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         justify-content: space-between;
-        gap: 12px;
+        gap: 8px 12px;
         padding: 10px 18px;
         border-bottom: 1px solid var(--n-border-1);
         background: rgba(255, 255, 255, 0.02);
@@ -209,6 +212,7 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__stage {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         place-items: center;
         min-height: 0;
         padding: clamp(18px, 5vw, 72px);
@@ -238,6 +242,11 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__stage n-image-compare {
         width: min(100%, 1180px);
+      }
+
+      /* La librería fija min-height: 340px con aspect-ratio 16/9, que obliga a 604 px de ancho. */
+      :host ::ng-deep .ov-video-preview__stage .n-image-compare {
+        min-height: 0;
       }
 
       .ov-video-preview__original-only {
@@ -347,7 +356,7 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__frames {
         display: grid;
-        grid-template-columns: repeat(10, minmax(36px, 1fr));
+        grid-template-columns: repeat(10, minmax(0, 1fr));
         gap: 4px;
         min-width: 0;
         overflow: hidden;

@@ -151,6 +151,10 @@ p {
   border-bottom: 0;
 }
 
+.exports-page__row--selected {
+  background: color-mix(in srgb, var(--n-color-primary), transparent 92%);
+}
+
 .exports-page__row--head {
   min-height: 44px;
   color: var(--n-text-3);
