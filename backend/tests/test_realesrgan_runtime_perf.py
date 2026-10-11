@@ -57,6 +57,29 @@ def test_oom_is_raised_when_smallest_tile_still_fails(tmp_path: Path) -> None:
         enhancer._enhance_with_oom_fallback(tmp_path / "f.png", tmp_path / "o.png")
 
 
+def test_resumed_frames_do_not_lower_the_average_frame_time(tmp_path: Path) -> None:
+    input_dir = tmp_path / "original"
+    output_dir = tmp_path / "enhanced"
+    input_dir.mkdir()
+    output_dir.mkdir()
+    for index in range(1, 5):
+        (input_dir / f"frame_{index:06d}.png").write_bytes(b"png")
+    # Dos frames ya mejorados antes de pausar: se saltan sin tiempo de proceso.
+    for index in (1, 2):
+        (output_dir / f"frame_{index:06d}.png").write_bytes(b"done")
+    enhancer = _enhancer()
+
+    with (
+        patch.object(enhancer, "load_model"),
+        patch.object(enhancer, "enhance_single_frame", side_effect=lambda frame, out: (out, 100)),
+    ):
+        enhancer.enhance_frames(input_dir, output_dir)
+
+    assert enhancer.completed_frames == 4
+    assert enhancer.timed_frames == 2
+    assert enhancer.average_frame_time_ms == 100
+
+
 def test_oom_on_cpu_is_not_retried(tmp_path: Path) -> None:
     enhancer = _enhancer(tile_size=0, device="cpu")
 

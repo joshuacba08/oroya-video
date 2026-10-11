@@ -73,17 +73,38 @@ function pickNumber(source: UnknownRecord, keys: string[], fallback = 0): number
   return fallback;
 }
 
+/** Fechas del backend: UTC sin zona. */
+function parseApiDate(value: unknown): Date | null {
+  if (typeof value !== 'string' || !value) {
+    return null;
+  }
+  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value);
+  const date = new Date(hasZone ? value : `${value}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 /** Fechas del backend (UTC sin zona) a texto local legible. */
 export function formatDateLabel(value: unknown, fallback = 'recent'): string {
   if (typeof value !== 'string' || !value) {
     return fallback;
   }
-  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value);
-  const date = new Date(hasZone ? value : `${value}Z`);
-  if (Number.isNaN(date.getTime())) {
+  const date = parseApiDate(value);
+  if (!date) {
     return value;
   }
   return date.toLocaleString(getLocale(), { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/**
+ * Tiempo total del job en curso. `elapsed_time_seconds` es el de la etapa actual (el backend
+ * lo usa para el ETA) y vuelve a 0 en cada etapa, así que se calcula desde `started_at`.
+ */
+function jobElapsedSeconds(job: Record<string, unknown>, status: string): unknown {
+  const startedAt = parseApiDate(job['started_at']);
+  if (status === 'running' && startedAt) {
+    return (Date.now() - startedAt.getTime()) / 1000;
+  }
+  return job['elapsed_time_seconds'];
 }
 
 function formatSeconds(seconds: unknown, fallback = '--:--'): string {
@@ -303,7 +324,7 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     progress,
     model: pickString(job, ['model_slug', 'ai_model_slug'], 'Real-ESRGAN'),
     resolution: resolutionFromConfig(job),
-    duration: formatSeconds(job['elapsed_time_seconds']),
+    duration: formatSeconds(jobElapsedSeconds(job, status)),
     framesLabel: translate('job.frames', {
       done: pickNumber(job, ['frames_processed', 'enhanced_frames'], 0),
       total: typeof job['frames_total'] === 'number' ? job['frames_total'] : '-',
@@ -370,13 +391,15 @@ function mapModelLike(value: unknown, index = 0): ModelVm {
   const qualityTier = stringValue(metadata['quality_tier']);
   const speedTier = stringValue(metadata['speed_tier']);
   const version = stringValue(model['version']);
+  const name = pickString(model, ['name'], `Model ${index + 1}`);
+  // "mvp" era un marcador interno, no una versión real; tampoco se repite si ya va en el nombre.
+  const versionLabel = version && version !== 'mvp' ? `v${version}` : '';
 
   return {
     id: pickString(model, ['id', 'slug'], `model-${index}`),
     slug,
-    name: pickString(model, ['name'], `Model ${index + 1}`),
-    // "mvp" era un marcador interno, no una versión real del modelo.
-    version: version && version !== 'mvp' ? `v${version}` : '',
+    name,
+    version: versionLabel && !name.toLowerCase().includes(versionLabel) ? versionLabel : '',
     // Los modelos de serie tienen descripción traducida; los personalizados usan la del backend.
     description: translate(
       `modelDescription.${slug}`,
@@ -536,7 +559,8 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
       stringValue(workspaceState['compare_mode']) === 'side_by_side' ? 'side_by_side' : 'slider',
     zoom: stringValue(workspaceState['zoom']) === '100%' ? '100%' : 'fit',
     videoFps: numberValue(record(response.video)['fps'], 30),
-    previewTotalFrames: pickNumber(latestJob, ['enhanced_frames', 'frames_total'], 0),
+    // Total del video: `enhanced_frames` solo cuenta los mejorados hasta ahora.
+    previewTotalFrames: pickNumber(latestJob, ['frames_total', 'extracted_frames', 'enhanced_frames'], 0),
     estimateTime: latestJob['estimated_time_seconds']
       ? `~${formatSeconds(latestJob['estimated_time_seconds'])}`
       : '--',

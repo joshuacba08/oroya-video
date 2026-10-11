@@ -1,4 +1,6 @@
+from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -20,6 +22,7 @@ from app.schemas.video_schema import (
 from app.services.frame_extraction_service import (
     build_frame_extraction_command,
     count_extracted_frames,
+    get_reusable_extracted_frames,
     parse_ffmpeg_progress_line,
 )
 from app.services.job_workspace_service import prepare_job_workspace
@@ -212,6 +215,36 @@ def test_parse_progress_line_and_count_extracted_frames(tmp_path: Path) -> None:
 
     assert parse_ffmpeg_progress_line("frame=120") == {"frame": "120"}
     assert count_extracted_frames(frames_dir) == 2
+
+
+def test_reusable_extracted_frames_only_when_a_previous_run_completed(tmp_path: Path) -> None:
+    originals = tmp_path / "original"
+    enhanced = tmp_path / "enhanced"
+    originals.mkdir()
+    enhanced.mkdir()
+    for index in range(1, 4):
+        (originals / f"frame_{index:06d}.png").write_bytes(b"png")
+
+    def job(**changes):
+        values = {
+            "extraction_completed_at": datetime(2026, 10, 11),
+            "extracted_frames": 3,
+            "original_frames_dir": str(originals),
+            "enhanced_frames_dir": str(enhanced),
+        }
+        values.update(changes)
+        return SimpleNamespace(**values)
+
+    assert get_reusable_extracted_frames(job()) == 3
+    assert get_reusable_extracted_frames(job(extraction_completed_at=None)) is None
+    assert get_reusable_extracted_frames(job(extracted_frames=4)) is None
+
+    # Originales recortados tras la mejora: sirven los frames mejorados completos.
+    (originals / "frame_000003.png").unlink()
+    assert get_reusable_extracted_frames(job()) is None
+    for index in range(1, 4):
+        (enhanced / f"frame_{index:06d}.png").write_bytes(b"png")
+    assert get_reusable_extracted_frames(job()) == 3
 
 
 def test_prepare_job_workspace_creates_expected_directories(tmp_path: Path) -> None:

@@ -89,4 +89,44 @@ describe('oroya mappers', () => {
     expect(models[0].id).toBe('3b8c9e9c-379b-4666-b0d6-1f510b2003da');
     expect(models[0].slug).toBe('realesrgan-x2');
   });
+
+  it('does not repeat a version that is already part of the model name', () => {
+    const response = {
+      items: [
+        { slug: 'gfpgan-v1.4', name: 'GFPGAN v1.4', version: '1.4', is_installed: true },
+        { slug: 'custom', name: 'Custom upscaler', version: '2.0', is_installed: true },
+      ],
+    } as unknown as ModelListResponse;
+
+    const [gfpgan, custom] = mapModels(response);
+
+    expect(gfpgan.version).toBe('');
+    expect(custom.version).toBe('v2.0');
+  });
+
+  it('shows the whole running time of a job, not only the current stage', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-11T07:10:00Z'));
+    try {
+      const response = {
+        items: [
+          {
+            job_id: 'job-1',
+            status: 'running',
+            current_stage: 'enhancing_frames',
+            started_at: '2026-10-11T07:08:30',
+            elapsed_time_seconds: 4,
+          },
+          { job_id: 'job-2', status: 'paused', current_stage: 'enhancing_frames', elapsed_time_seconds: 75 },
+        ],
+      } as unknown as QueueResponse;
+
+      const [running, paused] = mapQueue(response);
+
+      expect(running.duration).toBe('1:30');
+      expect(paused.duration).toBe('1:15');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
