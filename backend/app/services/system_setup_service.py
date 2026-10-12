@@ -16,12 +16,15 @@ from app.services.tool_detection_service import resolve_tool_path
 logger = get_logger(__name__)
 
 FFMPEG_DOWNLOAD_KEY = "tool:ffmpeg"
-# Build estable rolling de BtbN (sin checksum posible por ser rolling; se
-# documenta y la extracción valida la estructura del zip).
+# Release versionada y permanente de gyan.dev (build "essentials": libx264 y AAC, lo que usa
+# el pipeline) con SHA-256 fijado. Antes era la build rolling "latest" de BtbN: cambiaba
+# a diario y no se podía verificar.
+FFMPEG_VERSION = "9.0.2"
 FFMPEG_DOWNLOAD_URL = (
-    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/"
-    "ffmpeg-master-latest-win64-gpl.zip"
+    f"https://github.com/GyanD/codexffmpeg/releases/download/{FFMPEG_VERSION}/"
+    f"ffmpeg-{FFMPEG_VERSION}-essentials_build.zip"
 )
+FFMPEG_SHA256 = "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba"
 FFMPEG_TOOLS = ("ffmpeg.exe", "ffprobe.exe")
 
 
@@ -54,6 +57,7 @@ def start_ffmpeg_download(
         FFMPEG_DOWNLOAD_KEY,
         FFMPEG_DOWNLOAD_URL,
         archive_path,
+        sha256=FFMPEG_SHA256,
         on_complete=on_complete,
     )
     logger.info("FFmpeg download started")

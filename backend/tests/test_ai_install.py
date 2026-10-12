@@ -73,7 +73,9 @@ def test_install_runs_three_pip_steps_into_the_ai_target(tmp_path: Path) -> None
     torch_cmd, deps_env = calls[0][0], calls[0][1]
     assert ["--target", str(target)] == torch_cmd[torch_cmd.index("--target") :][:2]
     assert torch_cmd[-2:] == ["--index-url", ai_install_service.TORCH_INDEX_CUDA]
-    assert {"torch", "torchvision"} <= set(torch_cmd)
+    assert set(ai_install_service.TORCH_PACKAGES) <= set(torch_cmd)
+    # Versiones fijadas: una publicación nueva de PyTorch no cambia lo que se instala.
+    assert all("==" in package for package in ai_install_service.TORCH_PACKAGES)
     ai_cmd = calls[1][0]
     assert "--no-deps" in ai_cmd
     assert str(Path("C:/wheels/basicsr.whl")) in ai_cmd

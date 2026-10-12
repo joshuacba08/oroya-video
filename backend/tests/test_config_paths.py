@@ -1,3 +1,4 @@
+import hashlib
 import io
 import threading
 import zipfile
@@ -110,15 +111,20 @@ def setup_client(tmp_path: Path):
 
 def test_ffmpeg_download_extracts_binaries_to_data_bin(setup_client) -> None:
     client, data_dir = setup_client
+    archive = _build_ffmpeg_zip()
 
     with (
         patch.object(download_service.threading, "Thread", InlineThread),
         patch.object(
             download_service.urllib.request,
             "urlopen",
-            return_value=FakeHttpResponse(_build_ffmpeg_zip()),
+            return_value=FakeHttpResponse(archive),
         ),
         patch("app.services.system_setup_service.resolve_tool_path", return_value=None),
+        patch(
+            "app.services.system_setup_service.FFMPEG_SHA256",
+            hashlib.sha256(archive).hexdigest(),
+        ),
     ):
         start_response = client.post("/api/system/ffmpeg/download")
 
@@ -143,3 +149,22 @@ def test_ffmpeg_download_reports_already_installed(setup_client) -> None:
     assert response.status_code == 202
     assert response.json()["already_installed"] is True
     assert response.json()["status"] == "completed"
+
+
+def test_ffmpeg_download_rejects_an_archive_with_another_checksum(setup_client) -> None:
+    client, data_dir = setup_client
+
+    with (
+        patch.object(download_service.threading, "Thread", InlineThread),
+        patch.object(
+            download_service.urllib.request,
+            "urlopen",
+            return_value=FakeHttpResponse(_build_ffmpeg_zip()),
+        ),
+        patch("app.services.system_setup_service.resolve_tool_path", return_value=None),
+    ):
+        client.post("/api/system/ffmpeg/download")
+
+    progress = client.get("/api/system/ffmpeg/download/progress").json()
+    assert progress["status"] == "failed"
+    assert not (data_dir / "bin" / "ffmpeg.exe").exists()
