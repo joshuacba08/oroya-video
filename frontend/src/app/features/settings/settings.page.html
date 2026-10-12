@@ -109,6 +109,27 @@
 
     <section class="settings-page__section">
       <h2>{{ 'settings.support' | t }}</h2>
+      <ov-settings-row [label]="'updates.title' | t" [description]="'updates.current' | t: { version: appVersion }">
+        @if (updates.supported()) {
+          <n-button variant="secondary" size="sm" [disabled]="updates.state() === 'checking'" (click)="updates.check()">
+            <n-icon name="refresh-cw" size="sm" />
+            {{ 'updates.check' | t }}
+          </n-button>
+        } @else {
+          <span class="settings-page__muted">{{ 'updates.desktopOnly' | t }}</span>
+        }
+      </ov-settings-row>
+      @switch (updates.state()) {
+        @case ('upToDate') {
+          <p class="settings-page__note" role="status">{{ 'updates.upToDate' | t }}</p>
+        }
+        @case ('error') {
+          <p class="settings-page__note settings-page__note--muted" role="status">{{ 'updates.checkFailed' | t }}</p>
+        }
+      }
+      @if (updates.available(); as update) {
+        <p class="settings-page__note" role="status">{{ 'updates.available' | t: { version: update.version } }}</p>
+      }
       <ov-settings-row [label]="'settings.diagnostics' | t" [description]="'settings.diagnosticsDescription' | t">
         <n-button variant="secondary" size="sm" [disabled]="diagnosticsBusy()" (click)="exportDiagnostics()">
           <n-icon name="download" size="sm" />

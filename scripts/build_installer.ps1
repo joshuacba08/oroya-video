@@ -114,7 +114,15 @@ try {
     }
 
     Write-Host "Construyendo instalador (pnpm tauri build)..." -ForegroundColor Yellow
-    pnpm tauri build
+    if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+        # Firma el instalador (.exe.sig) para el actualizador automático.
+        pnpm tauri build
+    } else {
+        Write-Host "Sin TAURI_SIGNING_PRIVATE_KEY: instalador sin firma de actualización." -ForegroundColor Yellow
+        $noUpdaterConfig = Join-Path $buildCache "tauri.no-updater.json"
+        Set-Content -Encoding utf8 $noUpdaterConfig '{"bundle":{"createUpdaterArtifacts":false}}'
+        pnpm tauri build --config $noUpdaterConfig
+    }
     if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
 } finally {
     Pop-Location

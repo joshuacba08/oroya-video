@@ -126,3 +126,12 @@ input[type='range'] {
   justify-content: flex-end;
   gap: 8px;
 }
+
+.settings-page__note--muted {
+  color: var(--n-text-3);
+}
+
+.settings-page__muted {
+  color: var(--n-text-3);
+  font-size: 0.8rem;
+}

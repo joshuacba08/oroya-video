@@ -380,6 +380,20 @@ export const en = {
   'errors.unexpectedUi': 'An unexpected error occurred. It was saved to the log; if it repeats, export a diagnostic report from Settings.',
   'settings.change': 'Change…',
   'settings.exportsFolderPrompt': 'Absolute path of the folder for exported videos',
+  'updates.title': 'Updates',
+  'updates.current': 'Installed version: {version}',
+  'updates.check': 'Check for updates',
+  'updates.desktopOnly': 'Only in the installed app',
+  'updates.upToDate': 'You have the latest version.',
+  'updates.checkFailed': 'Could not check for updates (no connection?).',
+  'updates.available': 'Oroya Video {version} is available',
+  'updates.notes': "What's new",
+  'updates.install': 'Install and restart',
+  'updates.downloading': 'Downloading… {percent}%',
+  'updates.installing': 'Installing; the app will restart.',
+  'updates.failed': 'The update could not be installed. Try again later.',
+  'updates.waitTitle': 'A job is running',
+  'updates.waitForJobs': 'Install the update when processing finishes, so no progress is lost.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

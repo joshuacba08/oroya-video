@@ -76,6 +76,36 @@
     </header>
 
     <div class="ov-banner-stack">
+      @if (updates.available(); as update) {
+        <aside class="ov-status-banner ov-status-banner--setup" role="status">
+          <n-icon name="download" size="sm" />
+          <div>
+            <strong>{{ 'updates.available' | t: { version: update.version } }}</strong>
+            @switch (updates.state()) {
+              @case ('downloading') {
+                <span>{{ 'updates.downloading' | t: { percent: updates.progress() } }}</span>
+              }
+              @case ('installing') {
+                <span>{{ 'updates.installing' | t }}</span>
+              }
+              @case ('error') {
+                <span>{{ 'updates.failed' | t }}</span>
+              }
+            }
+          </div>
+          <n-button variant="secondary" size="sm" (click)="openReleaseNotes(update.version)">
+            {{ 'updates.notes' | t }}
+          </n-button>
+          <n-button
+            variant="primary"
+            size="sm"
+            [disabled]="updates.state() === 'downloading' || updates.state() === 'installing'"
+            (click)="installUpdate()"
+          >
+            {{ 'updates.install' | t }}
+          </n-button>
+        </aside>
+      }
       @if (startup$ | async; as startup) {
         @if (showSetupBanner(startup)) {
           <aside class="ov-status-banner ov-status-banner--setup">

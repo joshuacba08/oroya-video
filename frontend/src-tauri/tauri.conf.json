@@ -61,6 +61,18 @@
         ],
         "displayLanguageSelector": false
       }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxMzcwOEVEMTIzMzMxOEEKUldTS01UTVM3UWczZ1IyYm9QdEl3Y3hNU05ucG9YREZzbXVHNHE2a1ZjZGVxam1MdGU2TFdOUlUK",
+      "endpoints": [
+        "https://github.com/joshuacba08/oroya-video/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

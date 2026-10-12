@@ -11,6 +11,8 @@ import type { SettingsUpdateRequest } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import { DialogService } from '../../core/dialogs/dialog.service';
+import { UpdateService } from '../../core/desktop/update.service';
+import { APP_VERSION } from '../../core/app-version';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm } from '../../core/models/oroya.models';
@@ -29,6 +31,8 @@ export class SettingsPage {
   private readonly data = inject(OroyaDataService);
   private readonly desktop = inject(DesktopService);
   private readonly dialogs = inject(DialogService);
+  readonly updates = inject(UpdateService);
+  readonly appVersion = APP_VERSION;
   private readonly reload$ = new BehaviorSubject(0);
 
   readonly error = signal<ApiErrorVm | null>(null);

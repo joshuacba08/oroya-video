@@ -413,13 +413,20 @@ fn stop_backend(app: &AppHandle) {
     kill_child(&state);
 }
 
-/// "Reintentar" tras un fallo definitivo: vuelve a lanzar la supervisión desde cero.
+/// "Reintentar" tras un fallo definitivo, o volver a arrancar el backend si una
+/// actualización lo detuvo y después no pudo instalarse.
 #[tauri::command]
 fn restart_backend(app: AppHandle) {
     let state = app.state::<BackendState>();
-    if state.info.lock().unwrap().status != "failed" || state.stopping.load(Ordering::SeqCst) {
+    let stopped_for_update = state.stopping.load(Ordering::SeqCst);
+    let failed = state.info.lock().unwrap().status == "failed";
+    if !failed && !stopped_for_update {
         return;
     }
+    if state.child.lock().unwrap().is_some() {
+        return;
+    }
+    state.stopping.store(false, Ordering::SeqCst);
     let handle = app.clone();
     let _ = std::thread::Builder::new()
         .name("backend-supervisor".into())
@@ -451,6 +458,8 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(BackendState::new(if bundled_backend {
             "starting"
         } else {

@@ -30,6 +30,8 @@ import { OroyaDataService } from '../core/data/oroya-data.service';
 import { mapGpu } from '../core/data/oroya.mappers';
 import { DesktopBackendService } from '../core/desktop/desktop-backend.service';
 import { DesktopService } from '../core/desktop/desktop.service';
+import { UpdateService } from '../core/desktop/update.service';
+import { NotificationService } from '../core/notifications/notification.service';
 import type { TranslationKey } from '../core/i18n/en';
 import { translate } from '../core/i18n/i18n';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
@@ -74,6 +76,9 @@ export class AppShellComponent {
   private readonly desktop = inject(DesktopService);
   readonly data = inject(OroyaDataService);
   readonly desktopBackend = inject(DesktopBackendService);
+  readonly updates = inject(UpdateService);
+  private readonly notifications = inject(NotificationService);
+  private updateChecked = false;
 
   readonly searchQuery = signal('');
   readonly actionError = signal<ApiErrorVm | null>(null);
@@ -160,6 +165,26 @@ export class AppShellComponent {
     );
   }
 
+  openReleaseNotes(version: string): void {
+    void this.desktop.openUrl(
+      `https://github.com/joshuacba08/oroya-video/releases/tag/v${encodeURIComponent(version)}`,
+    );
+  }
+
+  /** No se reinicia la app con un job en marcha: se perdería el progreso de la etapa. */
+  async installUpdate(): Promise<void> {
+    const jobs = await firstValueFrom(this.data.queue()).catch(() => []);
+    if (jobs.some((job) => ['running', 'queued', 'retrying'].includes(job.status))) {
+      this.notifications.show(
+        'info',
+        translate('updates.waitTitle'),
+        translate('updates.waitForJobs'),
+      );
+      return;
+    }
+    await this.updates.install();
+  }
+
   async restartDesktopBackend(): Promise<void> {
     if (!this.desktop.isDesktop()) {
       this.retryBackend();
@@ -210,7 +235,14 @@ export class AppShellComponent {
     // vuelve a cargar el estado de arranque.
     effect(() => {
       if (this.desktopBackend.readyCount() > 0) {
-        untracked(() => this.retryBackend());
+        untracked(() => {
+          this.retryBackend();
+          // Una comprobación por sesión, cuando el backend ya está listo.
+          if (!this.updateChecked) {
+            this.updateChecked = true;
+            void this.updates.check();
+          }
+        });
       }
     });
     this.router.events
