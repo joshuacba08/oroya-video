@@ -695,3 +695,21 @@ class DatabaseMigrationFailedError(OroyaVideoError):
             error_code="database_migration_failed",
             status_code=500,
         )
+
+
+class ShutdownNotAvailableError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Remote shutdown is only available when the backend runs inside the desktop app.",
+            error_code="shutdown_not_available",
+            status_code=404,
+        )
+
+
+class ShutdownForbiddenError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Shutdown requests must come from the desktop app that started this backend.",
+            error_code="shutdown_forbidden",
+            status_code=403,
+        )

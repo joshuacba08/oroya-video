@@ -1,8 +1,11 @@
+import secrets
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.errors import ShutdownForbiddenError, ShutdownNotAvailableError
+from app.core.parent_watchdog import request_shutdown_in_background
 from app.core.paths import get_exports_path, get_models_path, get_temp_path
 from app.db.database import get_db
 from app.schemas.hardening_schema import (
@@ -17,6 +20,7 @@ from app.schemas.system_schema import (
     FFmpegDownloadStartResponse,
     GPUResponse,
     RequirementsResponse,
+    ShutdownResponse,
     StorageOpenResponse,
     StorageResponse,
     SystemInfoResponse,
@@ -35,6 +39,26 @@ from app.services.tool_detection_service import get_tools_status
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+@router.post(
+    "/shutdown",
+    response_model=ShutdownResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Graceful shutdown requested by the desktop app",
+)
+def shutdown_route(
+    request: Request,
+    x_oroya_instance: Annotated[str | None, Header()] = None,
+) -> ShutdownResponse:
+    expected = request.app.state.settings.oroya_instance_id
+    if not expected:
+        raise ShutdownNotAvailableError()
+    if not secrets.compare_digest(x_oroya_instance or "", expected):
+        raise ShutdownForbiddenError()
+    # Apagado ordenado: el worker pausa la mejora en curso y termina ffmpeg antes de salir.
+    request_shutdown_in_background()
+    return ShutdownResponse(accepted=True)
 
 
 @router.get("/info", response_model=SystemInfoResponse, summary="System environment info")

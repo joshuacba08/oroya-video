@@ -87,6 +87,10 @@ class AIInstallProgressResponse(BaseModel):
     output_tail: list[str]
 
 
+class ShutdownResponse(BaseModel):
+    accepted: bool
+
+
 class StorageOpenResponse(BaseModel):
     target: str
     path: str

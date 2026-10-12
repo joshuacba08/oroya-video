@@ -15,8 +15,8 @@
         "title": "Oroya Video",
         "width": 1440,
         "height": 920,
-        "minWidth": 1100,
-        "minHeight": 720,
+        "minWidth": 1024,
+        "minHeight": 640,
         "resizable": true
       }
     ],
@@ -26,9 +26,9 @@
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
         "font-src": "'self' data:",
-        "img-src": "'self' data: blob: http://127.0.0.1:8001",
-        "media-src": "'self' blob: http://127.0.0.1:8001",
-        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:8001",
+        "img-src": "'self' data: blob: http://127.0.0.1:*",
+        "media-src": "'self' blob: http://127.0.0.1:*",
+        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:*",
         "object-src": "'none'",
         "base-uri": "'self'",
         "frame-ancestors": "'none'"

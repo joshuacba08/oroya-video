@@ -1,5 +1,5 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
@@ -24,9 +24,11 @@ import {
 } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { getApiBaseUrl } from '../core/api/api-base-url';
 import { APP_VERSION } from '../core/app-version';
 import { OroyaDataService } from '../core/data/oroya-data.service';
 import { mapGpu } from '../core/data/oroya.mappers';
+import { DesktopBackendService } from '../core/desktop/desktop-backend.service';
 import { DesktopService } from '../core/desktop/desktop.service';
 import type { TranslationKey } from '../core/i18n/en';
 import { translate } from '../core/i18n/i18n';
@@ -67,6 +69,7 @@ export class AppShellComponent {
   private readonly router = inject(Router);
   private readonly desktop = inject(DesktopService);
   readonly data = inject(OroyaDataService);
+  readonly desktopBackend = inject(DesktopBackendService);
 
   readonly searchQuery = signal('');
   readonly actionError = signal<ApiErrorVm | null>(null);
@@ -93,7 +96,9 @@ export class AppShellComponent {
     }),
   );
   private readonly retry$ = new BehaviorSubject(0);
-  readonly apiBaseUrl = environment.apiBaseUrl;
+  get apiBaseUrl(): string {
+    return getApiBaseUrl();
+  }
   readonly appVersion = APP_VERSION;
   readonly startup$ = this.retry$.pipe(
     switchMap(() =>
@@ -133,11 +138,31 @@ export class AppShellComponent {
     this.retry$.next(Date.now());
   }
 
+  /** Escritorio: el backend arranca, se reinicia tras una caída o no pudo arrancar. */
+  readonly desktopBackendPhase = computed<'starting' | 'failed' | null>(() => {
+    const status = this.desktopBackend.info()?.status;
+    if (status === 'starting' || status === 'exited') {
+      return 'starting';
+    }
+    return status === 'failed' ? 'failed' : null;
+  });
+
+  // `startup` es la foto inicial; el estado en vivo detecta también una caída a mitad de sesión.
   showOfflinePanel(startup: StartupVm): boolean {
+    const live = this.data.backendStatus();
     return (
       environment.dataMode === 'api' &&
-      (startup.backend.isOffline || startup.backend.wrongBackend)
+      (live.isOffline || live.wrongBackend || startup.backend.wrongBackend)
     );
+  }
+
+  async restartDesktopBackend(): Promise<void> {
+    if (!this.desktop.isDesktop()) {
+      this.retryBackend();
+      return;
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('restart_backend');
   }
 
   showSetupBanner(startup: StartupVm): boolean {
@@ -177,6 +202,13 @@ export class AppShellComponent {
   });
 
   constructor() {
+    // Cada vez que el backend de escritorio queda listo (también tras reiniciarse) se
+    // vuelve a cargar el estado de arranque.
+    effect(() => {
+      if (this.desktopBackend.readyCount() > 0) {
+        untracked(() => this.retryBackend());
+      }
+    });
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => this.currentUrl.set(event.urlAfterRedirects));

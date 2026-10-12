@@ -13,6 +13,7 @@ from app.core.parent_watchdog import start_parent_watchdog
 from app.core.paths import ensure_storage_directories, get_storage_path
 from app.db import database
 from app.middleware.access_log import AccessLogMiddleware
+from app.middleware.local_only import LocalOnlyMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
 from app.services.ai_runtime_service import ensure_ai_extra_site_dir
@@ -115,6 +116,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestIdMiddleware)
+    # El último añadido es el más externo: Host/Origin se comprueban antes que nada.
+    app.add_middleware(LocalOnlyMiddleware, allowed_origins=_parse_cors_origins(active_settings))
 
     @app.exception_handler(OroyaVideoError)
     async def oroya_video_error_handler(request: Request, exc: OroyaVideoError) -> JSONResponse:

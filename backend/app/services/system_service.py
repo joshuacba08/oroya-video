@@ -61,6 +61,7 @@ def get_health_response(settings: Settings | None = None) -> HealthResponse:
         status="ok",
         service=active_settings.app_name,
         version=active_settings.app_version,
+        instance_id=active_settings.oroya_instance_id,
     )
 
 

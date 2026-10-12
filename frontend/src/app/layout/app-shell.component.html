@@ -127,15 +127,45 @@
     </div>
 
     <section class="ov-router-surface">
-      @if (startup$ | async; as startup) {
+      @if (desktopBackendPhase(); as phase) {
+        <div class="ov-offline-panel" role="status">
+          @if (phase === 'starting') {
+            <n-icon name="loader-circle" size="xl" class="ov-spin" />
+            <h2>{{ 'shell.startingTitle' | t }}</h2>
+            <p>{{ 'shell.startingBody' | t }}</p>
+          } @else {
+            <n-icon name="plug-zap" size="xl" />
+            <h2>{{ 'shell.failedTitle' | t }}</h2>
+            <p>{{ 'shell.failedBody' | t }}</p>
+            @if (desktopBackend.info()?.error; as detail) {
+              <dl>
+                <dt>{{ 'shell.offlineDetail' | t }}</dt>
+                <dd>{{ detail }}</dd>
+              </dl>
+            }
+            <div class="ov-offline-panel__actions">
+              <n-button variant="primary" size="md" (click)="restartDesktopBackend()">
+                <n-icon name="rotate-ccw" size="sm" />
+                {{ 'shell.restartBackend' | t }}
+              </n-button>
+              <n-button variant="secondary" size="md" (click)="desktopBackend.revealLogs()">
+                <n-icon name="folder-open" size="sm" />
+                {{ 'shell.openLogs' | t }}
+              </n-button>
+            </div>
+          }
+        </div>
+      } @else if (startup$ | async; as startup) {
         @if (showOfflinePanel(startup)) {
           <div class="ov-offline-panel">
             <n-icon name="plug-zap" size="xl" />
             <h2>{{ 'shell.offlineTitle' | t }}</h2>
             <p>{{ 'shell.offlineBody' | t }}</p>
             <dl>
-              <dt>URL</dt>
-              <dd>{{ apiBaseUrl }}</dd>
+              @if (!desktopBackend.info()) {
+                <dt>URL</dt>
+                <dd>{{ apiBaseUrl }}</dd>
+              }
               @if (startup.backend.error?.code; as code) {
                 <dt>Error</dt>
                 <dd>{{ code }}</dd>

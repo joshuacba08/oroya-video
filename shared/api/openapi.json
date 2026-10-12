@@ -187,6 +187,55 @@
         }
       }
     },
+    "/api/v1/system/shutdown": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Graceful shutdown requested by the desktop app",
+        "operationId": "shutdown_route_api_v1_system_shutdown_post",
+        "parameters": [
+          {
+            "name": "x-oroya-instance",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oroya-Instance"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShutdownResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/info": {
       "get": {
         "tags": [
@@ -4059,6 +4108,55 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/QueueResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/shutdown": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Graceful shutdown requested by the desktop app",
+        "operationId": "shutdown_route_api_system_shutdown_post",
+        "parameters": [
+          {
+            "name": "x-oroya-instance",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oroya-Instance"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShutdownResponse"
                 }
               }
             }
@@ -10693,6 +10791,17 @@
               }
             ],
             "title": "Version"
+          },
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id"
           }
         },
         "type": "object",
@@ -14869,6 +14978,19 @@
           "settings"
         ],
         "title": "SettingsUpdateResponse"
+      },
+      "ShutdownResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "ShutdownResponse"
       },
       "StorageOpenResponse": {
         "properties": {

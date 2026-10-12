@@ -859,7 +859,12 @@ export class OroyaDataService {
     if (!(error instanceof OroyaApiError)) {
       return false;
     }
-    return ['network_error', 'request_timeout'].includes(error.code);
+    // Una petición lenta (importar, limpiar gigas de frames) no significa que el backend
+    // esté caído; un /health sin respuesta, sí.
+    if (error.code === 'request_timeout') {
+      return error.options.path === '/health';
+    }
+    return error.code === 'network_error';
   }
 
   private isWrongBackend(error: unknown): boolean {

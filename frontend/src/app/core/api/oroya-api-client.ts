@@ -1,4 +1,4 @@
-import { environment } from '../../../environments/environment';
+import { getApiBaseUrl } from './api-base-url';
 import type { HealthResponse } from './api-types';
 
 type QueryValue = string | number | boolean | null | undefined;
@@ -50,7 +50,7 @@ export class OroyaApiClient {
     if (response.service !== 'Oroya Video Backend') {
       throw new OroyaApiError(
         'wrong_backend',
-        `Expected Oroya Video Backend at ${environment.apiBaseUrl}, but got "${response.service}".`,
+        `Expected Oroya Video Backend at ${getApiBaseUrl()}, but got "${response.service}".`,
         {
           status: 200,
           details: {
@@ -93,15 +93,15 @@ export class OroyaApiClient {
     }
 
     if (!pathOrUrl.startsWith('/')) {
-      return `${environment.apiBaseUrl}/${pathOrUrl}`;
+      return `${getApiBaseUrl()}/${pathOrUrl}`;
     }
 
     if (pathOrUrl.startsWith('/api/')) {
-      const base = environment.apiBaseUrl.replace(/\/api\/v1\/?$/, '');
+      const base = getApiBaseUrl().replace(/\/api\/v1\/?$/, '');
       return `${base}${pathOrUrl}`;
     }
 
-    return `${environment.apiBaseUrl}${pathOrUrl}`;
+    return `${getApiBaseUrl()}${pathOrUrl}`;
   }
 
   private async request<T>(

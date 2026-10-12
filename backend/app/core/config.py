@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = True
     oroya_data_dir: str | None = None
+    # Lo genera la app de escritorio en cada arranque: identifica a su backend (health) y
+    # autoriza el apagado ordenado. Sin él (desarrollo) /system/shutdown no está disponible.
+    oroya_instance_id: str | None = None
     storage_path: str = DEFAULT_STORAGE_PATH
     database_url: str = DEFAULT_DATABASE_URL
     ai_extra_site_dir: str | None = None

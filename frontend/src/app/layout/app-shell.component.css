@@ -127,6 +127,29 @@
   font-size: 0.9rem;
 }
 
+.ov-offline-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ov-spin {
+  animation: ov-spin 1.2s linear infinite;
+}
+
+@keyframes ov-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ov-spin {
+    animation: none;
+  }
+}
+
 .ov-offline-panel dl {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
