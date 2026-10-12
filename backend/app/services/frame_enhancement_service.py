@@ -137,7 +137,9 @@ def enhance_frames_for_job(
 
     try:
         ensure_enhancement_storage_capacity(original_frames_dir, active_settings)
-        enhancer = get_frame_enhancer(engine)
+        enhancer = get_frame_enhancer(
+            engine, frame_delay_ms=active_settings.mock_enhancer_frame_delay_ms
+        )
     except (InsufficientTempStorageError, FrameEnhancerNotFoundError) as exc:
         _mark_enhancement_failed(
             db,

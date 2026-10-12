@@ -11,7 +11,7 @@ from app.enhancers.realesrgan_enhancer import RealESRGANFrameEnhancer
 def get_frame_enhancer(engine: str, **kwargs) -> FrameEnhancer:
     normalized_engine = engine.strip().lower()
     if normalized_engine == "mock":
-        return MockFrameEnhancer()
+        return MockFrameEnhancer(kwargs.get("frame_delay_ms", 0) / 1000)
     if normalized_engine == "realesrgan":
         return RealESRGANFrameEnhancer(
             model_path=Path(kwargs.get("model_path", "__missing_realesrgan_model__.pth")),
