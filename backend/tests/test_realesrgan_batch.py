@@ -8,6 +8,7 @@ from app.core.config import Settings
 from app.core.errors import RealESRGANFrameProcessingFailedError
 from app.db import database
 from app.db.repositories import job_repository
+from app.enhancers.realesrgan_enhancer import RealESRGANFrameEnhancer
 from app.main import create_app
 from app.schemas.video_schema import (
     AudioStreamInfo,
@@ -631,3 +632,99 @@ def test_pause_endpoint_requests_pause_during_realesrgan_enhancement(realesrgan_
     assert response.json()["message"] == "Job pause requested."
     assert response.json()["job"]["status"] == "running"
     assert response.json()["job"]["pause_requested"] is True
+
+
+def _run_realesrgan_with_free_disk(settings, job_id: str, free_values: list[int]) -> None:
+    calls = {"count": 0}
+
+    def fake_free(_path) -> int:
+        value = free_values[min(calls["count"], len(free_values) - 1)]
+        calls["count"] += 1
+        return value
+
+    def fake_load_model(self) -> None:
+        self.model_load_time_ms = 5
+
+    def fake_enhance_frame(self, source: Path, destination: Path):
+        destination.write_bytes(source.read_bytes() + b"-enhanced")
+        return destination, 12
+
+    with (
+        patch(
+            "app.services.ai_runtime_service.get_torch_module",
+            return_value=FakeTorch(cuda_available=False),
+        ),
+        patch("app.services.realesrgan_service.free_disk_bytes", fake_free),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.load_model",
+            fake_load_model,
+        ),
+        patch(
+            "app.enhancers.realesrgan_enhancer.RealESRGANFrameEnhancer.enhance_single_frame",
+            fake_enhance_frame,
+        ),
+    ):
+        assert database.SessionLocal is not None
+        db = database.SessionLocal()
+        try:
+            enhance_frames_for_job(db, job_id, engine="realesrgan", settings=settings)
+        except Exception:  # noqa: BLE001 - el test comprueba el estado del job
+            pass
+        finally:
+            db.close()
+
+
+def test_realesrgan_pauses_instead_of_failing_when_disk_gets_full(realesrgan_client) -> None:
+    client, source_file, settings = realesrgan_client
+    _seed_model_file(settings)
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_original_frames(settings, job["id"], frame_count=3)
+
+    # Hay espacio al empezar y se agota durante la mejora.
+    _run_realesrgan_with_free_disk(settings, job["id"], [100 * 1024**3, 10 * 1024**2])
+
+    refreshed_job = _get_job(job["id"])
+    assert refreshed_job.status == "paused"
+    assert refreshed_job.error_code == "insufficient_disk_space"
+    logs = client.get(f"/api/jobs/{job['id']}/logs").json()["items"]
+    assert any(item["message"] == "Enhancement paused: the disk is almost full." for item in logs)
+
+
+def test_realesrgan_fails_early_when_the_output_cannot_fit(realesrgan_client) -> None:
+    client, source_file, settings = realesrgan_client
+    _seed_model_file(settings)
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _prepare_original_frames(settings, job["id"], frame_count=3)
+
+    _run_realesrgan_with_free_disk(settings, job["id"], [10 * 1024**2])
+
+    refreshed_job = _get_job(job["id"])
+    assert refreshed_job.status == "failed"
+    assert refreshed_job.error_code == "insufficient_temp_storage"
+    assert "GB are needed" in refreshed_job.error_message
+
+
+def test_failed_frame_fallback_keeps_the_sequence_contiguous(tmp_path: Path) -> None:
+    cv2 = pytest.importorskip("cv2")
+    numpy = pytest.importorskip("numpy")
+    source = tmp_path / "frame_00000001.png"
+    cv2.imwrite(str(source), numpy.zeros((4, 6, 3), dtype=numpy.uint8))
+    enhancer = RealESRGANFrameEnhancer(
+        model_path=tmp_path / "model.pth",
+        model_slug="realesrgan-x2",
+        device="cpu",
+        scale=2,
+        tile_size=0,
+        tile_pad=10,
+        pre_pad=0,
+        half_precision=False,
+    )
+    output = tmp_path / "out" / "frame_00000001.png"
+    output.parent.mkdir()
+
+    assert enhancer.write_fallback_frame(source, output) is True
+    assert cv2.imread(str(output)).shape[:2] == (8, 12)

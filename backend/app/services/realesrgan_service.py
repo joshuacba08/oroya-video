@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,8 @@ from app.core.errors import (
     AIRuntimeNotAvailableError,
     CUDANotAvailableError,
     CUDAOutOfMemoryError,
+    InsufficientDiskSpaceError,
+    InsufficientTempStorageError,
     InvalidFrameIndexError,
     JobNotFoundError,
     OriginalFramesNotFoundError,
@@ -70,6 +73,28 @@ DB_SYNC_INTERVAL_SECONDS = 0.5
 # El modelo cargado se conserva entre jobs (cargarlo cuesta segundos y VRAM). Una sola entrada:
 # si cambia el modelo o la configuración, se libera el anterior.
 _enhancer_cache: dict[tuple, RealESRGANFrameEnhancer] = {}
+
+
+# Por debajo de este espacio libre la mejora se pausa en vez de fallar con el disco lleno.
+LOW_DISK_PAUSE_BYTES = int(1.5 * 1024**3)
+DISK_CHECK_INTERVAL_SECONDS = 5.0
+
+
+def free_disk_bytes(path: Path) -> int:
+    return shutil.disk_usage(path).free
+
+
+def estimate_enhanced_bytes_needed(context: RealESRGANContext) -> int:
+    """Space for the frames still to enhance: original size x outscale² per frame."""
+    originals = [item for item in context.input_dir.glob("*.png") if item.is_file()]
+    if not originals:
+        return 0
+    sample = originals[: min(len(originals), 20)]
+    average_original = sum(item.stat().st_size for item in sample) / len(sample)
+    done = sum(1 for item in context.output_dir.glob("*.png") if item.is_file())
+    remaining = max(context.total_frames - done, 0)
+    scale = context.scale or 4
+    return int(remaining * average_original * scale * scale)
 
 
 @dataclass(slots=True)
@@ -562,7 +587,20 @@ def process_realesrgan_frames_for_job(
         return job
 
     context = prepare_realesrgan_context(db, job, active_settings)
+    needed_bytes = estimate_enhanced_bytes_needed(context) + LOW_DISK_PAUSE_BYTES
+    free_bytes = free_disk_bytes(context.output_dir)
+    if free_bytes < needed_bytes:
+        # Mejor avisar ahora que fallar tras horas de proceso.
+        error = InsufficientTempStorageError(
+            "Not enough free disk space to enhance the frames: about "
+            f"{needed_bytes / 1024**3:.1f} GB are needed and {free_bytes / 1024**3:.1f} GB "
+            "are free. Free some space or choose a smaller output scale."
+        )
+        _mark_realesrgan_failed(db, job, error)
+        raise error
     enhancer = _get_enhancer(context, active_settings)
+    low_disk = False
+    last_disk_check = 0.0
     started_at = time.monotonic()
     now = time.time()
     last_logged_frame = 0
@@ -619,7 +657,14 @@ def process_realesrgan_frames_for_job(
         return job.cancel_requested or job.status == "cancelled"
 
     def pause_callback() -> bool:
+        nonlocal low_disk, last_disk_check
         sync_job_state()
+        if time.monotonic() - last_disk_check >= DISK_CHECK_INTERVAL_SECONDS:
+            last_disk_check = time.monotonic()
+            if free_disk_bytes(context.output_dir) < LOW_DISK_PAUSE_BYTES:
+                # Pausa en vez de fallo: al liberar espacio, reanudar sigue donde quedó.
+                low_disk = True
+                return True
         return bool(job.pause_requested)
 
     job_repository.update_job(
@@ -769,13 +814,16 @@ def process_realesrgan_frames_for_job(
         logger.warning("Real-ESRGAN enhancement cancelled: %s", job.id)
         return job
 
-    if job.pause_requested:
+    if job.pause_requested or low_disk:
         paused_at = time_to_datetime(time.time())
+        disk_error = InsufficientDiskSpaceError() if low_disk else None
         job_repository.update_job(
             db,
             job,
             {
                 "status": "paused",
+                "error_code": disk_error.error_code if disk_error else None,
+                "error_message": disk_error.message if disk_error else None,
                 "current_stage": "enhancing_frames",
                 "enhanced_frames": enhancer.processed_frames,
                 "frames_processed": enhancer.completed_frames,
@@ -790,8 +838,10 @@ def process_realesrgan_frames_for_job(
         job_repository.create_job_log(
             db,
             job.id,
-            "info",
-            "Enhancement paused by user.",
+            "warning" if low_disk else "info",
+            "Enhancement paused: the disk is almost full."
+            if low_disk
+            else "Enhancement paused by user.",
             stage="enhancing_frames",
         )
         db.commit()

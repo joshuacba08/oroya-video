@@ -361,6 +361,11 @@ export const en = {
   'errors.job_recovery_failed': 'Job recovery failed.',
   'errors.job_cleanup_failed': 'Job temporary files could not be cleaned safely.',
   'errors.process_termination_failed': 'The active process could not be stopped cleanly.',
+  'errors.ffmpeg_stalled': 'FFmpeg stopped responding and was stopped. Retry the job; if it happens again, export a diagnostic report from Settings.',
+  'errors.insufficient_disk_space': 'The disk is full. Free some space and resume or retry the job.',
+  'errors.database_migration_failed': 'The database could not be upgraded. It was restored from the automatic backup.',
+  'errors.forbidden_host': 'Request blocked: it did not come from this computer.',
+  'errors.forbidden_origin': 'Request blocked: it did not come from Oroya Video.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

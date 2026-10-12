@@ -131,7 +131,7 @@ def test_post_import_copy_mode_calls_copy2(app_client) -> None:
         ),
         patch(
             "app.services.video_import_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.video_import_service.shutil.copy2") as copy2_mock,
     ):
@@ -156,7 +156,7 @@ def test_post_import_copy_mode_returns_controlled_error_when_copy_fails(app_clie
         ),
         patch(
             "app.services.video_import_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.video_import_service.shutil.copy2",
@@ -285,7 +285,7 @@ def test_delete_video_in_copy_mode_removes_internal_folder_only(app_client) -> N
         ),
         patch(
             "app.services.video_import_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.video_import_service.shutil.copy2"),
         patch("app.services.video_import_service.shutil.rmtree") as rmtree_mock,

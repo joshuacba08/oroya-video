@@ -12,6 +12,7 @@ from app.core.errors import (
     AudioMuxFailedError,
     EncodedVideoNotFoundError,
     FFmpegNotAvailableError,
+    FFmpegStalledError,
     InsufficientTempStorageError,
     JobNotFoundError,
     MuxedVideoNotFoundError,
@@ -42,7 +43,7 @@ from app.services.process_registry_service import (
     unregister_process,
 )
 from app.utils.enhancement_config import parse_enhancement_config_json
-from app.utils.process_output import StderrDrain
+from app.utils.process_output import StderrDrain, stop_process_quietly, watch_process_output
 
 logger = get_logger(__name__)
 MUXED_VIDEO_FILE_NAME = "video_with_audio.mp4"
@@ -194,6 +195,8 @@ def _mark_mux_failed(
             "error_message": error_message,
             "audio_mux_error_code": error_code,
             "audio_mux_error_message": error_message,
+            "process_id": None,
+            "process_kind": None,
         },
     )
     job_repository.create_job_log(
@@ -237,23 +240,24 @@ def _run_mux_command(
     db.commit()
 
     try:
-        if process.stdout is not None:
-            for raw_line in process.stdout:
-                if raw_line.strip():
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "progress_percent": max(job.progress_percent, MUX_PROGRESS_START + 1.0),
-                            "elapsed_time_seconds": int(time.monotonic() - started_at),
-                        },
-                    )
-                    commit_progress(db)
+        for raw_line in watch_process_output(
+            process.stdout, _get_active_settings().ffmpeg_stall_timeout_seconds
+        ):
+            if raw_line is not None and raw_line.strip():
+                job_repository.update_job(
+                    db,
+                    job,
+                    {
+                        "progress_percent": max(job.progress_percent, MUX_PROGRESS_START + 1.0),
+                        "elapsed_time_seconds": int(time.monotonic() - started_at),
+                    },
+                )
+                commit_progress(db)
 
-                db.refresh(job)
-                if job.cancel_requested or job.status == "cancelled":
-                    finish_cancelled_ffmpeg_stage(db, job, process, "Audio mux cancelled by user.")
-                    return "cancelled", ""
+            db.refresh(job)
+            if job.cancel_requested or job.status == "cancelled":
+                finish_cancelled_ffmpeg_stage(db, job, process, "Audio mux cancelled by user.")
+                return "cancelled", ""
 
         stderr_output = stderr_drain.text()
 
@@ -272,6 +276,10 @@ def _run_mux_command(
 
         unregister_process(job.id)
         return "completed", stderr_output
+    except FFmpegStalledError as exc:
+        stop_process_quietly(process)
+        unregister_process(job.id)
+        return "failed", exc.message
     except OSError as exc:
         unregister_process(job.id)
         raise AudioMuxFailedError() from exc

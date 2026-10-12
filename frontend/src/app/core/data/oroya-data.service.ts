@@ -139,6 +139,9 @@ const CHECKING_STATUS: BackendStatusVm = {
   warnings: [],
 };
 
+
+// Operaciones que pueden tardar con videos grandes o gigas de frames (borrar, analizar).
+const SLOW_REQUEST_MS = 120_000;
 @Injectable({ providedIn: 'root' })
 export class OroyaDataService {
   readonly dataSource = signal<'api' | 'mock'>('mock');
@@ -360,16 +363,17 @@ export class OroyaDataService {
 
   probeVideo(path: string): Observable<VideoProbeResponse> {
     return this.command(() =>
-      this.api.post<VideoProbeResponse>('/videos/probe', { file_path: path }),
+      this.api.post<VideoProbeResponse>('/videos/probe', { file_path: path }, SLOW_REQUEST_MS),
     );
   }
 
   importVideo(path: string): Observable<VideoImportResponse> {
     return this.command(() =>
-      this.api.post<VideoImportResponse>('/videos/import', {
-        file_path: path,
-        source_mode: 'reference',
-      }),
+      this.api.post<VideoImportResponse>(
+        '/videos/import',
+        { file_path: path, source_mode: 'reference' },
+        SLOW_REQUEST_MS,
+      ),
     );
   }
 
@@ -384,7 +388,9 @@ export class OroyaDataService {
   }
 
   deleteProject(projectId: string): Observable<unknown> {
-    return this.command(() => this.api.delete(`/projects/${encodeURIComponent(projectId)}`));
+    return this.command(() =>
+      this.api.delete(`/projects/${encodeURIComponent(projectId)}`, undefined, SLOW_REQUEST_MS),
+    );
   }
 
   createJob(payload: JobCreateRequest): Observable<QueueJobVm> {
@@ -417,11 +423,11 @@ export class OroyaDataService {
 
   retryJob(jobId: string): Observable<QueueJobVm> {
     return this.command(() =>
-      this.api.post<JobControlResponse>(`/jobs/${encodeURIComponent(jobId)}/retry`, {
-        cleanup_before_retry: true,
-        reset_progress: true,
-        start: true,
-      }),
+      this.api.post<JobControlResponse>(
+        `/jobs/${encodeURIComponent(jobId)}/retry`,
+        { cleanup_before_retry: true, reset_progress: true, start: true },
+        SLOW_REQUEST_MS,
+      ),
     ).pipe(map(mapJobControl));
   }
 
@@ -430,17 +436,23 @@ export class OroyaDataService {
   }
 
   deleteJob(jobId: string): Observable<unknown> {
-    return this.command(() => this.api.delete(`/jobs/${encodeURIComponent(jobId)}`));
+    return this.command(() =>
+      this.api.delete(`/jobs/${encodeURIComponent(jobId)}`, undefined, SLOW_REQUEST_MS),
+    );
   }
 
   cleanupJobTemp(jobId: string): Observable<unknown> {
     return this.command(() =>
-      this.api.delete(`/jobs/${encodeURIComponent(jobId)}/temp`, {
-        include_original_frames: true,
-        include_enhanced_frames: true,
-        include_encoded: true,
-        include_muxed: true,
-      }),
+      this.api.delete(
+        `/jobs/${encodeURIComponent(jobId)}/temp`,
+        {
+          include_original_frames: true,
+          include_enhanced_frames: true,
+          include_encoded: true,
+          include_muxed: true,
+        },
+        SLOW_REQUEST_MS,
+      ),
     );
   }
 
@@ -572,7 +584,9 @@ export class OroyaDataService {
   }
 
   refreshModels(): Observable<ModelRefreshResponse> {
-    return this.command(() => this.api.post<ModelRefreshResponse>('/models/refresh'));
+    return this.command(() =>
+      this.api.post<ModelRefreshResponse>('/models/refresh', undefined, SLOW_REQUEST_MS),
+    );
   }
 
   resolveMediaUrl(pathOrUrl: string): string {

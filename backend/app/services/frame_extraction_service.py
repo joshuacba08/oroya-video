@@ -11,7 +11,9 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.errors import (
     FFmpegNotAvailableError,
+    FFmpegStalledError,
     FrameExtractionFailedError,
+    InsufficientDiskSpaceError,
     InsufficientTempStorageError,
     JobNotFoundError,
     VideoAssetFileMissingError,
@@ -31,12 +33,27 @@ from app.services.process_registry_service import (
     register_process,
     unregister_process,
 )
-from app.utils.process_output import StderrDrain
+from app.utils.process_output import (
+    StderrDrain,
+    is_disk_full,
+    stop_process_quietly,
+    watch_process_output,
+)
 
 logger = get_logger(__name__)
 FRAME_FILE_PATTERN = "frame_%08d.png"
 FRAME_FORMAT = "png"
 TEMP_STORAGE_MULTIPLIER = 3
+# Un frame PNG de video ocupa ~la mitad de su tamaño RGB sin comprimir (3 B/píxel).
+PNG_BYTES_PER_PIXEL = 1.5
+DISK_MARGIN_BYTES = 512 * 1024 * 1024
+GIB = 1024**3
+
+
+def estimate_png_frames_bytes(frames: int, width: int, height: int, scale: float = 1.0) -> int:
+    return int(
+        max(frames, 0) * max(width, 0) * max(height, 0) * scale * scale * PNG_BYTES_PER_PIXEL
+    )
 
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
@@ -118,9 +135,20 @@ def ensure_temp_storage_capacity(video_asset, settings: Settings | None = None) 
     active_settings = _get_active_settings(settings)
     temp_path = get_temp_path(active_settings)
     _, _, free_bytes = shutil.disk_usage(temp_path)
-    required_bytes = max(video_asset.file_size_bytes * TEMP_STORAGE_MULTIPLIER, 1)
+    # Los PNG extraídos ocupan decenas de veces el MP4: se estima por resolución y frames.
+    frames = int((video_asset.duration_seconds or 0) * (video_asset.fps or 0))
+    estimated_bytes = estimate_png_frames_bytes(
+        frames, video_asset.width or 0, video_asset.height or 0
+    )
+    required_bytes = (
+        max(video_asset.file_size_bytes * TEMP_STORAGE_MULTIPLIER, estimated_bytes)
+        + DISK_MARGIN_BYTES
+    )
     if free_bytes < required_bytes:
-        raise InsufficientTempStorageError()
+        raise InsufficientTempStorageError(
+            "Not enough free disk space to extract the frames: about "
+            f"{required_bytes / GIB:.1f} GB are needed and {free_bytes / GIB:.1f} GB are free."
+        )
 
 
 def _mark_job_failed(
@@ -138,6 +166,8 @@ def _mark_job_failed(
             "current_stage": "failed",
             "error_code": error_code,
             "error_message": error_message,
+            "process_id": None,
+            "process_kind": None,
         },
     )
     job_repository.create_job_log(
@@ -296,56 +326,65 @@ def extract_frames_for_job(
 
     last_logged_frame = -100
     try:
-        if process.stdout is not None:
-            for raw_line in process.stdout:
-                line = raw_line.strip()
-                if not line:
-                    continue
-
-                progress_data = parse_ffmpeg_progress_line(line)
-                if not progress_data:
-                    continue
-
-                if "frame" in progress_data:
-                    frames_processed = _safe_int(progress_data["frame"]) or 0
-                    progress_percent = calculate_stage_progress(
-                        frames_processed,
-                        estimated_frames,
-                        start=EXTRACTION_PROGRESS_START,
-                        end=EXTRACTION_PROGRESS_END,
-                        clamp_to=24.9,
-                    )
-
-                    elapsed_seconds = int(time.monotonic() - started_at)
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "frames_processed": frames_processed,
-                            "progress_percent": progress_percent,
-                            "elapsed_time_seconds": elapsed_seconds,
-                        },
-                    )
-                    if frames_processed - last_logged_frame >= 100:
-                        last_logged_frame = frames_processed
-                        job_repository.create_job_log(
-                            db,
-                            job.id,
-                            "info",
-                            (
-                                "Frame extraction progress: "
-                                f"{frames_processed}/{estimated_frames or '?'}"
-                            ),
-                            stage="extracting_frames",
-                        )
-                    commit_progress(db)
-                    logger.debug("FFmpeg progress updated: %s", frames_processed)
-
+        for raw_line in watch_process_output(
+            process.stdout, active_settings.ffmpeg_stall_timeout_seconds
+        ):
+            if raw_line is None:
+                # Sin salida de ffmpeg este segundo: comprobar la cancelación igualmente.
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":
                     return finish_cancelled_ffmpeg_stage(
                         db, job, process, "Frame extraction cancelled by user."
                     )
+                continue
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            progress_data = parse_ffmpeg_progress_line(line)
+            if not progress_data:
+                continue
+
+            if "frame" in progress_data:
+                frames_processed = _safe_int(progress_data["frame"]) or 0
+                progress_percent = calculate_stage_progress(
+                    frames_processed,
+                    estimated_frames,
+                    start=EXTRACTION_PROGRESS_START,
+                    end=EXTRACTION_PROGRESS_END,
+                    clamp_to=24.9,
+                )
+
+                elapsed_seconds = int(time.monotonic() - started_at)
+                job_repository.update_job(
+                    db,
+                    job,
+                    {
+                        "frames_processed": frames_processed,
+                        "progress_percent": progress_percent,
+                        "elapsed_time_seconds": elapsed_seconds,
+                    },
+                )
+                if frames_processed - last_logged_frame >= 100:
+                    last_logged_frame = frames_processed
+                    job_repository.create_job_log(
+                        db,
+                        job.id,
+                        "info",
+                        (
+                            "Frame extraction progress: "
+                            f"{frames_processed}/{estimated_frames or '?'}"
+                        ),
+                        stage="extracting_frames",
+                    )
+                commit_progress(db)
+                logger.debug("FFmpeg progress updated: %s", frames_processed)
+
+            db.refresh(job)
+            if job.cancel_requested or job.status == "cancelled":
+                return finish_cancelled_ffmpeg_stage(
+                    db, job, process, "Frame extraction cancelled by user."
+                )
 
         stderr_output = stderr_drain.text()
 
@@ -363,6 +402,13 @@ def extract_frames_for_job(
             logger.warning("Frame extraction stopped by backend shutdown: %s", job.id)
             return job
         if return_code != 0:
+            unregister_process(job.id)
+            if is_disk_full(stderr_output):
+                disk_error = InsufficientDiskSpaceError()
+                _mark_job_failed(
+                    db, job, error_code=disk_error.error_code, error_message=disk_error.message
+                )
+                raise disk_error
             _mark_job_failed(
                 db,
                 job,
@@ -410,6 +456,12 @@ def extract_frames_for_job(
         db.commit()
         logger.info("FFmpeg frame extraction completed: %s", job_id)
         return job
+    except FFmpegStalledError as exc:
+        stop_process_quietly(process)
+        unregister_process(job.id)
+        _mark_job_failed(db, job, error_code=exc.error_code, error_message=exc.message)
+        logger.error("FFmpeg frame extraction stalled: %s", job_id)
+        raise
     except (OSError, SQLAlchemyError) as exc:
         db.rollback()
         unregister_process(job.id)

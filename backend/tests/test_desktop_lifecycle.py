@@ -108,9 +108,7 @@ def test_state_changes_from_foreign_origins_are_rejected(tmp_path) -> None:
         )
         # Las lecturas no cambian nada y el navegador ya oculta la respuesta (CORS).
         foreign_read = client.get("/api/v1/health", headers={"Origin": "https://evil.example"})
-        own_ui = client.post(
-            "/api/v1/system/shutdown", headers={"Origin": "http://localhost:4200"}
-        )
+        own_ui = client.post("/api/v1/system/shutdown", headers={"Origin": "http://localhost:4200"})
 
     assert foreign.status_code == 403
     assert foreign.json()["error"] == "forbidden_origin"

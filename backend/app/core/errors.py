@@ -713,3 +713,22 @@ class ShutdownForbiddenError(OroyaVideoError):
             error_code="shutdown_forbidden",
             status_code=403,
         )
+
+
+class FFmpegStalledError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "FFmpeg stopped responding and was stopped. Retry the job; if it happens again, "
+            "export a diagnostic report.",
+            error_code="ffmpeg_stalled",
+            status_code=500,
+        )
+
+
+class InsufficientDiskSpaceError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "The disk is full. Free some space and resume or retry the job.",
+            error_code="insufficient_disk_space",
+            status_code=507,
+        )

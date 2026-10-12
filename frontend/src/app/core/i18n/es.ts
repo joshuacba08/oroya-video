@@ -364,4 +364,9 @@ export const es: Record<TranslationKey, string> = {
   'errors.job_recovery_failed': 'No se pudo recuperar el job.',
   'errors.job_cleanup_failed': 'No se pudieron limpiar de forma segura los archivos temporales del job.',
   'errors.process_termination_failed': 'No se pudo detener limpiamente el proceso activo.',
+  'errors.ffmpeg_stalled': 'FFmpeg dejó de responder y se detuvo. Reintenta el job; si se repite, exporta un diagnóstico desde Ajustes.',
+  'errors.insufficient_disk_space': 'El disco está lleno. Libera espacio y reanuda o reintenta el job.',
+  'errors.database_migration_failed': 'No se pudo actualizar la base de datos. Se restauró desde la copia automática.',
+  'errors.forbidden_host': 'Petición bloqueada: no viene de este equipo.',
+  'errors.forbidden_origin': 'Petición bloqueada: no viene de Oroya Video.',
 };

@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     cleanup_temp_older_than_hours: int = 72
     max_job_retries: int = 3
     process_shutdown_timeout_seconds: int = 5
+    # ffmpeg sin emitir progreso durante este tiempo se considera colgado.
+    ffmpeg_stall_timeout_seconds: int = 180
     preflight_min_free_disk_gb: float = 10.0
     audit_log_enabled: bool = True
 
