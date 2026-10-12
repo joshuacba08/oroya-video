@@ -165,6 +165,13 @@ def get_requirements_status(settings: Settings | None = None) -> RequirementsRes
     if not recommended.free_disk_space:
         logger.warning("Free disk space is below recommended threshold")
         warnings.append("Free disk space is below recommended threshold for future jobs.")
+    from app.services import settings_service
+
+    if settings_service.corrupt_settings_backup is not None:
+        warnings.append(
+            "Saved settings were unreadable and were reset to defaults "
+            f"(copy kept at {settings_service.corrupt_settings_backup.name})."
+        )
 
     response = RequirementsResponse(
         ready=all(minimum.model_dump().values()),
@@ -172,7 +179,7 @@ def get_requirements_status(settings: Settings | None = None) -> RequirementsRes
         recommended=recommended,
         warnings=warnings,
     )
-    logger.info("Requirements status calculated")
+    logger.debug("Requirements status calculated")
     return response
 
 

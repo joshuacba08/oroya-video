@@ -264,7 +264,15 @@ def get_directory_size_bytes(path: Path) -> int:
         return 0
     if path.is_file():
         return path.stat().st_size
-    return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+    total = 0
+    for item in path.rglob("*"):
+        # Otra limpieza (o el pipeline) puede borrar archivos mientras se recorre la carpeta.
+        try:
+            if item.is_file():
+                total += item.stat().st_size
+        except OSError:
+            continue
+    return total
 
 
 def to_client_path(path: Path, settings: Settings | None = None) -> str:

@@ -18,6 +18,7 @@ from app.core.errors import (
 )
 from app.core.logging import get_logger
 from app.core.paths import get_directory_size_bytes, get_temp_path, resolve_path
+from app.db.database import commit_progress
 from app.db.repositories import job_repository
 from app.services import job_workspace_service
 from app.services.pipeline_progress import (
@@ -337,8 +338,8 @@ def extract_frames_for_job(
                             ),
                             stage="extracting_frames",
                         )
-                    db.commit()
-                    logger.info("FFmpeg progress updated: %s", frames_processed)
+                    commit_progress(db)
+                    logger.debug("FFmpeg progress updated: %s", frames_processed)
 
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":

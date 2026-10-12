@@ -1,4 +1,13 @@
+import os
+import tempfile
+
 import pytest
+
+# Antes de importar la app: ningún test puede tocar el almacenamiento real del desarrollador
+# (backend/storage). Los tests que necesitan rutas propias pasan Settings(storage_path=...).
+_TEST_STORAGE = tempfile.mkdtemp(prefix="oroya-tests-")
+os.environ["STORAGE_PATH"] = _TEST_STORAGE
+os.environ.pop("DATABASE_URL", None)
 
 
 @pytest.fixture(autouse=True)

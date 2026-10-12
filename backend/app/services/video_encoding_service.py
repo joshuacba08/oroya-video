@@ -24,6 +24,7 @@ from app.core.paths import (
     get_job_silent_video_path,
     get_temp_path,
 )
+from app.db.database import commit_progress
 from app.db.repositories import job_repository
 from app.schemas.job_schema import (
     DeleteEncodedVideoResponse,
@@ -425,8 +426,8 @@ def encode_video_for_job(
                             f"Encoding progress: {frames_processed}/{enhanced_frames}",
                             stage="encoding_video",
                         )
-                    db.commit()
-                    logger.info("Video encoding progress updated: %s", frames_processed)
+                    commit_progress(db)
+                    logger.debug("Video encoding progress updated: %s", frames_processed)
 
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":

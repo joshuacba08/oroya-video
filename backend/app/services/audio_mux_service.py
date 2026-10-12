@@ -24,6 +24,7 @@ from app.core.paths import (
     resolve_path,
     to_client_path,
 )
+from app.db.database import commit_progress
 from app.db.repositories import job_repository
 from app.schemas.job_schema import (
     AudioMuxSummaryResponse,
@@ -247,7 +248,7 @@ def _run_mux_command(
                             "elapsed_time_seconds": int(time.monotonic() - started_at),
                         },
                     )
-                    db.commit()
+                    commit_progress(db)
 
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":

@@ -686,3 +686,12 @@ class ProcessTerminationFailedError(OroyaVideoError):
             error_code="process_termination_failed",
             status_code=500,
         )
+
+
+class DatabaseMigrationFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "The database could not be upgraded. It was restored from the automatic backup.",
+            error_code="database_migration_failed",
+            status_code=500,
+        )

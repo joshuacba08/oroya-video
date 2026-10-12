@@ -31,7 +31,11 @@ class FakeHttpResponse(io.BytesIO):
         self.close()
 
 
-def test_oroya_data_dir_redirects_storage_and_database(tmp_path: Path) -> None:
+def test_oroya_data_dir_redirects_storage_and_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # conftest fija STORAGE_PATH para aislar la suite; aquí se prueban los valores por defecto.
+    monkeypatch.delenv("STORAGE_PATH", raising=False)
     data_dir = tmp_path / "oroya-data"
     settings = Settings(oroya_data_dir=str(data_dir))
 
@@ -56,7 +60,8 @@ def test_oroya_data_dir_respects_explicit_overrides(tmp_path: Path) -> None:
     assert settings.database_url == "sqlite:///C:/custom/oroya.sqlite"
 
 
-def test_defaults_unchanged_without_data_dir() -> None:
+def test_defaults_unchanged_without_data_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("STORAGE_PATH", raising=False)
     settings = Settings()
 
     assert settings.oroya_data_dir is None

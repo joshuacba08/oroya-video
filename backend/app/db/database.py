@@ -1,12 +1,19 @@
 from collections.abc import Generator
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, event, inspect, text
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from app.core.config import Settings, get_settings
+from app.core.logging import get_logger
 from app.core.paths import BACKEND_ROOT
+
+logger = get_logger(__name__)
+
+# Espera ante un bloqueo antes de dar error (el worker escribe mientras la UI consulta).
+SQLITE_BUSY_TIMEOUT_MS = 30_000
 
 Base = declarative_base()
 engine: Engine | None = None
@@ -43,7 +50,17 @@ def _build_add_column_sql(engine: Engine, table_name: str, column) -> str:
     default_sql = ""
     if column.default is not None and getattr(column.default, "is_scalar", False):
         default_sql = f" DEFAULT {_sql_literal(column.default.arg)}"
-    nullable_sql = "" if column.nullable else " NOT NULL"
+    elif column.server_default is not None and hasattr(column.server_default, "arg"):
+        default_sql = f" DEFAULT {_sql_literal(column.server_default.arg)}"
+    # SQLite rechaza ADD COLUMN NOT NULL sin DEFAULT: con un default calculado en Python
+    # (o sin default) la columna se añade nullable en vez de impedir que la app arranque.
+    nullable_sql = "" if column.nullable or not default_sql else " NOT NULL"
+    if not column.nullable and not default_sql:
+        logger.warning(
+            "Column %s.%s added as nullable: NOT NULL needs a SQL default on existing rows.",
+            table_name,
+            column.name,
+        )
     return (
         f'ALTER TABLE "{table_name}" ADD COLUMN "{column.name}" '
         f"{column_type}{default_sql}{nullable_sql}"
@@ -69,6 +86,35 @@ def _ensure_sqlite_schema(engine: Engine) -> None:
                 existing_columns.add(column.name)
 
 
+def _configure_sqlite_connection(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+        # WAL: lecturas (UI, SSE) y escrituras (worker) sin bloquearse entre sí.
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    finally:
+        cursor.close()
+
+
+def commit_progress(db: Session) -> bool:
+    """Commit a progress-only update; a transient lock must not fail a long job.
+
+    Returns False when the update was dropped (the next one will carry fresher values).
+    State changes (failed, completed...) keep using a plain commit.
+    """
+    try:
+        db.commit()
+        return True
+    except OperationalError as exc:
+        message = str(exc).lower()
+        if "locked" not in message and "busy" not in message:
+            raise
+        db.rollback()
+        logger.warning("Progress update skipped, database busy: %s", exc)
+        return False
+
+
 def init_db(settings: Settings | None = None) -> None:
     global engine, SessionLocal, _current_database_url
 
@@ -81,10 +127,17 @@ def init_db(settings: Settings | None = None) -> None:
         SessionLocal = None
 
     if engine is None:
+        is_sqlite = resolved_database_url.startswith("sqlite")
         engine = create_engine(
             resolved_database_url,
-            connect_args={"check_same_thread": False},
+            connect_args=(
+                {"check_same_thread": False, "timeout": SQLITE_BUSY_TIMEOUT_MS / 1000}
+                if is_sqlite
+                else {}
+            ),
         )
+        if is_sqlite and ":memory:" not in resolved_database_url:
+            event.listen(engine, "connect", _configure_sqlite_connection)
         SessionLocal = sessionmaker(
             autocommit=False,
             autoflush=False,
@@ -94,8 +147,17 @@ def init_db(settings: Settings | None = None) -> None:
 
     import app.db.models  # noqa: F401
 
+    is_new_database = not inspect(engine).get_table_names()
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_schema(engine)
+
+    from app.db.migrations import run_migrations, sqlite_file_from_url
+
+    # Una base recién creada no tiene datos que proteger: sin copia de seguridad.
+    run_migrations(
+        engine,
+        None if is_new_database else sqlite_file_from_url(resolved_database_url),
+    )
 
 
 def get_db() -> Generator[Session]:

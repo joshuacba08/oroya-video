@@ -33,6 +33,7 @@ from app.core.paths import (
     get_job_enhanced_frames_path,
     get_model_path,
 )
+from app.db.database import commit_progress
 from app.db.models import AIModel, ProcessingJob
 from app.db.repositories import ai_model_repository, job_repository
 from app.enhancers.realesrgan_enhancer import RealESRGANFrameEnhancer
@@ -601,7 +602,7 @@ def process_realesrgan_frames_for_job(
                 stage="enhancing_frames",
             )
         if processed >= total or time.monotonic() - last_sync >= DB_SYNC_INTERVAL_SECONDS:
-            db.commit()
+            commit_progress(db)
             last_sync = time.monotonic()
 
     def sync_job_state() -> None:
@@ -609,7 +610,7 @@ def process_realesrgan_frames_for_job(
         if time.monotonic() - last_sync < DB_SYNC_INTERVAL_SECONDS:
             return
         # Guardar el progreso pendiente antes de recargar el job (refresh lo descartaría).
-        db.commit()
+        commit_progress(db)
         db.refresh(job)
         last_sync = time.monotonic()
 
