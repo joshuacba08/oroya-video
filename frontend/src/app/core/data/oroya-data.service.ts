@@ -157,6 +157,11 @@ export class OroyaDataService {
       '/dashboard',
       mapDashboard,
       MOCK_DASHBOARD,
+    ).pipe(
+      map((dashboard) => ({
+        ...dashboard,
+        recentProjects: dashboard.recentProjects.map((project) => this.withThumbnail(project)),
+      })),
     );
   }
 
@@ -252,7 +257,7 @@ export class OroyaDataService {
       mapProjects,
       MOCK_PROJECTS,
       { search },
-    );
+    ).pipe(map((projects) => projects.map((project) => this.withThumbnail(project))));
   }
 
   queue(): Observable<QueueJobVm[]> {
@@ -721,10 +726,25 @@ export class OroyaDataService {
     }
   }
 
+  private thumbnailPath(videoAssetId: string | undefined): string {
+    if (!videoAssetId || environment.dataMode === 'mock') {
+      return '';
+    }
+    return `/videos/${encodeURIComponent(videoAssetId)}/thumbnail`;
+  }
+
+  private withThumbnail(project: ProjectCardVm): ProjectCardVm {
+    const path = this.thumbnailPath(project.videoAssetId);
+    return path ? { ...project, thumbnailUrl: this.api.resolveUrl(path) } : project;
+  }
+
   private withResolvedPreviewUrls(workspace: WorkspaceVm): WorkspaceVm {
     return {
       ...workspace,
-      previewBefore: this.api.resolveUrl(workspace.previewBefore),
+      // Sin frames procesados todavía, se muestra un fotograma del video original.
+      previewBefore: this.api.resolveUrl(
+        workspace.previewBefore || this.thumbnailPath(workspace.videoAssetId),
+      ),
       previewAfter: this.api.resolveUrl(workspace.previewAfter),
     };
   }

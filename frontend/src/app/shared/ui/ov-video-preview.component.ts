@@ -56,6 +56,15 @@ export type PreviewZoom = 'fit' | '100%';
             <strong>{{ 'preview.emptyTitle' | t }}</strong>
             <span>{{ 'preview.emptyBody' | t }}</span>
           </div>
+        } @else if (!afterSrc()) {
+          <figure class="ov-video-preview__original-only">
+            <figcaption>{{ beforeLabel() }}</figcaption>
+            <img [src]="beforeSrc()" [alt]="'preview.originalAlt' | t" />
+            <span class="ov-video-preview__hint">
+              <n-icon name="sparkles" size="sm" />
+              {{ 'preview.originalOnlyHint' | t }}
+            </span>
+          </figure>
         } @else if (compareMode() === 'slider') {
           <n-image-compare
             [beforeSrc]="beforeSrc()"
@@ -147,6 +156,8 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview {
         display: grid;
+        /* Sin columna explícita, el min-content del pie ensancha todo el panel. */
+        grid-template-columns: minmax(0, 1fr);
         grid-template-rows: auto minmax(320px, 1fr) auto;
         min-height: 0;
       }
@@ -154,8 +165,9 @@ export type PreviewZoom = 'fit' | '100%';
       .ov-video-preview__toolbar {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         justify-content: space-between;
-        gap: 12px;
+        gap: 8px 12px;
         padding: 10px 18px;
         border-bottom: 1px solid var(--n-border-1);
         background: rgba(255, 255, 255, 0.02);
@@ -200,6 +212,7 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__stage {
         display: grid;
+        grid-template-columns: minmax(0, 1fr);
         place-items: center;
         min-height: 0;
         padding: clamp(18px, 5vw, 72px);
@@ -229,6 +242,51 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__stage n-image-compare {
         width: min(100%, 1180px);
+      }
+
+      /* La librería fija min-height: 340px con aspect-ratio 16/9, que obliga a 604 px de ancho. */
+      :host ::ng-deep .ov-video-preview__stage .n-image-compare {
+        min-height: 0;
+      }
+
+      .ov-video-preview__original-only {
+        position: relative;
+        display: grid;
+        gap: 6px;
+        width: min(100%, 1180px);
+        margin: 0;
+      }
+
+      .ov-video-preview__original-only figcaption {
+        color: var(--n-text-3);
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .ov-video-preview__original-only img {
+        width: 100%;
+        max-height: 62vh;
+        object-fit: contain;
+        border-radius: var(--n-radius-md);
+        background: #000;
+      }
+
+      .ov-video-preview__hint {
+        position: absolute;
+        bottom: 12px;
+        left: 50%;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border: 1px solid var(--n-border-1);
+        border-radius: var(--n-radius-full);
+        background: color-mix(in srgb, var(--n-bg-canvas), transparent 15%);
+        color: var(--n-text-2);
+        font-size: 0.78rem;
+        transform: translateX(-50%);
+        white-space: nowrap;
       }
 
       .ov-video-preview__split {
@@ -298,7 +356,7 @@ export type PreviewZoom = 'fit' | '100%';
 
       .ov-video-preview__frames {
         display: grid;
-        grid-template-columns: repeat(10, minmax(36px, 1fr));
+        grid-template-columns: repeat(10, minmax(0, 1fr));
         gap: 4px;
         min-width: 0;
         overflow: hidden;

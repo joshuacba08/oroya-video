@@ -1,3 +1,5 @@
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,7 @@ from app.core.paths import get_job_export_path, get_job_working_path
 from app.db import database
 from app.db.repositories import job_repository
 from app.main import create_app
+from app.services.cleanup_service import start_startup_temp_cleanup
 from tests.test_projects import _create_project, _import_video
 
 
@@ -82,6 +85,28 @@ def test_temp_cleanup_skips_paused_jobs(cleanup_env) -> None:
     assert response.status_code == 200
     assert get_job_working_path(paused_job, settings).exists()
     assert not get_job_working_path(failed_job, settings).exists()
+
+
+def test_startup_cleanup_applies_temp_max_age_but_keeps_interrupted_jobs(cleanup_env) -> None:
+    client, source_file, settings = cleanup_env
+    project_id = _create_project(client, _import_video(client, source_file)["id"])["project"]["id"]
+    old_job = _create_job_with_files(client, project_id, settings)
+    interrupted_job = _create_job_with_files(client, project_id, settings)
+    recent_job = _create_job_with_files(client, project_id, settings)
+    _set_status(old_job, "completed")
+    _set_status(interrupted_job, "interrupted")
+    _set_status(recent_job, "completed")
+    old = time.time() - (settings.cleanup_temp_older_than_hours + 1) * 3600
+    for job_id in (old_job, interrupted_job):
+        os.utime(get_job_working_path(job_id, settings), (old, old))
+
+    start_startup_temp_cleanup(settings).join(timeout=10)
+
+    assert not get_job_working_path(old_job, settings).exists()
+    assert get_job_working_path(interrupted_job, settings).exists()
+    assert get_job_working_path(recent_job, settings).exists()
+    # Las exportaciones no son temporales.
+    assert get_job_export_path(project_id, old_job, settings).exists()
 
 
 def test_workspace_opens_when_preview_frames_were_deleted(cleanup_env) -> None:

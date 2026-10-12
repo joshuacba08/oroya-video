@@ -16,6 +16,7 @@ from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
 from app.services.ai_runtime_service import ensure_ai_extra_site_dir
+from app.services.cleanup_service import start_startup_temp_cleanup
 from app.services.job_recovery_service import recover_interrupted_jobs_on_startup
 from app.services.process_registry_service import clear_registry
 from app.services.settings_service import apply_persisted_settings
@@ -80,6 +81,8 @@ def create_lifespan(settings: Settings):
                 recover_interrupted_jobs_on_startup(db, active_settings)
             finally:
                 db.close()
+            # Tras la recuperación: los jobs que quedaron a medias ya figuran como interrumpidos.
+            start_startup_temp_cleanup(active_settings)
         start_job_worker(active_settings)
         start_parent_watchdog()
 

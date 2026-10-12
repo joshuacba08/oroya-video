@@ -187,6 +187,12 @@ def test_bootstrap_dashboard_app_state_queue_and_settings_contracts(contract_cli
         "storage",
         "models",
     }
+    # Los proyectos recientes tienen la misma forma que /projects (modelo, escala, duración).
+    recent = dashboard_response.json()["recent_projects"][0]
+    assert recent["id"] == project["id"]
+    assert recent["enhancement_config"] == project["enhancement_config"]
+    assert recent["video_duration_seconds"] == video["duration_seconds"]
+    assert recent["video_duration_seconds"] is not None
     assert app_state_response.status_code == 200
     assert set(app_state_response.json()) == {"backend", "queue", "system", "storage"}
     assert queue_response.status_code == 200

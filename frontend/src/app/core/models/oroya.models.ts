@@ -37,6 +37,8 @@ export interface StartupVm {
 }
 
 export interface ProjectCardVm {
+  /** Fotograma del video original (URL absoluta), si hay video asociado. */
+  thumbnailUrl?: string;
   id: string;
   videoAssetId?: string;
   latestJobId?: string;

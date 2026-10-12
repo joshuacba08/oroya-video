@@ -83,6 +83,11 @@ export class OroyaApiClient {
   }
 
   resolveUrl(pathOrUrl: string): string {
+    // Vacío sigue vacío: una URL a la raíz de la API en un <img> se ve como imagen rota.
+    if (!pathOrUrl) {
+      return '';
+    }
+
     if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
       return pathOrUrl;
     }

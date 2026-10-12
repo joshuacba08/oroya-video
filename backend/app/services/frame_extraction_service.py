@@ -149,6 +149,26 @@ def _mark_job_failed(
     db.commit()
 
 
+def get_reusable_extracted_frames(job) -> int | None:
+    """Frames a previous run of this job (pause/resume, retry) already extracted, else None.
+
+    The originals are complete, or the enhanced set is: after enhancement the originals are
+    trimmed to the preview set and are no longer needed to continue.
+    """
+    expected = job.extracted_frames or 0
+    if not job.extraction_completed_at or expected <= 0 or not job.original_frames_dir:
+        return None
+    originals_dir = Path(job.original_frames_dir)
+    if not originals_dir.is_dir():
+        return None
+    if count_extracted_frames(originals_dir) == expected:
+        return expected
+    enhanced_dir = Path(job.enhanced_frames_dir) if job.enhanced_frames_dir else None
+    if enhanced_dir and enhanced_dir.is_dir() and count_extracted_frames(enhanced_dir) >= expected:
+        return expected
+    return None
+
+
 def extract_frames_for_job(
     db: Session,
     job_id: str,
@@ -158,6 +178,28 @@ def extract_frames_for_job(
     job = job_repository.get_job_by_id(db, job_id)
     if not job:
         raise JobNotFoundError()
+
+    reusable_frames = get_reusable_extracted_frames(job)
+    if reusable_frames is not None:
+        # Al reanudar no se vuelve a ejecutar ffmpeg ni a retroceder el progreso.
+        job_repository.update_job(
+            db,
+            job,
+            {
+                "status": "running",
+                "progress_percent": max(job.progress_percent or 0.0, EXTRACTION_PROGRESS_END),
+            },
+        )
+        job_repository.create_job_log(
+            db,
+            job.id,
+            "info",
+            f"Reusing {reusable_frames} frames extracted earlier.",
+            stage="extracting_frames",
+        )
+        db.commit()
+        logger.info("Frame extraction skipped, frames already extracted: %s", job_id)
+        return job
 
     try:
         input_path = resolve_job_input_video(job)

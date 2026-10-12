@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import threading
 import time
 from pathlib import Path
 
@@ -28,7 +29,16 @@ from app.services.frame_extraction_service import time_to_datetime
 logger = get_logger(__name__)
 
 
-TEMP_PROTECTED_JOB_STATUSES = ("pending", "queued", "running", "paused", "retrying", "cleaning")
+# Interrumpidos (app cerrada a mitad) incluidos: al reintentar reutilizan sus frames.
+TEMP_PROTECTED_JOB_STATUSES = (
+    "pending",
+    "queued",
+    "running",
+    "paused",
+    "retrying",
+    "cleaning",
+    "interrupted",
+)
 
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
@@ -396,7 +406,7 @@ def cleanup_old_temp_files(
     jobs_cleaned = 0
     jobs_scanned = 0
     warnings: list[str] = []
-    # Jobs que aún necesitan sus frames (en curso o pausados para reanudar).
+    # Jobs que aún necesitan sus frames (en curso, pausados o interrumpidos).
     protected_job_ids = {
         job_id
         for (job_id,) in db.query(ProcessingJob.id).filter(
@@ -436,6 +446,47 @@ def cleanup_old_temp_files(
         items=items,
         warnings=warnings,
     )
+
+
+def _cleanup_old_temp_files_in_background(settings: Settings) -> None:
+    from app.db import database
+
+    if database.SessionLocal is None:
+        return
+    db = database.SessionLocal()
+    try:
+        result = cleanup_old_temp_files(
+            db,
+            older_than_hours=settings.cleanup_temp_older_than_hours,
+            settings=settings,
+        )
+        if result.jobs_cleaned:
+            logger.info(
+                "Startup temp cleanup: %s job folders older than %s h, %s bytes freed.",
+                result.jobs_cleaned,
+                settings.cleanup_temp_older_than_hours,
+                result.freed_bytes,
+            )
+    except Exception:
+        logger.exception("Startup temp cleanup failed")
+    finally:
+        db.close()
+
+
+def start_startup_temp_cleanup(settings: Settings) -> threading.Thread:
+    """Apply the temp max-age setting once per start, without delaying it.
+
+    Without this the setting only worked through POST /system/cleanup/temp, which the UI
+    never calls, and the frames of old jobs piled up (gigabytes per long video).
+    """
+    thread = threading.Thread(
+        target=_cleanup_old_temp_files_in_background,
+        args=(settings,),
+        daemon=True,
+        name="startup-temp-cleanup",
+    )
+    thread.start()
+    return thread
 
 
 def cleanup_all_safe_temp_files(

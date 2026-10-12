@@ -58,6 +58,8 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         self.processed_frames = 0
         self.completed_frames = 0
         self.failed_frames = 0
+        # Solo los frames realmente mejorados: los ya hechos (reanudar) no cuentan en el promedio.
+        self.timed_frames = 0
         self.total_frame_time_ms = 0.0
         self.average_frame_time_ms: int | None = None
         self.model_load_time_ms: int | None = None
@@ -71,6 +73,7 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         self.processed_frames = 0
         self.completed_frames = 0
         self.failed_frames = 0
+        self.timed_frames = 0
         self.total_frame_time_ms = 0.0
         self.average_frame_time_ms = None
         self.tile_fallbacks = 0
@@ -141,10 +144,11 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
 
             self.processed_frames += 1
             self.completed_frames += 1
+            self.timed_frames += 1
             self.total_frame_time_ms += elapsed_time_ms
             self.average_frame_time_ms = calculate_average_ms(
                 self.total_frame_time_ms,
-                self.processed_frames,
+                self.timed_frames,
             )
             if progress_callback:
                 progress_callback(self.completed_frames, total)

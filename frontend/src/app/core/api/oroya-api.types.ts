@@ -345,6 +345,23 @@ export interface paths {
         patch: operations["patch_settings_route_api_v1_settings_patch"];
         trace?: never;
     };
+    "/api/v1/videos/{video_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Poster frame of the video (PNG), generated on first request */
+        get: operations["get_video_thumbnail_route_api_v1_videos__video_id__thumbnail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/videos/probe": {
         parameters: {
             query?: never;
@@ -1637,6 +1654,23 @@ export interface paths {
         head?: never;
         /** Update backend settings */
         patch: operations["patch_settings_route_api_settings_patch"];
+        trace?: never;
+    };
+    "/api/videos/{video_id}/thumbnail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Poster frame of the video (PNG), generated on first request */
+        get: operations["get_video_thumbnail_route_api_videos__video_id__thumbnail_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/videos/probe": {
@@ -4310,6 +4344,8 @@ export interface components {
             updated_at: string;
             /** Last Opened At */
             last_opened_at: string | null;
+            /** Video Duration Seconds */
+            video_duration_seconds?: number | null;
         };
         /** ProjectUpdateRequest */
         ProjectUpdateRequest: {
@@ -5384,6 +5420,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SettingsUpdateResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_thumbnail_route_api_v1_videos__video_id__thumbnail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -8037,6 +8102,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SettingsUpdateResponse"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_video_thumbnail_route_api_videos__video_id__thumbnail_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                video_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

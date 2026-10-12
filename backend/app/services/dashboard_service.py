@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.db.models import AIModel, ExportAsset, ProcessingJob, Project, VideoAsset
+from app.db.repositories.project_repository import to_project_response
 from app.schemas.hardening_schema import QueueItemResponse, QueueResponse
 from app.schemas.settings_schema import (
     AppStateBackendResponse,
@@ -107,14 +108,9 @@ def get_dashboard_response(db: Session, settings: Settings | None = None) -> Das
         .all()
     )
     return DashboardResponse(
+        # Misma forma que /projects: las tarjetas necesitan modelo, escala y duración.
         recent_projects=[
-            {
-                "id": project.id,
-                "name": project.name,
-                "status": project.status,
-                "updated_at": project.updated_at,
-            }
-            for project in recent_projects
+            to_project_response(project).model_dump(mode="json") for project in recent_projects
         ],
         recent_exports=[
             {

@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
@@ -20,9 +21,22 @@ from app.services.video_import_service import (
     list_video_assets,
 )
 from app.services.video_probe_service import probe_video
+from app.services.video_thumbnail_service import get_video_thumbnail
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
+
+
+@router.get(
+    "/{video_id}/thumbnail",
+    response_class=FileResponse,
+    summary="Poster frame of the video (PNG), generated on first request",
+)
+def get_video_thumbnail_route(video_id: str, request: Request, db: DbSession) -> FileResponse:
+    path = get_video_thumbnail(db, video_id, request.app.state.settings)
+    return FileResponse(
+        path, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"}
+    )
 
 
 @router.post("/probe", response_model=VideoProbeResponse, summary="Analyze local video metadata")

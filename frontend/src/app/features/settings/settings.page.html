@@ -21,19 +21,19 @@
       </ov-settings-row>
       <ov-settings-row [label]="'settings.cleanupOnSuccess' | t">
         <label class="switch">
-          <input type="checkbox" [checked]="settings.cleanupTempOnSuccess" (change)="updateCleanupOnSuccess($any($event.target).checked)" />
+          <input type="checkbox" [attr.aria-label]="'settings.cleanupOnSuccess' | t" [checked]="settings.cleanupTempOnSuccess" (change)="updateCleanupOnSuccess($any($event.target).checked)" />
           <span></span>
         </label>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.previewKept' | t" [description]="'settings.previewKeptDescription' | t">
         <div class="range-row">
-          <input type="range" min="4" max="96" step="4" [value]="settings.cleanupKeepPreviewFrames" (change)="updateKeepPreviewFrames($any($event.target).value)" />
+          <input type="range" [attr.aria-label]="'settings.previewKept' | t" min="4" max="96" step="4" [value]="settings.cleanupKeepPreviewFrames" (change)="updateKeepPreviewFrames($any($event.target).value)" />
           <strong>{{ settings.cleanupKeepPreviewFrames }}</strong>
         </div>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.tempMaxAge' | t" [description]="'settings.tempMaxAgeDescription' | t">
         <div class="range-row">
-          <input type="range" min="12" max="336" step="12" [value]="settings.cleanupOlderThanHours" (change)="updateTempMaxAge($any($event.target).value)" />
+          <input type="range" [attr.aria-label]="'settings.tempMaxAge' | t" min="12" max="336" step="12" [value]="settings.cleanupOlderThanHours" (change)="updateTempMaxAge($any($event.target).value)" />
           <strong>{{ 'settings.hours' | t: { hours: settings.cleanupOlderThanHours } }}</strong>
         </div>
       </ov-settings-row>
@@ -49,31 +49,31 @@
       </ov-settings-row>
       <ov-settings-row [label]="'settings.allowCpu' | t">
         <label class="switch">
-          <input type="checkbox" [checked]="settings.aiAllowCpu" (change)="updateAllowCpu($any($event.target).checked)" />
+          <input type="checkbox" [attr.aria-label]="'settings.allowCpu' | t" [checked]="settings.aiAllowCpu" (change)="updateAllowCpu($any($event.target).checked)" />
           <span></span>
         </label>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.halfPrecision' | t">
         <label class="switch">
-          <input type="checkbox" [checked]="settings.aiHalfPrecision" (change)="updateHalfPrecision($any($event.target).checked)" />
+          <input type="checkbox" [attr.aria-label]="'settings.halfPrecision' | t" [checked]="settings.aiHalfPrecision" (change)="updateHalfPrecision($any($event.target).checked)" />
           <span></span>
         </label>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.tileSize' | t" [description]="'settings.tileSizeDescription' | t">
         <div class="range-row">
-          <input type="range" min="0" max="1200" step="100" [value]="settings.realesrganTileSize" (change)="updateTileSize($any($event.target).value)" />
+          <input type="range" [attr.aria-label]="'settings.tileSize' | t" min="0" max="1200" step="100" [value]="settings.realesrganTileSize" (change)="updateTileSize($any($event.target).value)" />
           <strong>{{ settings.realesrganTileSize }}</strong>
         </div>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.tilePad' | t" [description]="'settings.tilePadDescription' | t">
         <div class="range-row">
-          <input type="range" min="0" max="50" step="2" [value]="settings.realesrganTilePad" (change)="updateTilePad($any($event.target).value)" />
+          <input type="range" [attr.aria-label]="'settings.tilePad' | t" min="0" max="50" step="2" [value]="settings.realesrganTilePad" (change)="updateTilePad($any($event.target).value)" />
           <strong>{{ settings.realesrganTilePad }}</strong>
         </div>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.prePad' | t" [description]="'settings.prePadDescription' | t">
         <div class="range-row">
-          <input type="range" min="0" max="50" step="2" [value]="settings.realesrganPrePad" (change)="updatePrePad($any($event.target).value)" />
+          <input type="range" [attr.aria-label]="'settings.prePad' | t" min="0" max="50" step="2" [value]="settings.realesrganPrePad" (change)="updatePrePad($any($event.target).value)" />
           <strong>{{ settings.realesrganPrePad }}</strong>
         </div>
       </ov-settings-row>

@@ -58,7 +58,10 @@
         </n-button>
         @if (liveJob(); as job) {
           @if (hasActiveLiveJob()) {
-            <span class="workspace-page__live-status">
+            <span class="workspace-page__live-status" [class.workspace-page__live-status--paused]="job.status === 'paused'">
+              @if (job.status === 'paused') {
+                <strong>{{ 'status.paused' | t }}</strong>
+              }
               {{ job.stage }} - {{ job.progress }}%
               @if (job.etaLabel) {
                 <em>{{ job.etaLabel }}</em>
@@ -219,6 +222,7 @@
           <label class="switch">
             <input
               type="checkbox"
+              [attr.aria-label]="'workspace.compressionCleanup' | t"
               [checked]="current.compressionCleanup"
               (change)="setCompressionCleanup(workspace, $any($event.target).checked)"
             />
@@ -230,6 +234,7 @@
           <label class="switch">
             <input
               type="checkbox"
+              [attr.aria-label]="'workspace.faceRestore' | t"
               [checked]="current.faceRestore && workspace.faceRestoreAvailable"
               [disabled]="!workspace.faceRestoreAvailable"
               (change)="setFaceRestore(workspace, $any($event.target).checked)"
@@ -260,6 +265,7 @@
           <label class="switch">
             <input
               type="checkbox"
+              [attr.aria-label]="'workspace.keepAudio' | t"
               [checked]="current.keepAudio"
               (change)="setKeepAudio(workspace, $any($event.target).checked)"
             />
