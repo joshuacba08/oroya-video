@@ -168,3 +168,13 @@ def test_ffmpeg_download_rejects_an_archive_with_another_checksum(setup_client) 
     progress = client.get("/api/system/ffmpeg/download/progress").json()
     assert progress["status"] == "failed"
     assert not (data_dir / "bin" / "ffmpeg.exe").exists()
+
+
+def test_custom_storage_path_moves_the_default_database(tmp_path, monkeypatch) -> None:
+    # Aunque el .env repita DATABASE_URL con su valor por defecto.
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///storage/db/oroya-video.sqlite")
+    settings = Settings(storage_path=str(tmp_path / "e2e-storage"))
+
+    assert settings.database_url == (
+        f"sqlite:///{(tmp_path / 'e2e-storage' / 'db' / 'oroya-video.sqlite').as_posix()}"
+    )

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
         "tauri://localhost,http://tauri.localhost,https://tauri.localhost"
     )
     frame_enhancer_engine: str = "mock"
+    # Solo para pruebas: ralentiza el motor mock (ms por frame).
+    mock_enhancer_frame_delay_ms: int = 0
     ai_device: str = "auto"
     ai_allow_cpu: bool = True
     ai_half_precision: bool = True
@@ -71,6 +73,15 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _apply_data_dir_defaults(self) -> "Settings":
         if not self.oroya_data_dir:
+            # Con otro STORAGE_PATH (tests, E2E) la base va dentro de ese almacenamiento,
+            # aunque un .env repita DATABASE_URL con el valor por defecto: antes la base
+            # seguía siendo la de backend/storage y los tests tocaban los datos de desarrollo.
+            if (
+                self.database_url == DEFAULT_DATABASE_URL
+                and self.storage_path != DEFAULT_STORAGE_PATH
+            ):
+                db_path = Path(self.storage_path) / "db" / "oroya-video.sqlite"
+                self.database_url = f"sqlite:///{db_path.as_posix()}"
             return self
 
         data_dir = Path(self.oroya_data_dir)

@@ -185,7 +185,7 @@
             </div>
           }
         </div>
-      } @else if (startup$ | async; as startup) {
+      } @else if (startup(); as startup) {
         @if (showOfflinePanel(startup)) {
           <div class="ov-offline-panel">
             <n-icon name="plug-zap" size="xl" />
@@ -210,12 +210,13 @@
               {{ 'shell.offlineRetry' | t }}
             </n-button>
           </div>
-        } @else {
-          <router-outlet />
         }
-      } @else {
-        <router-outlet />
       }
+      <!-- Un único outlet, siempre montado: si cambiara de rama al llegar el estado de arranque
+           se destruiría la página activa (y cualquier acción en curso con ella). -->
+      <div class="ov-router-page" [hidden]="pageHidden()">
+        <router-outlet />
+      </div>
     </section>
   </main>
 </n-shell>

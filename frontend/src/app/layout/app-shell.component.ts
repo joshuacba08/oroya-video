@@ -1,5 +1,6 @@
 import { AsyncPipe } from '@angular/common';
 import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
@@ -142,6 +143,16 @@ export class AppShellComponent {
     // La plantilla usa `startup$ | async` en varios sitios: una sola petición de arranque.
     shareReplay({ bufferSize: 1, refCount: false }),
   );
+
+  readonly startup = toSignal(this.startup$, { initialValue: null });
+  /** Paneles de arranque, fallo o "sin conexión": la página queda montada pero oculta. */
+  readonly pageHidden = computed(() => {
+    if (this.desktopBackendPhase()) {
+      return true;
+    }
+    const startup = this.startup();
+    return !!startup && this.showOfflinePanel(startup);
+  });
 
   retryBackend(): void {
     this.retry$.next(Date.now());

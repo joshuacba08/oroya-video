@@ -340,3 +340,11 @@
     grid-template-columns: auto minmax(0, 1fr);
   }
 }
+
+.ov-router-page {
+  display: contents;
+}
+
+.ov-router-page[hidden] {
+  display: none;
+}
