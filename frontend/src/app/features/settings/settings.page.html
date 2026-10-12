@@ -100,5 +100,24 @@
         </n-button>
       </ov-settings-row>
     </section>
+
+    <section class="settings-page__section">
+      <h2>{{ 'settings.support' | t }}</h2>
+      <ov-settings-row [label]="'settings.diagnostics' | t" [description]="'settings.diagnosticsDescription' | t">
+        <n-button variant="secondary" size="sm" [disabled]="diagnosticsBusy()" (click)="exportDiagnostics()">
+          <n-icon name="download" size="sm" />
+          {{ (diagnosticsBusy() ? 'settings.diagnosticsBusy' : 'settings.diagnosticsExport') | t }}
+        </n-button>
+      </ov-settings-row>
+      @if (diagnosticsFile(); as fileName) {
+        <p class="settings-page__note" role="status">{{ 'settings.diagnosticsDone' | t: { file: fileName } }}</p>
+      }
+      <ov-settings-row [label]="'settings.logsFolder' | t" [description]="'settings.logsFolderDescription' | t">
+        <n-button variant="secondary" size="sm" (click)="openStorage('logs')">
+          <n-icon name="folder-open" size="sm" />
+          {{ 'common.openFolder' | t }}
+        </n-button>
+      </ov-settings-row>
+    </section>
   }
 </section>

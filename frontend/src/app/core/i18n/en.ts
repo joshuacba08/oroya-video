@@ -2,6 +2,7 @@
 export const en = {
   'common.request': 'Request {id}',
   'common.cancel': 'Cancel',
+  'common.close': 'Close',
   'common.retry': 'Retry',
   'common.pause': 'Pause',
   'common.resume': 'Resume',
@@ -366,6 +367,16 @@ export const en = {
   'errors.database_migration_failed': 'The database could not be upgraded. It was restored from the automatic backup.',
   'errors.forbidden_host': 'Request blocked: it did not come from this computer.',
   'errors.forbidden_origin': 'Request blocked: it did not come from Oroya Video.',
+  'settings.support': 'Support',
+  'settings.diagnostics': 'Diagnostic report',
+  'settings.diagnosticsDescription': 'A zip with logs, system details and recent jobs to attach to a bug report. Nothing is sent anywhere.',
+  'settings.diagnosticsExport': 'Export',
+  'settings.diagnosticsBusy': 'Exporting...',
+  'settings.diagnosticsDone': 'Saved as {file}; its folder has been opened.',
+  'settings.logsFolder': 'Logs folder',
+  'settings.logsFolderDescription': 'backend.log and backend-process.log',
+  'errors.unexpectedUiTitle': 'Something went wrong',
+  'errors.unexpectedUi': 'An unexpected error occurred. It was saved to the log; if it repeats, export a diagnostic report from Settings.',
 } as const;
 
 export type TranslationKey = keyof typeof en;

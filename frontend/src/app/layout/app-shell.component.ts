@@ -36,6 +36,7 @@ import { TranslatePipe } from '../core/i18n/translate.pipe';
 import type { ApiErrorVm, PickedVideo, StartupVm } from '../core/models/oroya.models';
 import { OvGpuMeterComponent } from '../shared/ui/ov-gpu-meter.component';
 import { OvManualPathImportComponent } from '../shared/ui/ov-manual-path-import.component';
+import { OvNotificationsComponent } from '../shared/ui/ov-notifications.component';
 
 type NavItem = {
   path: string;
@@ -60,6 +61,7 @@ type NavItem = {
     NSidebarSection,
     OvGpuMeterComponent,
     OvManualPathImportComponent,
+    OvNotificationsComponent,
     RouterOutlet,
   ],
   templateUrl: './app-shell.component.html',

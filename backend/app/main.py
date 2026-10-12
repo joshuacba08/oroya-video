@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import OroyaVideoError
-from app.core.logging import configure_logging, get_logger
+from app.core.logging import configure_logging, get_logger, install_exception_hooks
 from app.core.parent_watchdog import start_parent_watchdog
 from app.core.paths import ensure_storage_directories, get_storage_path
 from app.db import database
@@ -99,6 +99,10 @@ def create_lifespan(settings: Settings):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     active_settings = apply_persisted_settings(settings or get_settings())
+    # Antes de crear la app: los errores de arranque (settings, base de datos...) quedan
+    # registrados en backend.log y no solo en una consola que nadie ve.
+    configure_logging(active_settings)
+    install_exception_hooks()
     app = FastAPI(
         title=active_settings.app_name,
         version=active_settings.app_version,

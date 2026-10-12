@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a diagnostic zip (logs, system state, recent jobs) and reveal it */
+        post: operations["diagnostics_route_api_v1_system_diagnostics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/system/client-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an error reported by the UI in backend.log */
+        post: operations["client_log_route_api_v1_system_client_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/info": {
         parameters: {
             query?: never;
@@ -268,7 +302,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Open a storage folder (temp, models or exports) in the file explorer */
+        /** Open a storage folder (temp, models, exports or logs) in the file explorer */
         post: operations["storage_open_route_api_v1_system_storage_open_post"];
         delete?: never;
         options?: never;
@@ -1468,6 +1502,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/diagnostics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a diagnostic zip (logs, system state, recent jobs) and reveal it */
+        post: operations["diagnostics_route_api_system_diagnostics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/client-log": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an error reported by the UI in backend.log */
+        post: operations["client_log_route_api_system_client_log_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/info": {
         parameters: {
             query?: never;
@@ -1596,7 +1664,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Open a storage folder (temp, models or exports) in the file explorer */
+        /** Open a storage folder (temp, models, exports or logs) in the file explorer */
         post: operations["storage_open_route_api_system_storage_open_post"];
         delete?: never;
         options?: never;
@@ -3144,6 +3212,21 @@ export interface components {
             /** Cleanup Temp Older Than Hours */
             cleanup_temp_older_than_hours: number;
         };
+        /** ClientLogRequest */
+        ClientLogRequest: {
+            /**
+             * Level
+             * @default error
+             * @enum {string}
+             */
+            level: "error" | "warning";
+            /** Message */
+            message: string;
+            /** Stack */
+            stack?: string | null;
+            /** Url */
+            url?: string | null;
+        };
         /** CompareFrameResponse */
         CompareFrameResponse: {
             /** Job Id */
@@ -3227,6 +3310,17 @@ export interface components {
             deleted: boolean;
             /** Job Id */
             job_id: string;
+        };
+        /** DiagnosticsResponse */
+        DiagnosticsResponse: {
+            /** File Name */
+            file_name: string;
+            /** Path */
+            path: string;
+            /** Size Bytes */
+            size_bytes: number;
+            /** Opened */
+            opened: boolean;
         };
         /** DiskInfo */
         DiskInfo: {
@@ -5187,6 +5281,57 @@ export interface operations {
             };
         };
     };
+    diagnostics_route_api_v1_system_diagnostics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticsResponse"];
+                };
+            };
+        };
+    };
+    client_log_route_api_v1_system_client_log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientLogRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     system_info_api_v1_system_info_get: {
         parameters: {
             query?: never;
@@ -5330,7 +5475,7 @@ export interface operations {
     storage_open_route_api_v1_system_storage_open_post: {
         parameters: {
             query: {
-                target: "temp" | "models" | "exports";
+                target: "temp" | "models" | "exports" | "logs";
             };
             header?: never;
             path?: never;
@@ -7900,6 +8045,57 @@ export interface operations {
             };
         };
     };
+    diagnostics_route_api_system_diagnostics_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DiagnosticsResponse"];
+                };
+            };
+        };
+    };
+    client_log_route_api_system_client_log_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientLogRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     system_info_api_system_info_get: {
         parameters: {
             query?: never;
@@ -8043,7 +8239,7 @@ export interface operations {
     storage_open_route_api_system_storage_open_post: {
         parameters: {
             query: {
-                target: "temp" | "models" | "exports";
+                target: "temp" | "models" | "exports" | "logs";
             };
             header?: never;
             path?: never;

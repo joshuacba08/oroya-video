@@ -3,6 +3,7 @@ import type { TranslationKey } from './en';
 export const es: Record<TranslationKey, string> = {
   'common.request': 'Solicitud {id}',
   'common.cancel': 'Cancelar',
+  'common.close': 'Cerrar',
   'common.retry': 'Reintentar',
   'common.pause': 'Pausar',
   'common.resume': 'Reanudar',
@@ -369,4 +370,14 @@ export const es: Record<TranslationKey, string> = {
   'errors.database_migration_failed': 'No se pudo actualizar la base de datos. Se restauró desde la copia automática.',
   'errors.forbidden_host': 'Petición bloqueada: no viene de este equipo.',
   'errors.forbidden_origin': 'Petición bloqueada: no viene de Oroya Video.',
+  'settings.support': 'Soporte',
+  'settings.diagnostics': 'Informe de diagnóstico',
+  'settings.diagnosticsDescription': 'Un zip con logs, datos del sistema y jobs recientes para adjuntar al reportar un problema. No se envía nada a ningún sitio.',
+  'settings.diagnosticsExport': 'Exportar',
+  'settings.diagnosticsBusy': 'Exportando...',
+  'settings.diagnosticsDone': 'Guardado como {file}; se abrió su carpeta.',
+  'settings.logsFolder': 'Carpeta de logs',
+  'settings.logsFolderDescription': 'backend.log y backend-process.log',
+  'errors.unexpectedUiTitle': 'Algo salió mal',
+  'errors.unexpectedUi': 'Ocurrió un error inesperado. Quedó guardado en el log; si se repite, exporta un diagnóstico desde Ajustes.',
 };

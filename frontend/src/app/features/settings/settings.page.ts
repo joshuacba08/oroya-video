@@ -14,7 +14,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm } from '../../core/models/oroya.models';
 import { OvSettingsRowComponent } from '../../shared/ui/ov-settings-row.component';
 
-type StorageTarget = 'temp' | 'models' | 'exports';
+type StorageTarget = 'temp' | 'models' | 'exports' | 'logs';
 
 @Component({
   selector: 'app-settings-page',
@@ -123,6 +123,22 @@ export class SettingsPage {
       await firstValueFrom(this.data.openStorageFolder(target));
     } catch (error) {
       this.error.set(this.data.toErrorVm(error));
+    }
+  }
+
+  readonly diagnosticsBusy = signal(false);
+  readonly diagnosticsFile = signal<string | null>(null);
+
+  async exportDiagnostics(): Promise<void> {
+    try {
+      this.error.set(null);
+      this.diagnosticsBusy.set(true);
+      const result = await firstValueFrom(this.data.exportDiagnostics());
+      this.diagnosticsFile.set(result.file_name);
+    } catch (error) {
+      this.error.set(this.data.toErrorVm(error));
+    } finally {
+      this.diagnosticsBusy.set(false);
     }
   }
 

@@ -10,6 +10,7 @@ export type AppStateResponse = components['schemas']['AppStateResponse'];
 export type BootstrapResponse = components['schemas']['BootstrapResponse'];
 export type CompareFrameResponse = components['schemas']['CompareFrameResponse'];
 export type DashboardResponse = components['schemas']['DashboardResponse'];
+export type DiagnosticsResponse = components['schemas']['DiagnosticsResponse'];
 export type ExportDeleteResponse = components['schemas']['ExportDeleteResponse'];
 export type GPUResponse = components['schemas']['GPUResponse'];
 export type FFmpegDownloadStartResponse = components['schemas']['FFmpegDownloadStartResponse'];

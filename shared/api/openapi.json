@@ -236,6 +236,61 @@
         }
       }
     },
+    "/api/v1/system/diagnostics": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Create a diagnostic zip (logs, system state, recent jobs) and reveal it",
+        "operationId": "diagnostics_route_api_v1_system_diagnostics_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/client-log": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Record an error reported by the UI in backend.log",
+        "operationId": "client_log_route_api_v1_system_client_log_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientLogRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/info": {
       "get": {
         "tags": [
@@ -388,7 +443,7 @@
         "tags": [
           "System"
         ],
-        "summary": "Open a storage folder (temp, models or exports) in the file explorer",
+        "summary": "Open a storage folder (temp, models, exports or logs) in the file explorer",
         "operationId": "storage_open_route_api_v1_system_storage_open_post",
         "parameters": [
           {
@@ -399,7 +454,8 @@
               "enum": [
                 "temp",
                 "models",
-                "exports"
+                "exports",
+                "logs"
               ],
               "type": "string",
               "title": "Target"
@@ -4174,6 +4230,61 @@
         }
       }
     },
+    "/api/system/diagnostics": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Create a diagnostic zip (logs, system state, recent jobs) and reveal it",
+        "operationId": "diagnostics_route_api_system_diagnostics_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/client-log": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Record an error reported by the UI in backend.log",
+        "operationId": "client_log_route_api_system_client_log_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientLogRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/system/info": {
       "get": {
         "tags": [
@@ -4326,7 +4437,7 @@
         "tags": [
           "System"
         ],
-        "summary": "Open a storage folder (temp, models or exports) in the file explorer",
+        "summary": "Open a storage folder (temp, models, exports or logs) in the file explorer",
         "operationId": "storage_open_route_api_system_storage_open_post",
         "parameters": [
           {
@@ -4337,7 +4448,8 @@
               "enum": [
                 "temp",
                 "models",
-                "exports"
+                "exports",
+                "logs"
               ],
               "type": "string",
               "title": "Target"
@@ -9431,6 +9543,53 @@
         ],
         "title": "CleanupSettingsResponse"
       },
+      "ClientLogRequest": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "title": "Level",
+            "default": "error"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Message"
+          },
+          "stack": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ClientLogRequest"
+      },
       "CompareFrameResponse": {
         "properties": {
           "job_id": {
@@ -9654,6 +9813,34 @@
           "job_id"
         ],
         "title": "DeleteMuxedVideoResponse"
+      },
+      "DiagnosticsResponse": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "opened": {
+            "type": "boolean",
+            "title": "Opened"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "path",
+          "size_bytes",
+          "opened"
+        ],
+        "title": "DiagnosticsResponse"
       },
       "DiskInfo": {
         "properties": {

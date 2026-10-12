@@ -24,6 +24,7 @@ import type {
   BootstrapResponse,
   CompareFrameResponse,
   DashboardResponse,
+  DiagnosticsResponse,
   ExportDeleteResponse,
   ExportListResponse,
   ExportOpenResponse,
@@ -570,7 +571,14 @@ export class OroyaDataService {
     );
   }
 
-  openStorageFolder(target: 'temp' | 'models' | 'exports'): Observable<unknown> {
+  /** Zip con logs, estado del sistema y jobs recientes; el backend abre su carpeta. */
+  exportDiagnostics(): Observable<DiagnosticsResponse> {
+    return this.command(() =>
+      this.api.post<DiagnosticsResponse>('/system/diagnostics', undefined, SLOW_REQUEST_MS),
+    );
+  }
+
+  openStorageFolder(target: 'temp' | 'models' | 'exports' | 'logs'): Observable<unknown> {
     return this.command(() =>
       this.api.post(`/system/storage/open?target=${encodeURIComponent(target)}`),
     );
