@@ -2,6 +2,7 @@
 export const en = {
   'common.request': 'Request {id}',
   'common.cancel': 'Cancel',
+  'common.save': 'Save',
   'common.close': 'Close',
   'common.retry': 'Retry',
   'common.pause': 'Pause',
@@ -377,6 +378,8 @@ export const en = {
   'settings.logsFolderDescription': 'backend.log and backend-process.log',
   'errors.unexpectedUiTitle': 'Something went wrong',
   'errors.unexpectedUi': 'An unexpected error occurred. It was saved to the log; if it repeats, export a diagnostic report from Settings.',
+  'settings.change': 'Change…',
+  'settings.exportsFolderPrompt': 'Absolute path of the folder for exported videos',
 } as const;
 
 export type TranslationKey = keyof typeof en;

@@ -32,6 +32,16 @@ export class DesktopService {
     return null;
   }
 
+  /** Selector de carpetas nativo (solo escritorio); null si se cancela. */
+  async pickFolder(defaultPath?: string): Promise<string | null> {
+    if (!this.isDesktop()) {
+      return null;
+    }
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({ directory: true, multiple: false, defaultPath });
+    return typeof selected === 'string' ? selected : null;
+  }
+
   /** Abre una URL http(s) en el navegador del sistema (Tauri) o en una pestaña nueva. */
   async openUrl(url: string): Promise<void> {
     if (!url) {

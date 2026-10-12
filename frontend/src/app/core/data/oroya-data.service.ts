@@ -8,6 +8,7 @@ import {
   of,
   retry,
   switchMap,
+  takeWhile,
   tap,
   throwError,
   timer,
@@ -473,7 +474,11 @@ export class OroyaDataService {
     intervalMs = 1000,
     onError?: PollErrorHandler,
   ): Observable<QueueJobVm> {
-    const polling = resilientPoll(intervalMs, () => this.jobProgress(jobId, projectName), onError);
+    // Igual que el stream SSE: el sondeo de respaldo termina cuando el job llega a un estado
+    // final (antes seguía preguntando cada segundo indefinidamente).
+    const polling = resilientPoll(intervalMs, () => this.jobProgress(jobId, projectName), onError).pipe(
+      takeWhile((job) => !SSE_FINAL_STATUSES.has(job.status), true),
+    );
     if (environment.dataMode === 'mock' || typeof EventSource === 'undefined') {
       return polling;
     }
@@ -489,7 +494,13 @@ export class OroyaDataService {
         this.api.resolveUrl(`/jobs/${encodeURIComponent(jobId)}/events`),
       );
       source.onmessage = (event: MessageEvent<string>) => {
-        const response = JSON.parse(event.data) as JobProgressResponse;
+        let response: JobProgressResponse;
+        try {
+          response = JSON.parse(event.data) as JobProgressResponse;
+        } catch {
+          // Un evento corrupto no debe romper la vista: se ignora y llega el siguiente.
+          return;
+        }
         subscriber.next(mapJobProgress(response, projectName));
         if (SSE_FINAL_STATUSES.has(response.status)) {
           // Cerrar antes de que el servidor corte: EventSource reconectaría solo.

@@ -15144,6 +15144,16 @@
                 "type": "null"
               }
             ]
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StorageSettingsPatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -15255,6 +15265,23 @@
           "disk"
         ],
         "title": "StorageResponse"
+      },
+      "StorageSettingsPatch": {
+        "properties": {
+          "exports_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exports Dir"
+          }
+        },
+        "type": "object",
+        "title": "StorageSettingsPatch"
       },
       "StorageSettingsResponse": {
         "properties": {

@@ -59,10 +59,15 @@ class CleanupSettingsPatch(BaseModel):
     cleanup_temp_older_than_hours: int | None = None
 
 
+class StorageSettingsPatch(BaseModel):
+    exports_dir: str | None = None
+
+
 class SettingsUpdateRequest(BaseModel):
     general: GeneralSettingsPatch | None = None
     processing: ProcessingSettingsPatch | None = None
     cleanup: CleanupSettingsPatch | None = None
+    storage: StorageSettingsPatch | None = None
 
 
 class SettingsUpdateResponse(BaseModel):

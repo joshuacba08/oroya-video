@@ -34,6 +34,7 @@ import type { TranslationKey } from '../core/i18n/en';
 import { translate } from '../core/i18n/i18n';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
 import type { ApiErrorVm, PickedVideo, StartupVm } from '../core/models/oroya.models';
+import { OvDialogHostComponent } from '../shared/ui/ov-dialog-host.component';
 import { OvGpuMeterComponent } from '../shared/ui/ov-gpu-meter.component';
 import { OvManualPathImportComponent } from '../shared/ui/ov-manual-path-import.component';
 import { OvNotificationsComponent } from '../shared/ui/ov-notifications.component';
@@ -59,6 +60,7 @@ type NavItem = {
     NSidebar,
     NSidebarItem,
     NSidebarSection,
+    OvDialogHostComponent,
     OvGpuMeterComponent,
     OvManualPathImportComponent,
     OvNotificationsComponent,

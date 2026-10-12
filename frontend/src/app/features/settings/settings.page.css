@@ -119,3 +119,10 @@ input[type='range'] {
   color: var(--n-color-success);
   font-size: 0.8rem;
 }
+
+.settings-page__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}

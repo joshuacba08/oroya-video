@@ -1,3 +1,4 @@
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -21,6 +22,9 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = True
     oroya_data_dir: str | None = None
+    # Carpeta de los videos exportados. En escritorio, por defecto la de Vídeos del usuario:
+    # fuera de AppData, desinstalar con "borrar datos" no se lleva los videos.
+    exports_dir: str | None = None
     # Lo genera la app de escritorio en cada arranque: identifica a su backend (health) y
     # autoriza el apagado ordenado. Sin él (desarrollo) /system/shutdown no está disponible.
     oroya_instance_id: str | None = None
@@ -77,7 +81,44 @@ class Settings(BaseSettings):
             self.database_url = f"sqlite:///{db_path.as_posix()}"
         if self.ai_extra_site_dir is None:
             self.ai_extra_site_dir = str(data_dir / "ai-env")
+        if self.exports_dir is None:
+            self.exports_dir = str(default_videos_dir() / "Oroya Video")
         return self
+
+
+def default_videos_dir() -> Path:
+    """The user's Videos folder (Windows known folder, also when redirected to OneDrive)."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            from ctypes import wintypes
+
+            class GUID(ctypes.Structure):
+                _fields_ = [
+                    ("Data1", wintypes.DWORD),
+                    ("Data2", wintypes.WORD),
+                    ("Data3", wintypes.WORD),
+                    ("Data4", ctypes.c_ubyte * 8),
+                ]
+
+            # FOLDERID_Videos {18989B1D-99B5-455B-841C-AB7C74E4DDFC}
+            folder_id = GUID(
+                0x18989B1D,
+                0x99B5,
+                0x455B,
+                (ctypes.c_ubyte * 8)(0x84, 0x1C, 0xAB, 0x7C, 0x74, 0xE4, 0xDD, 0xFC),
+            )
+            path_pointer = ctypes.c_wchar_p()
+            result = ctypes.windll.shell32.SHGetKnownFolderPath(
+                ctypes.byref(folder_id), 0, None, ctypes.byref(path_pointer)
+            )
+            if result == 0 and path_pointer.value:
+                folder = Path(path_pointer.value)
+                ctypes.windll.ole32.CoTaskMemFree(path_pointer)
+                return folder
+        except (AttributeError, OSError):
+            pass
+    return Path.home() / "Videos"
 
 
 @lru_cache

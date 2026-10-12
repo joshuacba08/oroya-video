@@ -3,6 +3,7 @@ import type { TranslationKey } from './en';
 export const es: Record<TranslationKey, string> = {
   'common.request': 'Solicitud {id}',
   'common.cancel': 'Cancelar',
+  'common.save': 'Guardar',
   'common.close': 'Cerrar',
   'common.retry': 'Reintentar',
   'common.pause': 'Pausar',
@@ -380,4 +381,6 @@ export const es: Record<TranslationKey, string> = {
   'settings.logsFolderDescription': 'backend.log y backend-process.log',
   'errors.unexpectedUiTitle': 'Algo salió mal',
   'errors.unexpectedUi': 'Ocurrió un error inesperado. Quedó guardado en el log; si se repite, exporta un diagnóstico desde Ajustes.',
+  'settings.change': 'Cambiar…',
+  'settings.exportsFolderPrompt': 'Ruta absoluta de la carpeta para los videos exportados',
 };

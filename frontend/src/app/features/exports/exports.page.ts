@@ -14,6 +14,7 @@ import { BehaviorSubject, catchError, firstValueFrom, of, switchMap } from 'rxjs
 
 import { OroyaApiError } from '../../core/api/oroya-api-client';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { DialogService } from '../../core/dialogs/dialog.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm, ExportVm, ExportsPageVm } from '../../core/models/oroya.models';
@@ -28,6 +29,7 @@ import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.comp
 })
 export class ExportsPage {
   private readonly data = inject(OroyaDataService);
+  private readonly dialogs = inject(DialogService);
   private readonly injector = inject(Injector);
   private readonly reload$ = new BehaviorSubject(0);
   private readonly player = viewChild<ElementRef<HTMLVideoElement>>('player');
@@ -90,7 +92,13 @@ export class ExportsPage {
   }
 
   async deleteExport(item: ExportVm): Promise<void> {
-    if (!window.confirm(translate('exports.deleteConfirm', { name: item.fileName }))) {
+    const confirmed = await this.dialogs.confirm({
+      title: translate('exports.delete'),
+      message: translate('exports.deleteConfirm', { name: item.fileName }),
+      confirmLabel: translate('common.delete'),
+      danger: true,
+    });
+    if (!confirmed) {
       return;
     }
     await this.runExportAction(item.id, async () => {

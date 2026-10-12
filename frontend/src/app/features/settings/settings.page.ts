@@ -9,6 +9,8 @@ import { BehaviorSubject, catchError, firstValueFrom, of, switchMap } from 'rxjs
 import { environment } from '../../../environments/environment';
 import type { SettingsUpdateRequest } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { DesktopService } from '../../core/desktop/desktop.service';
+import { DialogService } from '../../core/dialogs/dialog.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm } from '../../core/models/oroya.models';
@@ -25,6 +27,8 @@ type StorageTarget = 'temp' | 'models' | 'exports' | 'logs';
 })
 export class SettingsPage {
   private readonly data = inject(OroyaDataService);
+  private readonly desktop = inject(DesktopService);
+  private readonly dialogs = inject(DialogService);
   private readonly reload$ = new BehaviorSubject(0);
 
   readonly error = signal<ApiErrorVm | null>(null);
@@ -124,6 +128,22 @@ export class SettingsPage {
     } catch (error) {
       this.error.set(this.data.toErrorVm(error));
     }
+  }
+
+  /** Escritorio: selector de carpetas; navegador (desarrollo): ruta escrita a mano. */
+  async changeExportsFolder(currentPath: string): Promise<void> {
+    const folder = this.desktop.isDesktop()
+      ? await this.desktop.pickFolder(currentPath)
+      : await this.dialogs.prompt({
+          title: translate('settings.exportsFolder'),
+          label: translate('settings.exportsFolderPrompt'),
+          value: currentPath,
+          confirmLabel: translate('common.save'),
+        });
+    if (!folder || folder === currentPath) {
+      return;
+    }
+    await this.patch({ storage: { exports_dir: folder } });
   }
 
   readonly diagnosticsBusy = signal(false);

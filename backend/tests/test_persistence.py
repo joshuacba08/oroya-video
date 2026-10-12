@@ -161,3 +161,52 @@ def test_settings_are_saved_atomically(tmp_path) -> None:
     saved = json.loads(settings_file.read_text(encoding="utf-8"))
     assert saved["processing"]["frame_enhancer_engine"] == "mock"
     assert not settings_file.with_name(f"{settings_file.name}.tmp").exists()
+
+
+def test_desktop_exports_default_to_the_videos_folder(tmp_path, monkeypatch) -> None:
+    monkeypatch.delenv("STORAGE_PATH", raising=False)
+    monkeypatch.setattr("app.core.config.default_videos_dir", lambda: tmp_path / "Videos")
+
+    settings = Settings(oroya_data_dir=str(tmp_path / "AppData"))
+
+    from app.core.paths import get_exports_path
+
+    assert get_exports_path(settings) == tmp_path / "Videos" / "Oroya Video"
+
+
+def test_export_folder_can_be_changed_and_is_validated(tmp_path) -> None:
+    from fastapi.testclient import TestClient
+
+    from app.core.paths import get_exports_path
+    from app.main import create_app
+
+    settings = _settings(tmp_path)
+    target = tmp_path / "Mis videos"
+    with TestClient(create_app(settings)) as client:
+        relative = client.patch(
+            "/api/v1/settings", json={"storage": {"exports_dir": "relative/folder"}}
+        )
+        changed = client.patch("/api/v1/settings", json={"storage": {"exports_dir": str(target)}})
+
+    assert relative.status_code == 400
+    assert changed.status_code == 200
+    assert changed.json()["settings"]["storage"]["exports_path"] == str(target.resolve())
+    assert target.is_dir()
+    assert get_exports_path(settings) == target.resolve()
+    saved = json.loads(settings_service._get_settings_file(settings).read_text(encoding="utf-8"))
+    assert saved["storage"]["exports_dir"] == str(target.resolve())
+
+
+def test_deleting_job_files_also_cleans_exports_in_the_previous_folder(tmp_path) -> None:
+    from app.services.job_workspace_service import delete_job_files
+
+    settings = _settings(tmp_path)
+    old_export = Path(settings.storage_path) / "exports" / "project-1" / "job-1"
+    old_export.mkdir(parents=True)
+    (old_export / "video.mp4").write_bytes(b"mp4")
+    settings.exports_dir = str(tmp_path / "Videos" / "Oroya Video")
+
+    delete_job_files("job-1", "project-1", settings)
+
+    assert not old_export.exists()
+    assert not old_export.parent.exists()

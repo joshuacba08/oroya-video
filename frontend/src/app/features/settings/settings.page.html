@@ -94,10 +94,16 @@
         </n-button>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.exportsFolder' | t" [description]="settings.exportsPath">
-        <n-button variant="secondary" size="sm" (click)="openStorage('exports')">
-          <n-icon name="folder-open" size="sm" />
-          {{ 'common.openFolder' | t }}
-        </n-button>
+        <div class="settings-page__buttons">
+          <n-button variant="secondary" size="sm" [disabled]="saving()" (click)="changeExportsFolder(settings.exportsPath)">
+            <n-icon name="pencil" size="sm" />
+            {{ 'settings.change' | t }}
+          </n-button>
+          <n-button variant="secondary" size="sm" (click)="openStorage('exports')">
+            <n-icon name="folder-open" size="sm" />
+            {{ 'common.openFolder' | t }}
+          </n-button>
+        </div>
       </ov-settings-row>
     </section>
 

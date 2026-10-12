@@ -33,6 +33,7 @@ DEFAULT_SETTINGS_FILE = {
     },
     "processing": {},
     "cleanup": {},
+    "storage": {},
 }
 ALLOWED_FRAME_ENHANCERS = {"mock", "realesrgan"}
 ALLOWED_AI_DEVICES = {"auto", "cpu", "cuda"}
@@ -87,7 +88,7 @@ def _load_ui_settings(settings: Settings | None = None) -> dict:
             return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
 
     merged = json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
-    for section in ("general", "processing", "cleanup"):
+    for section in ("general", "processing", "cleanup", "storage"):
         value = loaded.get(section)
         if isinstance(value, dict):
             merged[section].update(value)
@@ -129,6 +130,9 @@ def apply_persisted_settings(settings: Settings | None = None) -> Settings:
     saved_settings = _load_ui_settings(active_settings)
     processing_settings = saved_settings.get("processing", {})
     cleanup_settings = saved_settings.get("cleanup", {})
+    exports_dir = saved_settings.get("storage", {}).get("exports_dir")
+    if isinstance(exports_dir, str) and exports_dir.strip():
+        active_settings.exports_dir = exports_dir
 
     for field_name in (
         "frame_enhancer_engine",
@@ -275,5 +279,30 @@ def _update_settings_locked(
                 "cleanup_temp_older_than_hours"
             ]
 
+    if "storage" in update_data and update_data["storage"] is not None:
+        exports_dir = update_data["storage"].get("exports_dir")
+        if exports_dir is not None:
+            _ensure_no_running_jobs(db)
+            folder = _validated_exports_dir(exports_dir)
+            active_settings.exports_dir = str(folder)
+            ui_settings.setdefault("storage", {})["exports_dir"] = str(folder)
+
     _save_ui_settings(ui_settings, active_settings)
     return SettingsUpdateResponse(updated=True, settings=build_settings_response(active_settings))
+
+
+def _validated_exports_dir(raw_path: str) -> Path:
+    """Absolute, existing (or creatable) and writable folder for the exported videos."""
+    folder = Path(raw_path.strip()).expanduser()
+    if not raw_path.strip() or not folder.is_absolute():
+        raise InvalidProjectConfigurationError("The export folder must be an absolute path.")
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".oroya-write-test"
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError as exc:
+        raise InvalidProjectConfigurationError(
+            "The export folder cannot be created or written to."
+        ) from exc
+    return folder.resolve()

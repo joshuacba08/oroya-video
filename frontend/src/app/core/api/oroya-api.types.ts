@@ -4760,6 +4760,7 @@ export interface components {
             general?: components["schemas"]["GeneralSettingsPatch"] | null;
             processing?: components["schemas"]["ProcessingSettingsPatch"] | null;
             cleanup?: components["schemas"]["CleanupSettingsPatch"] | null;
+            storage?: components["schemas"]["StorageSettingsPatch"] | null;
         };
         /** SettingsUpdateResponse */
         SettingsUpdateResponse: {
@@ -4800,6 +4801,11 @@ export interface components {
             storage_path: string;
             paths: components["schemas"]["StoragePaths"];
             disk: components["schemas"]["DiskInfo"];
+        };
+        /** StorageSettingsPatch */
+        StorageSettingsPatch: {
+            /** Exports Dir */
+            exports_dir?: string | null;
         };
         /** StorageSettingsResponse */
         StorageSettingsResponse: {
