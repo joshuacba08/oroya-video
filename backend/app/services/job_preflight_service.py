@@ -32,6 +32,8 @@ from app.services.ai_runtime_service import get_ai_runtime_status
 from app.services.audit_log_service import record_audit_event
 from app.services.face_restore_service import FACE_RESTORE_MODEL_SLUG, get_face_restore_strength
 from app.services.frame_extraction_service import resolve_job_input_video, validate_ffmpeg_available
+from app.services.interpolation_service import get_job_interpolation, is_rife_model_ready
+from app.services.job_contract_service import resolve_pipeline_mode
 from app.services.realesrgan_service import validate_realesrgan_model
 from app.services.video_probe_service import _get_ffprobe_path
 from app.utils.enhancement_config import parse_enhancement_config_json
@@ -175,6 +177,19 @@ def run_job_preflight(
                 + ", ".join(missing_modules)
                 + ". Install the AI runtime from Setup."
             )
+
+    if get_job_interpolation(job) is not None:
+        checks["interpolation_ready"] = False
+        if resolve_pipeline_mode(job, active_settings) != "streaming":
+            errors.append(
+                "Frame interpolation needs the streaming pipeline (processing.pipeline_mode)."
+            )
+        elif not is_rife_model_ready(db):
+            errors.append("Frame interpolation needs the RIFE model: download it in Models.")
+        elif not ai_runtime_service.is_torch_available():
+            errors.append("Frame interpolation needs the AI runtime: install it from Setup.")
+        else:
+            checks["interpolation_ready"] = True
 
     if _has_active_process(job):
         errors.append("This job already has an active registered process.")

@@ -246,6 +246,10 @@ export const es: Record<TranslationKey, string> = {
   'workspace.faceRestore': 'Restaurar rostros',
   'workspace.faceStrength': 'Intensidad en rostros',
   'workspace.faceRestoreUnavailable': 'Descarga el modelo GFPGAN para restaurar rostros:',
+  'workspace.interpolation': 'Interpolar fotogramas',
+  'workspace.interpolationUnavailable': 'Descarga el modelo RIFE para interpolar fotogramas:',
+  'workspace.interpolationTarget': 'Fotogramas por segundo',
+  'workspace.interpolationDouble': '2× ({fps} fps)',
   'modelDescription.gfpgan-v1.4':
     'Restauración de rostros aplicada tras el escalado (paso opcional).',
   'errors.face_restore_not_available':
@@ -418,6 +422,7 @@ export const es: Record<TranslationKey, string> = {
   'import.pathHint2': 'Una ruta por línea (Mayús+Enter para otra línea)',
   'batch.title': 'Procesar {count} videos',
   'batch.model': 'Modelo de IA',
+  'batch.interpolationDouble': '2× (el doble)',
   'batch.scale': 'Resolución',
   'batch.queue': 'Poner en cola {count} videos',
   'batch.queueing': 'Encolando…',

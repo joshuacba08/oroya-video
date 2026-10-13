@@ -25,6 +25,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -41,6 +42,8 @@ from app.core.errors import (
     FFmpegStalledError,
     FrameEnhancerNotFoundError,
     FrameExtractionFailedError,
+    FrameInterpolationFailedError,
+    FrameInterpolationNotAvailableError,
     InsufficientDiskSpaceError,
     JobNotFoundError,
     OroyaVideoError,
@@ -61,7 +64,14 @@ from app.core.paths import (
 from app.db.database import commit_progress
 from app.db.models import ProcessingJob
 from app.db.repositories import job_repository
-from app.enhancers.stream import Frame, FrameProcessor, ImageProcessor, PassthroughProcessor
+from app.enhancers.rife_interpolator import source_fps_fraction
+from app.enhancers.stream import (
+    Frame,
+    FrameProcessor,
+    ImageProcessor,
+    InterpolationStage,
+    PassthroughProcessor,
+)
 from app.services import job_workspace_service
 from app.services.face_restore_service import build_face_restorer
 from app.services.frame_extraction_service import (
@@ -72,6 +82,7 @@ from app.services.frame_extraction_service import (
     time_to_datetime,
     validate_ffmpeg_available,
 )
+from app.services.interpolation_service import build_interpolation_stage
 from app.services.pipeline_progress import (
     PROCESSING_PROGRESS_END,
     PROCESSING_PROGRESS_START,
@@ -129,6 +140,8 @@ PROCESSOR_ERRORS = (
     FaceRestoreFailedError,
     FaceRestoreNotAvailableError,
     FrameEnhancerNotFoundError,
+    FrameInterpolationFailedError,
+    FrameInterpolationNotAvailableError,
     RealESRGANFrameProcessingFailedError,
     RealESRGANModelLoadFailedError,
     RealESRGANNotAvailableError,
@@ -197,13 +210,15 @@ def preview_sample_indexes(total_frames: int, samples: int) -> set[int]:
 # Comandos ffmpeg
 
 
-def _fps_arg(fps: float) -> str:
+def _fps_arg(fps: float | Fraction) -> str:
+    if isinstance(fps, Fraction):
+        return f"{fps.numerator}/{fps.denominator}"
     return f"{fps:.6f}".rstrip("0").rstrip(".")
 
 
 def build_decoder_command(
     input_path: Path,
-    fps: float,
+    fps: float | Fraction,
     start_seconds: float = 0.0,
     duration_seconds: float | None = None,
     *,
@@ -238,7 +253,7 @@ def build_segment_encoder_command(
     output_path: Path,
     width: int,
     height: int,
-    fps: float,
+    fps: float | Fraction,
     video_filters: str | None = None,
 ) -> list[str]:
     return [
@@ -360,7 +375,7 @@ class SegmentEncoder:
         temp_path: Path,
         width: int,
         height: int,
-        fps: float,
+        fps: float | Fraction,
         video_filters: str | None,
     ) -> None:
         self.job_id = job_id
@@ -413,7 +428,7 @@ class SegmentEncoder:
 
 
 def probe_decoded_size(
-    ffmpeg_path: str, input_path: Path, fps: float, start: float
+    ffmpeg_path: str, input_path: Path, fps: float | Fraction, start: float
 ) -> tuple[int, int] | None:
     """Size of the decoded frames (after rotation metadata), from one PNG frame; None when no
     frame is left from `start` (resuming a job whose segments are all done)."""
@@ -510,13 +525,16 @@ def process_job_streaming(
         ffmpeg_path = validate_ffmpeg_available()
         input_path = resolve_job_input_video(job)
         processor, processor_scale = build_frame_processor(db, job, active_settings)
+        interpolation, output_fps = build_interpolation_stage(
+            db, job, active_settings, resolve_encoding_fps(job)
+        )
     except (FFmpegNotAvailableError, VideoAssetFileMissingError, *PROCESSOR_ERRORS) as exc:
         _mark_failed(db, job, exc.error_code, exc.message)
         raise
 
     run = _StreamingRun(db, job, active_settings, ffmpeg_path, input_path)
     try:
-        return run.execute(processor, processor_scale)
+        return run.execute(processor, processor_scale, interpolation, output_fps)
     except _StreamError as exc:
         run.stop_processes()
         _mark_failed(db, job, exc.error.error_code, exc.message)
@@ -567,7 +585,7 @@ class _StreamingRun:
             unregister_process(self.job.id, "ffmpeg_decode")
 
     def _start_decoder(self, start_seconds: float, duration: float | None) -> None:
-        command = build_decoder_command(self.input_path, self.fps, start_seconds, duration)
+        command = build_decoder_command(self.input_path, self.fps_exact, start_seconds, duration)
         command[0] = self.ffmpeg_path
         self.decoder = subprocess.Popen(
             command,
@@ -581,7 +599,13 @@ class _StreamingRun:
 
     # -- ejecución -----------------------------------------------------------------------
 
-    def execute(self, processor: FrameProcessor, processor_scale: int) -> ProcessingJob:
+    def execute(
+        self,
+        processor: FrameProcessor,
+        processor_scale: int,
+        interpolation: InterpolationStage | None = None,
+        output_fps: Fraction | None = None,
+    ) -> ProcessingJob:
         db, job, settings = self.db, self.job, self.settings
         workspace = job_workspace_service.prepare_job_workspace(job.id, settings)
         self.originals_dir = workspace["original_frames_dir"]
@@ -591,6 +615,13 @@ class _StreamingRun:
         self.segments_dir.mkdir(parents=True, exist_ok=True)
 
         self.fps = resolve_encoding_fps(job)
+        self.interpolation = interpolation
+        # Fracción exacta (24000/1001…) para decodificar y codificar al mismo ritmo.
+        self.fps_exact = source_fps_fraction(self.fps)
+        self.output_fps: Fraction = output_fps or self.fps_exact
+        self.encoder = None
+        self.segment_done = 0
+        self.segment_start = 0
         trim = get_job_trim(job)
         self.estimated_total = estimate_total_frames(job) or 0
         self.segment_frames = job.segment_frames or max(settings.streaming_segment_frames, 1)
@@ -661,12 +692,22 @@ class _StreamingRun:
             ),
             stage=STAGE,
         )
+        if interpolation is not None:
+            job_repository.create_job_log(
+                db,
+                job.id,
+                "info",
+                f"Frame interpolation (RIFE 4.25): {self.fps:g} → {float(self.output_fps):g} fps.",
+                stage=STAGE,
+            )
         if user_filters:
             job_repository.create_job_log(
                 db, job.id, "info", f"Encoding filters: {user_filters}", stage=STAGE
             )
         db.commit()
 
+        if interpolation is not None:
+            interpolation.interpolator.load_model()
         if isinstance(processor, ImageProcessor):
             processor.load()
             job_repository.create_job_log(db, job.id, "info", "AI models loaded.", stage=STAGE)
@@ -674,7 +715,7 @@ class _StreamingRun:
 
         outcome = "completed"
         size = (
-            probe_decoded_size(self.ffmpeg_path, self.input_path, self.fps, seek)
+            probe_decoded_size(self.ffmpeg_path, self.input_path, self.fps_exact, seek)
             if remaining is None or remaining > 0
             else None
         )
@@ -790,7 +831,7 @@ class _StreamingRun:
             original = Frame(data, self.width, self.height)
             processed = processor.process(original)
             try:
-                self._encode(processed, frame_index)
+                self._emit(*self._outputs(frame_index, processed))
             except _StreamError:
                 if (reason := stop_reason_after_failure()) is not None:
                     return self._interrupt(reason)
@@ -812,7 +853,7 @@ class _StreamingRun:
 
             frame_index += 1
             processed_this_run += 1
-            if self.encoder is not None and self.encoder.frames >= self.segment_frames:
+            if self.segment_done >= self.segment_frames:
                 try:
                     self._close_segment()
                 except _StreamError:
@@ -827,48 +868,69 @@ class _StreamingRun:
         sync(force=True)
         if (reason := stop_requested()) is not None:
             return self._interrupt(reason)
+        if self.interpolation is not None:
+            # El último fotograma no tiene siguiente: sus fotogramas de salida lo repiten.
+            self._emit(*self.interpolation.flush())
         if self.encoder is not None:
             self._close_segment()
         self._check_decoder_exit()
         sync(force=True)
         return "completed"
 
-    def _encode(self, processed: Frame, frame_index: int) -> None:
-        if self.encoder is None:
-            self.encoder = SegmentEncoder(
-                self.ffmpeg_path,
-                self.job.id,
-                self.segments_dir / f"seg_{self.segment_index:05d}.part.mp4",
-                processed.width,
-                processed.height,
-                self.fps,
-                self.video_filters,
-            )
-            self.segment_start = frame_index
-        self.encoder.write(processed.data)
+    def _outputs(self, frame_index: int, processed: Frame) -> tuple[int | None, list[Frame]]:
+        """(source frame completed now, output frames to encode)."""
+        if self.interpolation is None:
+            return frame_index, [processed]
+        return self.interpolation.push(frame_index, processed)
+
+    def _emit(self, completed: int | None, frames: list[Frame]) -> None:
+        if completed is None:
+            return
+        for frame in frames:
+            if self.encoder is None:
+                self.encoder = SegmentEncoder(
+                    self.ffmpeg_path,
+                    self.job.id,
+                    self.segments_dir / f"seg_{self.segment_index:05d}.part.mp4",
+                    frame.width,
+                    frame.height,
+                    self.output_fps,
+                    self.video_filters,
+                )
+            self.encoder.write(frame.data)
+        # Un tramo cuenta fotogramas de origen completos: reanudar empieza en el siguiente.
+        if self.segment_done == 0:
+            self.segment_start = completed
+        self.segment_done += 1
 
     def _close_segment(self) -> None:
         assert self.encoder is not None
         encoder, self.encoder = self.encoder, None
         final_path = self.segments_dir / segment_file_name(
-            self.segment_index, self.segment_start, encoder.frames
+            self.segment_index, self.segment_start, self.segment_done
         )
+        self.segment_done = 0
         encoder.finish(final_path, self.settings.ffmpeg_stall_timeout_seconds)
         self.segment_index += 1
 
     def _interrupt(self, reason: str) -> str:
-        """Stop decoding. Pause and shutdown keep the segment in progress; cancel drops it."""
+        """Stop decoding. Pause and shutdown keep the segment in progress; cancel drops it.
+
+        A frame waiting for its successor (interpolation) is decoded again on resume.
+        """
         self._stop_decoder()
         if self.encoder is not None:
-            if reason == "cancelled" or self.encoder.frames == 0:
+            if reason == "cancelled" or self.segment_done == 0:
                 self.encoder.abort()
                 self.encoder = None
+                self.segment_done = 0
             else:
                 try:
                     self._close_segment()
                 except _StreamError:
                     # Al apagar, el codificador puede haber sido terminado ya: se rehace el tramo.
                     self.encoder = None
+                    self.segment_done = 0
         return reason
 
     def _check_decoder_exit(self) -> None:
@@ -1005,7 +1067,7 @@ class _StreamingRun:
             "encoded_video_file_name": ENCODED_VIDEO_FILE_NAME,
             "encoded_video_size_bytes": output_size,
             "encoded_size_bytes": output_size,
-            "encoding_fps": self.fps,
+            "encoding_fps": float(self.output_fps),
             "encoding_codec": ENCODING_CODEC,
             "encoding_format": ENCODING_FORMAT,
             "process_id": None,
@@ -1029,6 +1091,14 @@ class _StreamingRun:
             f"Streaming pipeline completed: {total} frames in {len(segments)} segments.",
             stage=STAGE,
         )
+        if self.interpolation is not None and self.interpolation.scene_changes:
+            job_repository.create_job_log(
+                db,
+                job.id,
+                "info",
+                f"{self.interpolation.scene_changes} scene changes kept without interpolation.",
+                stage=STAGE,
+            )
         if processor.failed_frames:
             job_repository.create_job_log(
                 db,

@@ -63,6 +63,16 @@ def build_job_actions(job: ProcessingJob) -> dict[str, bool]:
 PAUSABLE_STAGES = {"enhancing_frames", "processing"}
 
 
+def resolve_pipeline_mode(job, settings) -> str:
+    """The job keeps the pipeline it started with; jobs from before 0.5 (frames already
+    extracted to PNG) continue with the classic one."""
+    if job.pipeline_mode in {"streaming", "legacy"}:
+        return job.pipeline_mode
+    if job.extraction_started_at is not None:
+        return "legacy"
+    return settings.pipeline_mode
+
+
 def build_stage_label(stage: str) -> str:
     return STAGE_LABELS.get(stage, stage.replace("_", " ").title())
 

@@ -45,6 +45,8 @@ exclude = ["storage*"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+# Código de terceros incluido tal cual (MIT, ver THIRD_PARTY_NOTICES.md).
+extend-exclude = ["app/enhancers/rife/IFNet_HDv3_v4_25.py", "app/enhancers/rife/warplayer.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

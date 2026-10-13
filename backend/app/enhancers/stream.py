@@ -42,6 +42,47 @@ class PassthroughProcessor:
         return frame
 
 
+class InterpolationStage:
+    """Turn processed source frames into output frames at a higher frame rate.
+
+    The frames between source i and i+1 need both, so they are produced when i+1 arrives:
+    `push` returns the output frames of the previous interval (completing source frame i).
+    At the end, `flush` completes the last frame (repeated: there is nothing after it).
+    """
+
+    def __init__(self, interpolator: Any, schedule: Any, scene_change: Any) -> None:
+        self.interpolator = interpolator
+        self.schedule = schedule
+        self.scene_change = scene_change
+        self.pending: tuple[int, Frame] | None = None
+        self.scene_changes = 0
+
+    def push(self, index: int, frame: Frame) -> tuple[int | None, list[Frame]]:
+        """(source frame completed by this push or None, its output frames)."""
+        completed: tuple[int | None, list[Frame]] = (None, [])
+        if self.pending is not None:
+            previous_index, previous = self.pending
+            completed = (previous_index, self._interval(previous_index, previous, frame))
+        self.pending = (index, frame)
+        return completed
+
+    def flush(self) -> tuple[int | None, list[Frame]]:
+        if self.pending is None:
+            return None, []
+        index, frame = self.pending
+        self.pending = None
+        return index, [frame] * len(self.schedule.timesteps(index))
+
+    def _interval(self, index: int, first: Frame, second: Frame) -> list[Frame]:
+        timesteps = self.schedule.timesteps(index)
+        if self.scene_change(first, second):
+            self.scene_changes += 1
+            return [first] * len(timesteps)
+        between = [step for step in timesteps if step > 0]
+        synthesised = iter(self.interpolator.interpolate(first, second, between) if between else [])
+        return [first if step == 0 else next(synthesised) for step in timesteps]
+
+
 class ImageProcessor:
     """Real-ESRGAN upscale and/or GFPGAN face restoration on in-memory images."""
 

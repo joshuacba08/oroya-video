@@ -7,7 +7,7 @@ import { BatchService } from '../../core/data/batch.service';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
-import type { ModelVm } from '../../core/models/oroya.models';
+import type { InterpolationTarget, ModelVm } from '../../core/models/oroya.models';
 import { NotificationService } from '../../core/notifications/notification.service';
 
 type Scale = 'original' | '2x' | '4x';
@@ -55,6 +55,28 @@ type Scale = 'original' | '2x' | '4x';
             (change)="faceRestore.set($any($event.target).checked)"
           />
           <span>{{ 'workspace.faceRestore' | t }}</span>
+        </label>
+        <label class="ov-batch__check" [class.ov-batch__check--disabled]="!interpolationAvailable()">
+          <input
+            type="checkbox"
+            [checked]="interpolation() && interpolationAvailable()"
+            [disabled]="!interpolationAvailable()"
+            (change)="interpolation.set($any($event.target).checked)"
+          />
+          <span>{{ 'workspace.interpolation' | t }}</span>
+          @if (interpolation() && interpolationAvailable()) {
+            <select
+              class="ov-batch__inline-select"
+              [attr.aria-label]="'workspace.interpolationTarget' | t"
+              (change)="setInterpolationTarget($any($event.target).value)"
+            >
+              @for (target of interpolationTargets; track target) {
+                <option [value]="target" [selected]="'' + target === '' + interpolationTarget()">
+                  {{ target === '2x' ? ('batch.interpolationDouble' | t) : target + ' fps' }}
+                </option>
+              }
+            </select>
+          }
         </label>
         <label class="ov-batch__check">
           <input type="checkbox" [checked]="keepAudio()" (change)="keepAudio.set($any($event.target).checked)" />
@@ -141,6 +163,11 @@ type Scale = 'original' | '2x' | '4x';
         opacity: 0.55;
       }
 
+      .ov-batch__inline-select {
+        height: 28px;
+        margin-left: auto;
+      }
+
       .ov-batch__actions {
         display: flex;
         justify-content: flex-end;
@@ -161,10 +188,19 @@ export class OvBatchDialogComponent {
   readonly scale = signal<Scale>('2x');
   readonly faceRestore = signal(false);
   readonly keepAudio = signal(true);
+  readonly interpolation = signal(false);
+  readonly interpolationTarget = signal<InterpolationTarget>('2x');
+  readonly interpolationTargets: InterpolationTarget[] = ['2x', 48, 50, 60];
   readonly busy = signal(false);
   readonly upscalers = computed(() =>
     // Habilitados aunque no estén instalados: con el motor de IA, el preflight lo indica por video.
-    this.models().filter((model) => model.enabled && model.category !== 'face_restoration'),
+    this.models().filter(
+      (model) =>
+        model.enabled && model.category !== 'face_restoration' && model.category !== 'frame_interpolation',
+    ),
+  );
+  readonly interpolationAvailable = computed(() =>
+    this.models().some((model) => model.category === 'frame_interpolation' && model.installed && model.enabled),
   );
   readonly faceRestoreAvailable = computed(() =>
     this.models().some((model) => model.slug.startsWith('gfpgan') && model.installed && model.enabled),
@@ -198,10 +234,19 @@ export class OvBatchDialogComponent {
       );
       this.scale.set((['original', '2x', '4x'] as Scale[]).find((v) => v === enhancement['scale']) ?? '2x');
       this.faceRestore.set(faceRestore?.enabled === true);
+      const interpolation = enhancement['interpolation'] as { enabled?: boolean; target_fps?: unknown } | undefined;
+      this.interpolation.set(interpolation?.enabled === true);
+      this.interpolationTarget.set(
+        this.interpolationTargets.find((target) => target === interpolation?.target_fps) ?? '2x',
+      );
       this.keepAudio.set(exportConfig['keep_audio'] !== false);
     } catch (error) {
       this.notifications.danger(translate('batch.failedTitle'), this.data.toErrorVm(error).message);
     }
+  }
+
+  setInterpolationTarget(value: string): void {
+    this.interpolationTarget.set(value === '2x' ? '2x' : (Number(value) as 48 | 50 | 60));
   }
 
   cancel(): void {
@@ -225,6 +270,10 @@ export class OvBatchDialogComponent {
             model_id: this.modelId(),
             scale: this.scale(),
             face_restore: { enabled: this.faceRestore() && this.faceRestoreAvailable(), strength: 0.5 },
+            interpolation: {
+              enabled: this.interpolation() && this.interpolationAvailable(),
+              target_fps: this.interpolationTarget(),
+            },
           },
           { keep_audio: this.keepAudio(), output_resolution: this.scale() },
         ),

@@ -33,6 +33,7 @@ from app.db.repositories import (
     project_repository,
     video_repository,
 )
+from app.enhancers.rife_interpolator import ALLOWED_TARGET_FPS
 from app.schemas.project_schema import (
     ProjectCreateRequest,
     ProjectDeleteResponse,
@@ -42,6 +43,7 @@ from app.schemas.project_schema import (
     ProjectWorkspaceResponse,
 )
 from app.services import job_workspace_service
+from app.services.interpolation_service import get_interpolation_config
 from app.services.job_contract_service import build_job_actions, is_preview_available
 from app.services.preview_service import get_compare_frame_info, get_recommended_preview_frame_index
 from app.utils.trim import MIN_TRIM_SECONDS
@@ -88,6 +90,8 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "sharpen",
     "compression_cleanup",
     "face_restore",
+    # Opcional: {"enabled": bool, "target_fps": "2x" | 48 | 50 | 60} (RIFE, REQ-037).
+    "interpolation",
 }
 ALLOWED_EXPORT_KEYS = {
     "format",
@@ -154,7 +158,33 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
     face_restore = config.get("face_restore")
     if face_restore is not None:
         _validate_face_restore(face_restore)
+    interpolation = config.get("interpolation")
+    if interpolation is not None:
+        _validate_interpolation(interpolation)
     return config
+
+
+def _validate_interpolation(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) - {"enabled", "target_fps"}:
+        raise InvalidProjectConfigurationError("Enhancement config interpolation is invalid.")
+    if not isinstance(value.get("enabled"), bool):
+        raise InvalidProjectConfigurationError("interpolation.enabled must be boolean.")
+    target = value.get("target_fps", "2x")
+    if isinstance(target, bool) or target not in ALLOWED_TARGET_FPS:
+        raise InvalidProjectConfigurationError("interpolation.target_fps must be 2x, 48, 50 or 60.")
+
+
+def validate_interpolation_against_video(enhancement_config: dict[str, Any], video_asset) -> None:
+    """A fixed target frame rate must be higher than the video's."""
+    config = get_interpolation_config(enhancement_config)
+    source_fps = getattr(video_asset, "fps", None)
+    if config is None or not source_fps:
+        return
+    target = config.get("target_fps", "2x")
+    if target != "2x" and target <= source_fps:
+        raise InvalidProjectConfigurationError(
+            f"The video already has {source_fps:g} fps: choose a higher frame rate or 2x."
+        )
 
 
 def _validate_face_restore(value: Any) -> None:
@@ -347,6 +377,8 @@ def _build_project_configs(
     merged_export = _validate_export_config(_merge_config(existing_export, export_config))
     if export_config is not None:
         validate_trim_against_video(merged_export, video_asset)
+    if enhancement_config is not None:
+        validate_interpolation_against_video(merged_enhancement, video_asset)
     merged_workspace = _validate_workspace_state(_merge_config(existing_workspace, workspace_state))
     merged_enhancement["model_id"] = _validate_model_reference(
         db,

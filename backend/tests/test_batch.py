@@ -96,6 +96,32 @@ def test_new_projects_start_from_the_last_batch_settings(jobs_client) -> None:
     assert "file_name" not in saved["export_config"]
 
 
+def test_starting_a_single_video_also_becomes_the_new_default(jobs_client, tmp_path) -> None:
+    client, source_file, settings = jobs_client
+    video = _import_video(client, source_file)
+    first = _create_project(client, video["id"], name="First")
+    job = client.post(
+        "/api/jobs",
+        json={
+            "project_id": first["id"],
+            "enhancement_config": {"scale": "4x"},
+            "export_config": {"keep_audio": False, "output_dir": str(tmp_path / "only-here")},
+        },
+    ).json()["job"]
+    with (
+        patch_job_preflight_ready(),
+        patch("app.services.job_service.job_queue.enqueue"),
+    ):
+        assert client.post(f"/api/jobs/{job['id']}/start").status_code == 200
+
+    later = _create_project(client, video["id"], name="Later")
+
+    assert later["enhancement_config"]["scale"] == "4x"
+    assert later["export_config"]["keep_audio"] is False
+    # La carpeta elegida para un proyecto no se hereda.
+    assert later["export_config"].get("output_dir") in (None, "")
+
+
 def test_waiting_jobs_are_kept_for_the_queue_after_a_restart(jobs_client) -> None:
     client, source_file, settings = jobs_client
     video = _import_video(client, source_file)

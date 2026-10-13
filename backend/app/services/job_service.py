@@ -356,6 +356,18 @@ def get_processing_job_detail(db: Session, job_id: str) -> JobDetailResponse:
     return _to_job_detail_response(db, job)
 
 
+def _remember_processing_settings(job: ProcessingJob, settings: Settings) -> None:
+    """The job's settings become the starting point of the next new project."""
+    try:
+        save_processing_defaults(
+            json.loads(job.enhancement_config_json or "{}"),
+            json.loads(job.export_config_json or "{}"),
+            settings,
+        )
+    except (OSError, ValueError):
+        logger.warning("Could not remember the processing settings of job %s", job.id)
+
+
 async def start_processing_job(
     db: Session,
     job_id: str,
@@ -367,6 +379,7 @@ async def start_processing_job(
         logger.warning("Job invalid state transition on start: %s", job.status)
         raise JobInvalidStateError()
 
+    first_start = job.status == "pending"
     # El preflight lanza subprocesos (ffmpeg, GPU) e importa torch: fuera del event loop.
     await asyncio.to_thread(ensure_job_preflight_ready, db, job.id, active_settings)
 
@@ -396,6 +409,8 @@ async def start_processing_job(
             "Job queued for processing.",
             settings=settings,
         )
+        if first_start:
+            _remember_processing_settings(job, active_settings)
     except SQLAlchemyError as exc:
         db.rollback()
         logger.exception("Job start failed")

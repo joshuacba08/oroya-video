@@ -497,6 +497,17 @@ input[type='range'] {
   font: inherit;
 }
 
+.enhance-select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  background: var(--n-bg-elevated, #12141f);
+  color: var(--n-text-1);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
 .trim-fields {
   display: grid;
   grid-template-columns: 1fr 1fr;

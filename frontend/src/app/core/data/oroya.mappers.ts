@@ -24,6 +24,7 @@ import type {
   QueueJobVm,
   SettingsVm,
   SystemStatusVm,
+  InterpolationTarget,
   WorkspaceVm,
 } from '../models/oroya.models';
 import { getLocale, translate } from '../i18n/i18n';
@@ -34,6 +35,13 @@ const tones: ProjectTone[] = ['violet', 'green', 'rose', 'blue'];
 const pipelineOrder = ['import', 'extract', 'enhance', 'encode', 'export'];
 const pipelineIcons = ['upload', 'film', 'sparkles', 'box', 'download'];
 const FACE_RESTORE_CATEGORY = 'face_restoration';
+const INTERPOLATION_CATEGORY = 'frame_interpolation';
+// GFPGAN y RIFE son pasos aparte, no modelos de escalado seleccionables.
+const OPTIONAL_STEP_CATEGORIES = [FACE_RESTORE_CATEGORY, INTERPOLATION_CATEGORY];
+
+function interpolationTarget(value: unknown): InterpolationTarget {
+  return value === 48 || value === 50 || value === 60 ? value : '2x';
+}
 
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' ? (value as UnknownRecord) : {};
@@ -207,6 +215,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'realesrgan-x2': 'Real-ESRGAN x2',
   'realesrgan-x4': 'Real-ESRGAN x4',
   'gfpgan-v1.4': 'GFPGAN v1.4',
+  'rife-4.25': 'RIFE 4.25',
 };
 
 function modelDisplayName(slug: string): string {
@@ -566,7 +575,7 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     ? modelsRecord['available'].map(mapModelLike)
     : [];
   // GFPGAN no escala: se activa aparte (restauración facial), no es un modelo seleccionable.
-  const available = allModels.filter((model) => model.category !== FACE_RESTORE_CATEGORY);
+  const available = allModels.filter((model) => !OPTIONAL_STEP_CATEGORIES.includes(model.category));
   const selected = modelsRecord['selected']
     ? mapModelLike(modelsRecord['selected'])
     : (available[0] ?? emptyModelVm());
@@ -594,6 +603,13 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     },
     faceRestoreAvailable: allModels.some(
       (model) => model.category === FACE_RESTORE_CATEGORY && model.installed && model.enabled,
+    ),
+    interpolation: {
+      enabled: booleanValue(record(enhancement['interpolation'])['enabled']),
+      targetFps: interpolationTarget(record(enhancement['interpolation'])['target_fps']),
+    },
+    interpolationAvailable: allModels.some(
+      (model) => model.category === INTERPOLATION_CATEGORY && model.installed && model.enabled,
     ),
     scale: stringValue(enhancement['scale'], '2x') as WorkspaceVm['scale'],
     exportResolution: stringValue(exportConfig['output_resolution'], '2x') as WorkspaceVm['exportResolution'],

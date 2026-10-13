@@ -244,6 +244,10 @@ export const en = {
   'workspace.faceRestore': 'Face Restoration',
   'workspace.faceStrength': 'Face strength',
   'workspace.faceRestoreUnavailable': 'Download the GFPGAN model to restore faces:',
+  'workspace.interpolation': 'Frame Interpolation',
+  'workspace.interpolationUnavailable': 'Download the RIFE model to interpolate frames:',
+  'workspace.interpolationTarget': 'Frame rate',
+  'workspace.interpolationDouble': '2× ({fps} fps)',
   'modelDescription.gfpgan-v1.4': 'Face restoration applied after upscaling (optional step).',
   'errors.face_restore_not_available':
     'Face restoration is not available: install the AI runtime and the GFPGAN model.',
@@ -415,6 +419,7 @@ export const en = {
   'import.pathHint2': 'One path per line (Shift+Enter for a new line)',
   'batch.title': 'Process {count} videos',
   'batch.model': 'AI model',
+  'batch.interpolationDouble': '2× (double)',
   'batch.scale': 'Resolution',
   'batch.queue': 'Queue {count} videos',
   'batch.queueing': 'Queueing…',

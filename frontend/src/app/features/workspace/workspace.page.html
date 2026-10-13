@@ -268,6 +268,39 @@
             <strong>{{ current.faceStrength }}</strong>
           </label>
         }
+        <div class="enhance-row" [class.enhance-row--disabled]="!workspace.interpolationAvailable">
+          <span>{{ 'workspace.interpolation' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.interpolation' | t"
+              [checked]="current.interpolation && workspace.interpolationAvailable"
+              [disabled]="!workspace.interpolationAvailable"
+              (change)="setInterpolation(workspace, $any($event.target).checked)"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (!workspace.interpolationAvailable) {
+          <p class="enhance-hint">
+            {{ 'workspace.interpolationUnavailable' | t }}
+            <a routerLink="/models">{{ 'nav.models' | t }}</a>
+          </p>
+        } @else if (current.interpolation) {
+          <label class="enhance-row">
+            <span>{{ 'workspace.interpolationTarget' | t }}</span>
+            <select
+              class="enhance-select"
+              (change)="setInterpolationTarget(workspace, $any($event.target).value)"
+            >
+              @for (option of interpolationTargets(workspace); track option.value) {
+                <option [value]="option.value" [selected]="option.value === '' + current.interpolationTarget">
+                  {{ option.label }}
+                </option>
+              }
+            </select>
+          </label>
+        }
         <div class="enhance-row">
           <span>{{ 'workspace.keepAudio' | t }}</span>
           <label class="switch">

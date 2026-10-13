@@ -27,6 +27,7 @@ import { DialogService } from '../../core/dialogs/dialog.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import type {
   ApiErrorVm,
+  InterpolationTarget,
   ModelVm,
   PreviewFrameVm,
   QueueJobVm,
@@ -45,6 +46,8 @@ type WorkspaceControls = {
   faceRestore: boolean;
   /** 0-100 en la UI; el backend usa 0-1. */
   faceStrength: number;
+  interpolation: boolean;
+  interpolationTarget: InterpolationTarget;
   keepAudio: boolean;
   /** Vacío: nombre por defecto ("<proyecto> (Oroya 2x)"). */
   exportFileName: string;
@@ -145,6 +148,7 @@ export class WorkspacePage {
             sharpen: controls.sharpen,
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
+            interpolation: this.interpolationConfig(workspace, controls),
           },
           export_config: this.exportConfig(controls),
         }),
@@ -413,6 +417,37 @@ export class WorkspacePage {
     };
   }
 
+  /** Sin RIFE instalado no se envía activada (el preflight fallaría). */
+  private interpolationConfig(
+    workspace: WorkspaceVm,
+    controls: WorkspaceControls,
+  ): { enabled: boolean; target_fps: InterpolationTarget } {
+    return {
+      enabled: controls.interpolation && workspace.interpolationAvailable,
+      target_fps: controls.interpolationTarget,
+    };
+  }
+
+  /** Objetivos posibles: 2x siempre; los fijos solo si superan los fps del video. */
+  interpolationTargets(workspace: WorkspaceVm): { value: string; label: string }[] {
+    const fps = workspace.videoFps;
+    return [
+      { value: '2x', label: translate('workspace.interpolationDouble', { fps: Math.round(fps * 2) }) },
+      ...([48, 50, 60] as const)
+        .filter((target) => target > fps + 0.5)
+        .map((target) => ({ value: String(target), label: `${target} fps` })),
+    ];
+  }
+
+  setInterpolation(workspace: WorkspaceVm, checked: boolean): void {
+    this.updateControls(workspace, { interpolation: checked });
+  }
+
+  setInterpolationTarget(workspace: WorkspaceVm, value: string): void {
+    const target: InterpolationTarget = value === '2x' ? '2x' : (Number(value) as 48 | 50 | 60);
+    this.updateControls(workspace, { interpolationTarget: target });
+  }
+
   setKeepAudio(workspace: WorkspaceVm, checked: boolean): void {
     this.updateControls(workspace, { keepAudio: checked });
   }
@@ -591,6 +626,7 @@ export class WorkspacePage {
             sharpen: controls.sharpen,
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
+            interpolation: this.interpolationConfig(workspace, controls),
           },
           export_config: this.exportConfig(controls),
           workspace_state: {
@@ -719,6 +755,8 @@ export class WorkspacePage {
       compressionCleanup: workspace.compressionCleanup,
       faceRestore: workspace.faceRestore.enabled,
       faceStrength: Math.round(workspace.faceRestore.strength * 100),
+      interpolation: workspace.interpolation.enabled,
+      interpolationTarget: workspace.interpolation.targetFps,
       keepAudio: workspace.keepAudio,
       exportFileName: workspace.exportFileName,
       exportDir: workspace.exportDir,

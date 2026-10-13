@@ -198,6 +198,8 @@ export interface SettingsVm {
   cleanupOlderThanHours: number;
 }
 
+export type InterpolationTarget = '2x' | 48 | 50 | 60;
+
 export interface WorkspaceVm {
   project: ProjectCardVm;
   videoAssetId: string;
@@ -213,6 +215,10 @@ export interface WorkspaceVm {
   faceRestore: { enabled: boolean; strength: number };
   /** El modelo GFPGAN está instalado y habilitado. */
   faceRestoreAvailable: boolean;
+  /** Interpolación de fotogramas con RIFE (más fps); "2x" duplica los del video. */
+  interpolation: { enabled: boolean; targetFps: InterpolationTarget };
+  /** El modelo RIFE está instalado y habilitado. */
+  interpolationAvailable: boolean;
   scale: 'original' | '2x' | '4x';
   exportResolution: 'original' | '2x' | '4x';
   keepAudio: boolean;

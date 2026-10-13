@@ -24,6 +24,8 @@ from app.core.errors import (
     FrameEnhancementFailedError,
     FrameEnhancerNotFoundError,
     FrameExtractionFailedError,
+    FrameInterpolationFailedError,
+    FrameInterpolationNotAvailableError,
     InsufficientDiskSpaceError,
     InsufficientExportStorageError,
     InsufficientTempStorageError,
@@ -51,7 +53,7 @@ from app.services.export_service import create_final_export_for_job
 from app.services.face_restore_service import restore_faces_for_job
 from app.services.frame_enhancement_service import enhance_frames_for_job
 from app.services.frame_extraction_service import extract_frames_for_job, time_to_datetime
-from app.services.job_contract_service import PAUSABLE_STAGES
+from app.services.job_contract_service import PAUSABLE_STAGES, resolve_pipeline_mode
 from app.services.process_registry_service import (
     clear_shutdown,
     is_shutting_down,
@@ -183,16 +185,6 @@ def _sync_project_status(db, job_id: str) -> None:
     except SQLAlchemyError:
         db.rollback()
         logger.exception("Could not sync project status for job %s", job_id)
-
-
-def resolve_pipeline_mode(job, settings: Settings) -> str:
-    """The job keeps the pipeline it started with; jobs from before 0.5 (frames already
-    extracted to PNG) continue with the classic one."""
-    if job.pipeline_mode in {"streaming", "legacy"}:
-        return job.pipeline_mode
-    if job.extraction_started_at is not None:
-        return "legacy"
-    return settings.pipeline_mode
 
 
 def start_job_worker(settings: Settings | None = None) -> None:
@@ -379,6 +371,8 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
         MuxedVideoNotFoundError,
         VideoAssetFileMissingError,
         FrameExtractionFailedError,
+        FrameInterpolationFailedError,
+        FrameInterpolationNotAvailableError,
         RealESRGANFrameProcessingFailedError,
         RealESRGANJobNotReadyError,
         RealESRGANModelLoadFailedError,

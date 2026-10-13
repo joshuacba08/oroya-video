@@ -338,6 +338,8 @@ export const MOCK_WORKSPACE: WorkspaceVm = {
   compressionCleanup: true,
   faceRestore: { enabled: false, strength: 0.5 },
   faceRestoreAvailable: false,
+  interpolation: { enabled: false, targetFps: '2x' },
+  interpolationAvailable: false,
   scale: '2x',
   exportResolution: '2x',
   keepAudio: true,

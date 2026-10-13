@@ -128,7 +128,7 @@ def set_frame_enhancer_engine(engine: str, settings: Settings | None = None) -> 
 
 
 # Propios de cada proyecto: no tiene sentido heredarlos.
-PROJECT_SPECIFIC_EXPORT_KEYS = ("file_name", "trim")
+PROJECT_SPECIFIC_EXPORT_KEYS = ("file_name", "output_dir", "trim")
 
 
 def get_processing_defaults(settings: Settings | None = None) -> dict[str, dict]:

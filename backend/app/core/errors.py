@@ -239,6 +239,24 @@ class FaceRestoreFailedError(OroyaVideoError):
         )
 
 
+class FrameInterpolationNotAvailableError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Frame interpolation is not available: install the AI runtime and the RIFE model.",
+            error_code="frame_interpolation_not_available",
+            status_code=503,
+        )
+
+
+class FrameInterpolationFailedError(OroyaVideoError):
+    def __init__(self) -> None:
+        super().__init__(
+            "Frame interpolation failed while processing frames.",
+            error_code="frame_interpolation_failed",
+            status_code=500,
+        )
+
+
 class SettingsLockedByRunningJobError(OroyaVideoError):
     def __init__(self) -> None:
         super().__init__(

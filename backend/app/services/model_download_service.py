@@ -19,10 +19,15 @@ from app.services.download_service import download_file, get_download_state, sta
 
 logger = get_logger(__name__)
 
-# Fuentes oficiales (releases de github.com/xinntao/Real-ESRGAN, TencentARC/GFPGAN y
-# xinntao/facexlib). Los SHA256 están verificados contra los archivos publicados.
+# Fuentes oficiales (releases de github.com/xinntao/Real-ESRGAN, TencentARC/GFPGAN,
+# xinntao/facexlib y HolyWu/vs-rife). Los SHA256 están verificados contra los archivos
+# publicados (vs-rife no publica digest: se calculó al descargarlo y queda fijado aquí).
 # `extra_files`: pesos auxiliares que se bajan tras el principal (rutas relativas a models/).
 MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, Any]] = {
+    "rife-4.25": {
+        "url": "https://github.com/HolyWu/vs-rife/releases/download/model/flownet_v4.25.pkl",
+        "sha256": "6615790efd627772917205db291f51cd392528a157ecbb2ecaeec3bff8eb6de2",
+    },
     "realesrgan-x2": {
         "url": (
             "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.1/RealESRGAN_x2plus.pth"

@@ -95,9 +95,10 @@ def _export_label(job) -> str:
         parts.append(scale)
     interpolation = enhancement.get("interpolation")
     if isinstance(interpolation, dict) and interpolation.get("enabled"):
-        target_fps = interpolation.get("target_fps")
+        # Los fps con que se codificó (resuelve "2x"); antes de codificar, el objetivo fijo.
+        target_fps = getattr(job, "encoding_fps", None) or interpolation.get("target_fps")
         if isinstance(target_fps, (int, float)) and not isinstance(target_fps, bool):
-            parts.append(f"{target_fps:g}fps")
+            parts.append(f"{round(target_fps):g}fps")
     return " ".join(parts)
 
 
