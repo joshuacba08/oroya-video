@@ -35,10 +35,6 @@ import { booleanAttribute, Component, computed, input, model } from '@angular/co
         object-fit: cover;
       }
 
-      .before {
-        filter: saturate(0.2) blur(1px) brightness(0.72);
-      }
-
       .divider {
         position: absolute;
         top: 0;
