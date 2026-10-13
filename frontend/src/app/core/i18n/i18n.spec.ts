@@ -1,10 +1,31 @@
 import { en } from './en';
 import { es } from './es';
-import { getLanguage, getLocale, setLanguage, translate } from './i18n';
+import {
+  applyServerLanguage,
+  currentLanguageEpoch,
+  getLanguage,
+  getLocale,
+  markLanguageChange,
+  setLanguage,
+  translate,
+} from './i18n';
 import { TranslatePipe } from './translate.pipe';
 
 describe('i18n', () => {
   afterEach(() => setLanguage('en'));
+
+  it('ignores a settings response requested before the user changed the language', () => {
+    setLanguage('en');
+    const staleRequest = currentLanguageEpoch();
+    markLanguageChange();
+    setLanguage('es');
+
+    applyServerLanguage('en', staleRequest);
+    expect(getLanguage()).toBe('es');
+
+    applyServerLanguage('es', currentLanguageEpoch());
+    expect(getLanguage()).toBe('es');
+  });
 
   it('translates with interpolation in the active language', () => {
     setLanguage('en');

@@ -128,10 +128,11 @@ def get_preview_info(
     if original_count == 0:
         raise PreviewNotAvailableError()
 
-    comparable_count = min(original_count, enhanced_count) if enhanced_count else 0
-    recommended_index = None
-    if comparable_count > 0:
-        recommended_index = min(comparable_count // 2, comparable_count - 1)
+    # Los fotogramas no tienen por qué ser contiguos: el pipeline por streaming solo guarda
+    # pares de muestra repartidos por el video. Se recomienda el par central.
+    comparable = sorted(_collect_frame_indexes(original_dir) & _collect_frame_indexes(enhanced_dir))
+    comparable_count = len(comparable)
+    recommended_index = comparable[comparable_count // 2] if comparable else None
 
     return PreviewInfoResponse(
         job_id=job.id,

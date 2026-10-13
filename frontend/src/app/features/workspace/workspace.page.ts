@@ -23,15 +23,18 @@ import { OroyaApiError } from '../../core/api/oroya-api-client';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { DialogService } from '../../core/dialogs/dialog.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import type {
   ApiErrorVm,
+  InterpolationTarget,
   ModelVm,
   PreviewFrameVm,
   QueueJobVm,
   WorkspaceVm,
 } from '../../core/models/oroya.models';
 import { OvVideoPreviewComponent } from '../../shared/ui/ov-video-preview.component';
+import { clampTrim, formatTrimTime, MIN_TRIM_SECONDS, parseTrimTime } from './trim-time';
 
 type WorkspaceControls = {
   modelId: string;
@@ -43,7 +46,17 @@ type WorkspaceControls = {
   faceRestore: boolean;
   /** 0-100 en la UI; el backend usa 0-1. */
   faceStrength: number;
+  interpolation: boolean;
+  interpolationTarget: InterpolationTarget;
   keepAudio: boolean;
+  /** Vacío: nombre por defecto ("<proyecto> (Oroya 2x)"). */
+  exportFileName: string;
+  /** Vacío: la carpeta de exportación de Ajustes (con una subcarpeta por proyecto). */
+  exportDir: string;
+  /** Procesar solo [trimStart, trimEnd] (segundos del original). */
+  trimEnabled: boolean;
+  trimStart: number;
+  trimEnd: number;
   compareMode: WorkspaceVm['compareMode'];
   zoom: WorkspaceVm['zoom'];
 };
@@ -72,6 +85,7 @@ export class WorkspacePage {
   private readonly router = inject(Router);
   private readonly data = inject(OroyaDataService);
   private readonly desktop = inject(DesktopService);
+  private readonly dialogs = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private hydratedProjectId: string | undefined;
@@ -134,13 +148,9 @@ export class WorkspacePage {
             sharpen: controls.sharpen,
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
+            interpolation: this.interpolationConfig(workspace, controls),
           },
-          export_config: {
-            format: 'mp4',
-            codec: 'h264',
-            keep_audio: controls.keepAudio,
-            output_resolution: controls.exportResolution,
-          },
+          export_config: this.exportConfig(controls),
         }),
       );
       const jobId = created.id;
@@ -229,16 +239,19 @@ export class WorkspacePage {
     if (job.framesProcessed > this.lastEnhancedCount && job.status === 'running' && previewDue) {
       this.lastEnhancedCount = job.framesProcessed;
       this.lastPreviewRefresh = Date.now();
+      // Streaming: solo hay pares de muestra (pocos, con índices dispersos) y el último procesado.
+      const latestIndex = job.streaming ? job.previewFrameIndex : job.framesProcessed - 1;
       try {
         const frames = await firstValueFrom(
-          this.data.previewFrames(job.id, {
-            limit: 24,
-            offset: Math.max(job.framesProcessed - 24, 0),
-          }),
+          this.data.previewFrames(
+            job.id,
+            job.streaming
+              ? { limit: 100, offset: 0 }
+              : { limit: 24, offset: Math.max(job.framesProcessed - 24, 0) },
+          ),
         );
         this.previewFrames.set(frames);
-        if (this.followLive()) {
-          const latestIndex = job.framesProcessed - 1;
+        if (this.followLive() && latestIndex !== undefined && latestIndex >= 0) {
           const preview = await firstValueFrom(this.data.compareFrame(job.id, latestIndex));
           this.selectedPreview.set(preview);
           this.selectedFrameIndex.set(latestIndex);
@@ -402,6 +415,37 @@ export class WorkspacePage {
       enabled: controls.faceRestore && workspace.faceRestoreAvailable,
       strength: controls.faceStrength / 100,
     };
+  }
+
+  /** Sin RIFE instalado no se envía activada (el preflight fallaría). */
+  private interpolationConfig(
+    workspace: WorkspaceVm,
+    controls: WorkspaceControls,
+  ): { enabled: boolean; target_fps: InterpolationTarget } {
+    return {
+      enabled: controls.interpolation && workspace.interpolationAvailable,
+      target_fps: controls.interpolationTarget,
+    };
+  }
+
+  /** Objetivos posibles: 2x siempre; los fijos solo si superan los fps del video. */
+  interpolationTargets(workspace: WorkspaceVm): { value: string; label: string }[] {
+    const fps = workspace.videoFps;
+    return [
+      { value: '2x', label: translate('workspace.interpolationDouble', { fps: Math.round(fps * 2) }) },
+      ...([48, 50, 60] as const)
+        .filter((target) => target > fps + 0.5)
+        .map((target) => ({ value: String(target), label: `${target} fps` })),
+    ];
+  }
+
+  setInterpolation(workspace: WorkspaceVm, checked: boolean): void {
+    this.updateControls(workspace, { interpolation: checked });
+  }
+
+  setInterpolationTarget(workspace: WorkspaceVm, value: string): void {
+    const target: InterpolationTarget = value === '2x' ? '2x' : (Number(value) as 48 | 50 | 60);
+    this.updateControls(workspace, { interpolationTarget: target });
   }
 
   setKeepAudio(workspace: WorkspaceVm, checked: boolean): void {
@@ -582,13 +626,9 @@ export class WorkspacePage {
             sharpen: controls.sharpen,
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
+            interpolation: this.interpolationConfig(workspace, controls),
           },
-          export_config: {
-            format: 'mp4',
-            codec: 'h264',
-            keep_audio: controls.keepAudio,
-            output_resolution: controls.exportResolution,
-          },
+          export_config: this.exportConfig(controls),
           workspace_state: {
             selected_frame: selectedFrame ?? 0,
             compare_mode: controls.compareMode,
@@ -617,6 +657,94 @@ export class WorkspacePage {
     return initial;
   }
 
+  private exportConfig(controls: WorkspaceControls) {
+    return {
+      format: 'mp4' as const,
+      codec: 'h264' as const,
+      keep_audio: controls.keepAudio,
+      output_resolution: controls.exportResolution,
+      file_name: controls.exportFileName.trim(),
+      output_dir: controls.exportDir,
+      trim: controls.trimEnabled
+        ? { start_seconds: controls.trimStart, end_seconds: controls.trimEnd }
+        : null,
+    };
+  }
+
+  readonly formatTrimTime = formatTrimTime;
+
+  setTrimEnabled(workspace: WorkspaceVm, enabled: boolean): void {
+    const current = this.ensureControls(workspace);
+    const range =
+      current.trimEnd > current.trimStart
+        ? clampTrim(current.trimStart, current.trimEnd, workspace.videoDurationSeconds)
+        : { start: 0, end: workspace.videoDurationSeconds };
+    this.updateControls(workspace, { trimEnabled: enabled, trimStart: range.start, trimEnd: range.end });
+  }
+
+  setTrimTime(workspace: WorkspaceVm, edge: 'start' | 'end', input: HTMLInputElement): void {
+    const current = this.ensureControls(workspace);
+    const seconds = parseTrimTime(input.value);
+    if (seconds === null) {
+      input.value = formatTrimTime(edge === 'start' ? current.trimStart : current.trimEnd);
+      return;
+    }
+    this.applyTrimEdge(workspace, edge, seconds);
+  }
+
+  /** Segundos del original del fotograma seleccionado en la vista previa, si hay uno. */
+  currentFrameSeconds(workspace: WorkspaceVm): number | null {
+    const index = this.selectedFrameIndex();
+    if (index === null || index < 0 || !workspace.videoFps) {
+      return null;
+    }
+    return workspace.previewTimeOffset + index / workspace.videoFps;
+  }
+
+  setTrimFromFrame(workspace: WorkspaceVm, edge: 'start' | 'end', seconds: number): void {
+    this.applyTrimEdge(workspace, edge, seconds);
+  }
+
+  private applyTrimEdge(workspace: WorkspaceVm, edge: 'start' | 'end', seconds: number): void {
+    const current = this.ensureControls(workspace);
+    const duration = workspace.videoDurationSeconds;
+    // Al mover un extremo, el otro se aparta lo justo para mantener la longitud mínima.
+    const range =
+      edge === 'start'
+        ? clampTrim(seconds, Math.max(current.trimEnd, seconds + MIN_TRIM_SECONDS), duration)
+        : clampTrim(Math.min(current.trimStart, seconds - MIN_TRIM_SECONDS), seconds, duration);
+    this.updateControls(workspace, { trimStart: range.start, trimEnd: range.end });
+  }
+
+  /** Nombre que tendrá el archivo si no se elige otro (mismo criterio que el backend). */
+  defaultExportName(workspace: WorkspaceVm, controls: WorkspaceControls): string {
+    const base = workspace.project.name.replace(/\.(mp4|mov|mkv|avi|webm|m4v)$/i, '');
+    const scale = controls.scale === 'original' ? '' : ` ${controls.scale}`;
+    return `${base} (Oroya${scale})`;
+  }
+
+  setExportFileName(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { exportFileName: value });
+  }
+
+  async chooseExportDir(workspace: WorkspaceVm, current: string): Promise<void> {
+    const folder = this.desktop.isDesktop()
+      ? await this.desktop.pickFolder(current || undefined)
+      : await this.dialogs.prompt({
+          title: translate('workspace.exportFolder'),
+          label: translate('settings.exportsFolderPrompt'),
+          value: current,
+          confirmLabel: translate('common.save'),
+        });
+    if (folder !== null && folder !== current) {
+      this.updateControls(workspace, { exportDir: folder });
+    }
+  }
+
+  resetExportDir(workspace: WorkspaceVm): void {
+    this.updateControls(workspace, { exportDir: '' });
+  }
+
   private toControls(workspace: WorkspaceVm): WorkspaceControls {
     return {
       modelId: workspace.selectedModel.id,
@@ -627,7 +755,14 @@ export class WorkspacePage {
       compressionCleanup: workspace.compressionCleanup,
       faceRestore: workspace.faceRestore.enabled,
       faceStrength: Math.round(workspace.faceRestore.strength * 100),
+      interpolation: workspace.interpolation.enabled,
+      interpolationTarget: workspace.interpolation.targetFps,
       keepAudio: workspace.keepAudio,
+      exportFileName: workspace.exportFileName,
+      exportDir: workspace.exportDir,
+      trimEnabled: workspace.trim !== null,
+      trimStart: workspace.trim?.start ?? 0,
+      trimEnd: workspace.trim?.end ?? workspace.videoDurationSeconds,
       compareMode: workspace.compareMode,
       zoom: workspace.zoom,
     };

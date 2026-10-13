@@ -6,6 +6,7 @@ import { NIcon } from '@neuralangular/angular-ui/icon';
 
 import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, startWith, switchMap } from 'rxjs';
 
+import { ImportService, parseManualPaths, type ImportResult } from '../../core/data/import.service';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { mapGpu } from '../../core/data/oroya.mappers';
 import { DesktopService } from '../../core/desktop/desktop.service';
@@ -14,7 +15,6 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type {
   ApiErrorVm,
   ModelVm,
-  PickedVideo,
   ProjectCardVm,
 } from '../../core/models/oroya.models';
 import { OvGpuMeterComponent } from '../../shared/ui/ov-gpu-meter.component';
@@ -42,12 +42,12 @@ import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.comp
 })
 export class DashboardPage {
   private readonly data = inject(OroyaDataService);
+  readonly imports = inject(ImportService);
   private readonly desktop = inject(DesktopService);
   private readonly router = inject(Router);
 
   readonly error = signal<ApiErrorVm | null>(null);
   readonly manualImportOpen = signal(false);
-  readonly importing = signal(false);
   readonly notice = signal<string | null>(null);
   /** "Import Video" se queda en el dashboard; "New Project" abre el workspace. */
   private openWorkspaceAfterImport = true;
@@ -108,35 +108,26 @@ export class DashboardPage {
       this.manualImportOpen.set(true);
       return;
     }
-
-    const selected = await this.desktop.pickVideo();
-    await this.createProjectFromPicked(selected);
+    await this.finishImport(await this.imports.importAndContinue(await this.desktop.pickVideos(), openWorkspace));
   }
 
-  async importPath(path: string): Promise<void> {
-    await this.createProjectFromPicked({ kind: 'browser-path', path });
-  }
-
-  private async createProjectFromPicked(selected: PickedVideo | null): Promise<void> {
-    if (!selected) {
-      return;
-    }
-
-    try {
-      this.error.set(null);
-      this.importing.set(true);
-      const project = await firstValueFrom(this.data.importPickedVideo(selected));
+  async importPath(value: string): Promise<void> {
+    const result = await this.imports.importAndContinue(
+      parseManualPaths(value),
+      this.openWorkspaceAfterImport,
+    );
+    if (result.projects.length) {
       this.manualImportOpen.set(false);
-      if (this.openWorkspaceAfterImport) {
-        await this.router.navigate(['/projects', project.id]);
-        return;
-      }
-      this.notice.set(translate('dashboard.imported', { name: project.name }));
+    }
+    await this.finishImport(result);
+  }
+
+  private async finishImport(result: ImportResult): Promise<void> {
+    if (result.projects.length === 1 && !this.openWorkspaceAfterImport) {
+      this.notice.set(translate('dashboard.imported', { name: result.projects[0].name }));
+    }
+    if (result.projects.length) {
       this.reload$.next(Date.now());
-    } catch (error) {
-      this.error.set(this.data.toErrorVm(error));
-    } finally {
-      this.importing.set(false);
     }
   }
 

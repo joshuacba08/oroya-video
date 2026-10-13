@@ -34,6 +34,7 @@ export type ModelDownloadProgressResponse =
 export type PreviewFrameListResponse = components['schemas']['PreviewFrameListResponse'];
 export type ProjectCreateRequest = components['schemas']['ProjectCreateRequest'];
 export type ProjectDetailResponse = components['schemas']['ProjectDetailResponse'];
+export type JobBatchResponse = components['schemas']['JobBatchResponse'];
 export type ProjectListResponse = components['schemas']['ProjectListResponse'];
 export type ProjectUpdateRequest = components['schemas']['ProjectUpdateRequest'];
 export type ProjectWorkspaceResponse = components['schemas']['ProjectWorkspaceResponse'];

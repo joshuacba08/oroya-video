@@ -268,6 +268,39 @@
             <strong>{{ current.faceStrength }}</strong>
           </label>
         }
+        <div class="enhance-row" [class.enhance-row--disabled]="!workspace.interpolationAvailable">
+          <span>{{ 'workspace.interpolation' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.interpolation' | t"
+              [checked]="current.interpolation && workspace.interpolationAvailable"
+              [disabled]="!workspace.interpolationAvailable"
+              (change)="setInterpolation(workspace, $any($event.target).checked)"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (!workspace.interpolationAvailable) {
+          <p class="enhance-hint">
+            {{ 'workspace.interpolationUnavailable' | t }}
+            <a routerLink="/models">{{ 'nav.models' | t }}</a>
+          </p>
+        } @else if (current.interpolation) {
+          <label class="enhance-row">
+            <span>{{ 'workspace.interpolationTarget' | t }}</span>
+            <select
+              class="enhance-select"
+              (change)="setInterpolationTarget(workspace, $any($event.target).value)"
+            >
+              @for (option of interpolationTargets(workspace); track option.value) {
+                <option [value]="option.value" [selected]="option.value === '' + current.interpolationTarget">
+                  {{ option.label }}
+                </option>
+              }
+            </select>
+          </label>
+        }
         <div class="enhance-row">
           <span>{{ 'workspace.keepAudio' | t }}</span>
           <label class="switch">
@@ -279,6 +312,86 @@
             />
             <i></i>
           </label>
+        </div>
+        <div class="enhance-row">
+          <span>{{ 'workspace.trim' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.trim' | t"
+              [checked]="current.trimEnabled"
+              [disabled]="!workspace.videoDurationSeconds"
+              (change)="setTrimEnabled(workspace, $any($event.target).checked)"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (current.trimEnabled) {
+          <div class="trim-fields">
+            <label class="export-field">
+              <span>{{ 'workspace.trimStart' | t }}</span>
+              <input
+                id="trim-start"
+                type="text"
+                inputmode="decimal"
+                [value]="formatTrimTime(current.trimStart)"
+                (change)="setTrimTime(workspace, 'start', $any($event.target))"
+              />
+            </label>
+            <label class="export-field">
+              <span>{{ 'workspace.trimEnd' | t }}</span>
+              <input
+                id="trim-end"
+                type="text"
+                inputmode="decimal"
+                [value]="formatTrimTime(current.trimEnd)"
+                (change)="setTrimTime(workspace, 'end', $any($event.target))"
+              />
+            </label>
+          </div>
+          @let frameSeconds = currentFrameSeconds(workspace);
+          @if (frameSeconds !== null) {
+            <div class="trim-actions">
+              <button type="button" (click)="setTrimFromFrame(workspace, 'start', frameSeconds)">
+                {{ 'workspace.trimStartHere' | t }}
+              </button>
+              <button type="button" (click)="setTrimFromFrame(workspace, 'end', frameSeconds)">
+                {{ 'workspace.trimEndHere' | t }}
+              </button>
+            </div>
+          }
+          <p class="enhance-hint">
+            {{ 'workspace.trimDuration' | t: {
+              duration: formatTrimTime(current.trimEnd - current.trimStart),
+              total: formatTrimTime(workspace.videoDurationSeconds)
+            } }}
+          </p>
+        }
+        <label class="export-field">
+          <span>{{ 'workspace.exportName' | t }}</span>
+          <input
+            type="text"
+            maxlength="120"
+            [value]="current.exportFileName"
+            [placeholder]="defaultExportName(workspace, current)"
+            (change)="setExportFileName(workspace, $any($event.target).value)"
+          />
+        </label>
+        <div class="export-field">
+          <span>{{ 'workspace.exportFolder' | t }}</span>
+          <div class="export-field__folder">
+            <code [title]="current.exportDir || ('workspace.exportFolderDefault' | t)">
+              {{ current.exportDir || ('workspace.exportFolderDefault' | t) }}
+            </code>
+            <button type="button" (click)="chooseExportDir(workspace, current.exportDir)">
+              {{ 'settings.change' | t }}
+            </button>
+            @if (current.exportDir) {
+              <button type="button" (click)="resetExportDir(workspace)">
+                {{ 'workspace.exportFolderReset' | t }}
+              </button>
+            }
+          </div>
         </div>
         <p class="save-state" [class.save-state--error]="saveState() === 'error'">
           @switch (saveState()) {
@@ -324,6 +437,12 @@
         @if (liveJob()?.device; as device) {
           <div><span>{{ 'workspace.device' | t }}</span><strong>{{ device.toUpperCase() }}</strong></div>
         }
+        @if (controls()?.trimEnabled) {
+          <div>
+            <span>{{ 'workspace.trimmedLength' | t }}</span>
+            <strong>{{ formatTrimTime(controls()!.trimEnd - controls()!.trimStart) }}</strong>
+          </div>
+        }
         <div><span>{{ 'workspace.outputSize' | t }}</span><strong>{{ workspace.outputSize }}</strong></div>
         }
       </section>
@@ -350,6 +469,7 @@
         [selectedFrameIndex]="selectedFrameIndex()"
         [snapshotAvailable]="hasPreview(workspace)"
         [videoFps]="workspace.videoFps"
+        [timeOffsetSeconds]="workspace.previewTimeOffset"
         [totalFrames]="workspace.previewTotalFrames"
         [filtersActive]="filtersActive(workspace)"
         [compareMode]="controls()?.compareMode ?? workspace.compareMode"

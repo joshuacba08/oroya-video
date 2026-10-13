@@ -129,4 +129,34 @@ describe('oroya mappers', () => {
       vi.useRealTimers();
     }
   });
+
+  it('maps the streaming processing stage and its live preview frame', () => {
+    const response = {
+      items: [
+        {
+          job_id: 'job-1',
+          status: 'running',
+          current_stage: 'processing',
+          progress_percent: 40,
+          pipeline_mode: 'streaming',
+          preview_frame_index: 117,
+          frames_processed: 120,
+          frames_total: 300,
+        },
+      ],
+    } as unknown as QueueResponse;
+
+    const [job] = mapQueue(response);
+
+    expect(job.stage).toBe('Processing frames');
+    expect(job.streaming).toBe(true);
+    expect(job.previewFrameIndex).toBe(117);
+    expect(job.pipeline.map((step) => step.status)).toEqual([
+      'success',
+      'success',
+      'running',
+      'pending',
+      'pending',
+    ]);
+  });
 });

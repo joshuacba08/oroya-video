@@ -16,10 +16,13 @@ class ProcessInfo:
     process_id: int
     process_kind: str
     started_at: float
-    process: subprocess.Popen[str] | None = None
+    process: subprocess.Popen | None = None
 
 
-_process_registry: dict[str, ProcessInfo] = {}
+# Por job, sus procesos por tipo: el pipeline por streaming tiene a la vez un decodificador
+# y un codificador ffmpeg; las etapas clásicas, uno solo.
+_process_registry: dict[str, dict[str, ProcessInfo]] = {}
+_registry_lock = threading.Lock()
 # Se activa al apagar el backend: las etapas ffmpeg dejan el job tal cual (la recuperación
 # al arrancar lo marca `interrupted`) en vez de marcarlo como fallido.
 _shutdown_requested = threading.Event()
@@ -41,52 +44,73 @@ def register_process(
     job_id: str,
     process_id: int,
     process_kind: str,
-    process: subprocess.Popen[str] | None = None,
+    process: subprocess.Popen | None = None,
 ) -> None:
-    _process_registry[job_id] = ProcessInfo(
+    info = ProcessInfo(
         job_id=job_id,
         process_id=process_id,
         process_kind=process_kind,
         started_at=time.time(),
         process=process,
     )
+    with _registry_lock:
+        _process_registry.setdefault(job_id, {})[process_kind] = info
     logger.info("Process registered: %s %s", job_id, process_kind)
 
 
-def unregister_process(job_id: str) -> None:
-    if job_id in _process_registry:
-        logger.info("Process unregistered: %s", job_id)
-        _process_registry.pop(job_id, None)
+def unregister_process(job_id: str, process_kind: str | None = None) -> None:
+    """Forget one process of the job, or all of them when no kind is given."""
+    with _registry_lock:
+        processes = _process_registry.get(job_id)
+        if processes is None:
+            return
+        if process_kind is None:
+            processes.clear()
+        else:
+            processes.pop(process_kind, None)
+        if not processes:
+            _process_registry.pop(job_id, None)
+    logger.info("Process unregistered: %s %s", job_id, process_kind or "*")
+
+
+def get_processes_for_job(job_id: str) -> list[ProcessInfo]:
+    with _registry_lock:
+        return list(_process_registry.get(job_id, {}).values())
 
 
 def get_process_for_job(job_id: str) -> ProcessInfo | None:
-    return _process_registry.get(job_id)
+    processes = get_processes_for_job(job_id)
+    return processes[0] if processes else None
 
 
-def terminate_process_for_job(job_id: str, timeout_seconds: int = 5) -> bool:
-    process_info = _process_registry.get(job_id)
-    if process_info is None or process_info.process is None:
-        return False
-
-    process = process_info.process
+def _stop(process: subprocess.Popen, timeout_seconds: int) -> None:
     if process.poll() is not None:
-        unregister_process(job_id)
-        return True
-
+        return
     process.terminate()
     try:
         process.wait(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait(timeout=timeout_seconds)
+
+
+def terminate_process_for_job(job_id: str, timeout_seconds: int = 5) -> bool:
+    """Stop every process of the job. True when at least one was registered."""
+    processes = [info for info in get_processes_for_job(job_id) if info.process is not None]
+    if not processes:
+        return False
+    for info in processes:
+        _stop(info.process, timeout_seconds)  # type: ignore[arg-type]
     unregister_process(job_id)
-    logger.warning("Process terminated for job %s", job_id)
+    logger.warning("Processes terminated for job %s", job_id)
     return True
 
 
 def terminate_all_processes(timeout_seconds: int = 5) -> int:
     terminated = 0
-    for job_id in list(_process_registry):
+    with _registry_lock:
+        job_ids = list(_process_registry)
+    for job_id in job_ids:
         try:
             if terminate_process_for_job(job_id, timeout_seconds=timeout_seconds):
                 terminated += 1
@@ -96,4 +120,5 @@ def terminate_all_processes(timeout_seconds: int = 5) -> int:
 
 
 def clear_registry() -> None:
-    _process_registry.clear()
+    with _registry_lock:
+        _process_registry.clear()

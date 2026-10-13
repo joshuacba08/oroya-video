@@ -191,6 +191,15 @@ class ProcessingJob(Base):
     extracted_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     enhancer_engine: Mapped[str | None] = mapped_column(String(60), nullable=True, default="mock")
     enhanced_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Momento en que entró en la cola: ordena la cola por orden real de proceso.
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Pipeline con que se empezó ("streaming" o "legacy"); reanudar sigue con el mismo.
+    pipeline_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    segment_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    segments_completed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    segments_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Último fotograma con par original/mejorado guardado (vista previa en vivo del streaming).
+    preview_frame_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     extraction_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     extraction_completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     enhancement_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

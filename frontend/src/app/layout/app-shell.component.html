@@ -27,7 +27,23 @@
       <div class="ov-app-info">
         <div>
           <strong>Oroya Video</strong>
-          <small>{{ 'shell.version' | t: { version: (startup$ | async)?.appVersion ?? appVersion } }}</small>
+          <small>
+            {{ 'shell.version' | t: { version: (startup$ | async)?.appVersion ?? appVersion } }}
+            @if (updates.visible() || updates.state() === 'downloading' || updates.state() === 'installing') {
+              <button
+                type="button"
+                class="ov-update-pill"
+                [attr.aria-expanded]="updatePanelOpen()"
+                (click)="updatePanelOpen.set(!updatePanelOpen())"
+              >
+                @switch (updates.state()) {
+                  @case ('downloading') { {{ updates.progress() }}% }
+                  @case ('installing') { {{ 'updates.pillInstalling' | t }} }
+                  @default { {{ 'updates.pill' | t }} }
+                }
+              </button>
+            }
+          </small>
         </div>
         <span
           class="ov-backend-chip"
@@ -46,6 +62,39 @@
           }}
         </span>
       </div>
+      @if (updatePanelOpen() && updates.available(); as update) {
+        <div class="ov-update-panel" role="dialog" [attr.aria-label]="'updates.title' | t">
+          <strong>{{ 'updates.available' | t: { version: update.version } }}</strong>
+          @switch (updates.state()) {
+            @case ('downloading') {
+              <span>{{ 'updates.downloading' | t: { percent: updates.progress() } }}</span>
+            }
+            @case ('installing') {
+              <span>{{ 'updates.installing' | t }}</span>
+            }
+            @case ('error') {
+              <span>{{ 'updates.failed' | t }}</span>
+            }
+            @default {
+              @if (updates.installArmed()) {
+                <span>{{ 'updates.armed' | t }}</span>
+              }
+            }
+          }
+          <div class="ov-update-panel__actions">
+            <button type="button" (click)="openReleaseNotes(update.version)">{{ 'updates.notes' | t }}</button>
+            <button type="button" (click)="dismissUpdate()">{{ 'updates.later' | t }}</button>
+            <n-button
+              variant="primary"
+              size="sm"
+              [disabled]="updates.state() === 'downloading' || updates.state() === 'installing' || updates.installArmed()"
+              (click)="installUpdate()"
+            >
+              {{ 'updates.install' | t }}
+            </n-button>
+          </div>
+        </div>
+      }
     </div>
   </n-sidebar>
 
@@ -76,36 +125,6 @@
     </header>
 
     <div class="ov-banner-stack">
-      @if (updates.available(); as update) {
-        <aside class="ov-status-banner ov-status-banner--setup" role="status">
-          <n-icon name="download" size="sm" />
-          <div>
-            <strong>{{ 'updates.available' | t: { version: update.version } }}</strong>
-            @switch (updates.state()) {
-              @case ('downloading') {
-                <span>{{ 'updates.downloading' | t: { percent: updates.progress() } }}</span>
-              }
-              @case ('installing') {
-                <span>{{ 'updates.installing' | t }}</span>
-              }
-              @case ('error') {
-                <span>{{ 'updates.failed' | t }}</span>
-              }
-            }
-          </div>
-          <n-button variant="secondary" size="sm" (click)="openReleaseNotes(update.version)">
-            {{ 'updates.notes' | t }}
-          </n-button>
-          <n-button
-            variant="primary"
-            size="sm"
-            [disabled]="updates.state() === 'downloading' || updates.state() === 'installing'"
-            (click)="installUpdate()"
-          >
-            {{ 'updates.install' | t }}
-          </n-button>
-        </aside>
-      }
       @if (startup$ | async; as startup) {
         @if (showSetupBanner(startup)) {
           <aside class="ov-status-banner ov-status-banner--setup">
@@ -148,7 +167,7 @@
       @if (manualImportOpen()) {
         <div class="ov-manual-import">
           <ov-manual-path-import
-            [busy]="importing()"
+            [busy]="imports.importing()"
             (pathSubmitted)="importPath($event)"
             (cancelled)="manualImportOpen.set(false)"
           />
@@ -222,3 +241,4 @@
 </n-shell>
 <ov-notifications />
 <ov-dialog-host />
+<ov-batch-dialog />

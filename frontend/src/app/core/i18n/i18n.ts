@@ -35,6 +35,27 @@ export function setLanguage(language: string | null | undefined): void {
   }
 }
 
+/**
+ * Cambia cada vez que el usuario elige idioma. Una respuesta de settings pedida antes (p. ej.
+ * la del arranque, aún en vuelo) traería el idioma anterior y desharía el cambio.
+ */
+let languageEpoch = 0;
+
+export function currentLanguageEpoch(): number {
+  return languageEpoch;
+}
+
+export function markLanguageChange(): void {
+  languageEpoch += 1;
+}
+
+/** Idioma de una respuesta del backend, salvo que el usuario lo cambiara mientras tanto. */
+export function applyServerLanguage(language: string | null | undefined, requestEpoch: number): void {
+  if (requestEpoch === languageEpoch) {
+    setLanguage(language);
+  }
+}
+
 /** Locale BCP 47 para fechas y números. */
 export function getLocale(): string {
   return currentLanguage() === 'es' ? 'es' : 'en';

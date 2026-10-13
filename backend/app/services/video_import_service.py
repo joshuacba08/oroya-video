@@ -215,6 +215,9 @@ def delete_video_asset(
     job_files = [
         (job.id, project.id) for project in video_asset.projects for job in project.processing_jobs
     ]
+    export_paths = job_workspace_service.collect_export_file_paths(
+        db, [job_id for job_id, _ in job_files]
+    )
 
     try:
         video_repository.delete_video_asset(db, video_asset)
@@ -227,7 +230,9 @@ def delete_video_asset(
     # Los archivos se borran solo tras confirmar el borrado en la DB.
     video_thumbnail_service.delete_thumbnail(video_id, active_settings)
     for job_id, project_id in job_files:
-        job_workspace_service.delete_job_files(job_id, project_id, active_settings)
+        job_workspace_service.delete_job_files(
+            job_id, project_id, active_settings, export_paths.get(job_id)
+        )
     if delete_copied_file and import_path.exists():
         try:
             shutil.rmtree(import_path)

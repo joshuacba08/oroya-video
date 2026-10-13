@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 from datetime import UTC, datetime
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
@@ -13,7 +14,12 @@ from app.core.errors import (
     JobPreflightFailedError,
 )
 from app.core.logging import get_logger
-from app.core.paths import get_exports_path, get_storage_path, is_storage_writable
+from app.core.paths import (
+    get_exports_path,
+    get_storage_path,
+    is_directory_writable,
+    is_storage_writable,
+)
 from app.db.repositories import (
     ai_model_repository,
     job_repository,
@@ -26,8 +32,11 @@ from app.services.ai_runtime_service import get_ai_runtime_status
 from app.services.audit_log_service import record_audit_event
 from app.services.face_restore_service import FACE_RESTORE_MODEL_SLUG, get_face_restore_strength
 from app.services.frame_extraction_service import resolve_job_input_video, validate_ffmpeg_available
+from app.services.interpolation_service import get_job_interpolation, is_rife_model_ready
+from app.services.job_contract_service import resolve_pipeline_mode
 from app.services.realesrgan_service import validate_realesrgan_model
 from app.services.video_probe_service import _get_ffprobe_path
+from app.utils.enhancement_config import parse_enhancement_config_json
 
 logger = get_logger(__name__)
 FINAL_JOB_STATUSES = {"completed", "failed", "cancelled"}
@@ -86,11 +95,14 @@ def run_job_preflight(
     checks["model_exists"] = model is not None
     checks["model_enabled"] = bool(model and model.is_enabled)
     checks["storage_temp_writable"] = is_storage_writable(active_settings)
-    exports_path = get_exports_path(active_settings)
-    exports_path.mkdir(parents=True, exist_ok=True)
-    checks["storage_exports_writable"] = (
-        is_storage_writable(active_settings) and exports_path.exists()
+    # La carpeta elegida para este job (si la hay) o la de exportación de Ajustes.
+    custom_output_dir = parse_enhancement_config_json(job.export_config_json).get("output_dir")
+    exports_path = (
+        Path(custom_output_dir).expanduser()
+        if isinstance(custom_output_dir, str) and custom_output_dir.strip()
+        else get_exports_path(active_settings)
     )
+    checks["storage_exports_writable"] = is_directory_writable(exports_path)
     checks["job_process_inactive"] = not _has_active_process(job)
     checks["job_state_allowed"] = job.status not in FINAL_JOB_STATUSES
     checks["cuda_available"] = active_settings.ai_device.strip().lower() != "cuda" or (
@@ -165,6 +177,19 @@ def run_job_preflight(
                 + ", ".join(missing_modules)
                 + ". Install the AI runtime from Setup."
             )
+
+    if get_job_interpolation(job) is not None:
+        checks["interpolation_ready"] = False
+        if resolve_pipeline_mode(job, active_settings) != "streaming":
+            errors.append(
+                "Frame interpolation needs the streaming pipeline (processing.pipeline_mode)."
+            )
+        elif not is_rife_model_ready(db):
+            errors.append("Frame interpolation needs the RIFE model: download it in Models.")
+        elif not ai_runtime_service.is_torch_available():
+            errors.append("Frame interpolation needs the AI runtime: install it from Setup.")
+        else:
+            checks["interpolation_ready"] = True
 
     if _has_active_process(job):
         errors.append("This job already has an active registered process.")

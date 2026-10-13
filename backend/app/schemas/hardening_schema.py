@@ -115,6 +115,8 @@ class QueueItemResponse(BaseModel):
     retry_count: int = 0
     max_retries: int = 0
     actions: JobActions
+    # Posición en la cola (1 = el siguiente); solo para jobs en espera.
+    queue_position: int | None = None
 
 
 class QueueResponse(BaseModel):

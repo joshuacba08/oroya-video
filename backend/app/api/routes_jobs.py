@@ -27,6 +27,8 @@ from app.schemas.job_schema import (
     FinalExportSummaryResponse,
     FrameEnhancementSummaryResponse,
     FrameExtractionSummaryResponse,
+    JobBatchRequest,
+    JobBatchResponse,
     JobControlResponse,
     JobCreateRequest,
     JobDeleteResponse,
@@ -71,6 +73,7 @@ from app.services.job_service import (
     list_interrupted_processing_jobs,
     list_processing_jobs,
     pause_processing_job,
+    queue_projects_batch,
     resume_processing_job,
     retry_processing_job,
     start_processing_job,
@@ -132,6 +135,19 @@ def list_interrupted_jobs_route(
 @router.get("/{job_id}", response_model=JobDetailResponse, summary="Get job detail")
 def get_job_route(job_id: str, db: DbSession) -> JobDetailResponse:
     return get_processing_job_detail(db=db, job_id=job_id)
+
+
+@router.post(
+    "/batch",
+    response_model=JobBatchResponse,
+    summary="Create and queue jobs for several projects with the same settings",
+)
+async def batch_jobs_route(
+    payload: JobBatchRequest,
+    request: Request,
+    db: DbSession,
+) -> JobBatchResponse:
+    return await queue_projects_batch(db=db, request=payload, settings=request.app.state.settings)
 
 
 @router.post("/{job_id}/start", response_model=JobControlResponse, summary="Queue a job")

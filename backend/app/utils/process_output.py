@@ -27,9 +27,11 @@ class StderrDrain:
 
     def _run(self) -> None:
         try:
-            self._text = self._stream.read() or ""  # type: ignore[union-attr]
+            output = self._stream.read() or ""  # type: ignore[union-attr]
         except (OSError, ValueError):
-            self._text = ""
+            output = ""
+        # Las tuberías binarias (pipeline por streaming) devuelven bytes.
+        self._text = output.decode("utf-8", "replace") if isinstance(output, bytes) else output
 
     def text(self, timeout: float = 5.0) -> str:
         if self._thread is not None:

@@ -439,6 +439,8 @@ export class OvVideoPreviewComponent {
   readonly selectedFrameIndex = input<number | null>(null);
   readonly snapshotAvailable = input(false);
   readonly videoFps = input(30);
+  /** Segundos del original donde empieza el fotograma 0 (inicio del recorte). */
+  readonly timeOffsetSeconds = input(0);
   readonly totalFrames = input(0);
   readonly filtersActive = input(false);
   readonly compareMode = model<PreviewCompareMode>('slider');
@@ -456,7 +458,7 @@ export class OvVideoPreviewComponent {
       return '--:--:--';
     }
 
-    const totalSeconds = Math.floor(index / fps);
+    const totalSeconds = Math.floor(this.timeOffsetSeconds() + index / fps);
     const hours = Math.floor(totalSeconds / 3600);
     const minutes = Math.floor((totalSeconds % 3600) / 60);
     const seconds = totalSeconds % 60;

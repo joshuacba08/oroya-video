@@ -24,6 +24,7 @@ import type {
   QueueJobVm,
   SettingsVm,
   SystemStatusVm,
+  InterpolationTarget,
   WorkspaceVm,
 } from '../models/oroya.models';
 import { getLocale, translate } from '../i18n/i18n';
@@ -34,6 +35,13 @@ const tones: ProjectTone[] = ['violet', 'green', 'rose', 'blue'];
 const pipelineOrder = ['import', 'extract', 'enhance', 'encode', 'export'];
 const pipelineIcons = ['upload', 'film', 'sparkles', 'box', 'download'];
 const FACE_RESTORE_CATEGORY = 'face_restoration';
+const INTERPOLATION_CATEGORY = 'frame_interpolation';
+// GFPGAN y RIFE son pasos aparte, no modelos de escalado seleccionables.
+const OPTIONAL_STEP_CATEGORIES = [FACE_RESTORE_CATEGORY, INTERPOLATION_CATEGORY];
+
+function interpolationTarget(value: unknown): InterpolationTarget {
+  return value === 48 || value === 50 || value === 60 ? value : '2x';
+}
 
 function record(value: unknown): UnknownRecord {
   return value && typeof value === 'object' ? (value as UnknownRecord) : {};
@@ -171,6 +179,8 @@ function stageToPipeline(stage: string, progress: number, status = ''): Pipeline
     queued: 0,
     extracting_frames: 1,
     enhancing_frames: 2,
+    // Streaming: extraer, mejorar y codificar a la vez.
+    processing: 2,
     restoring_faces: 2,
     encoding_video: 3,
     muxing_audio: 3,
@@ -205,6 +215,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'realesrgan-x2': 'Real-ESRGAN x2',
   'realesrgan-x4': 'Real-ESRGAN x4',
   'gfpgan-v1.4': 'GFPGAN v1.4',
+  'rife-4.25': 'RIFE 4.25',
 };
 
 function modelDisplayName(slug: string): string {
@@ -343,7 +354,10 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
   const etaSeconds =
     backendEta > 0
       ? backendEta
-      : status === 'running' && stage === 'enhancing_frames' && avgFrameTimeMs > 0 && framesTotal > framesDone
+      : status === 'running' &&
+          ['enhancing_frames', 'processing'].includes(stage) &&
+          avgFrameTimeMs > 0 &&
+          framesTotal > framesDone
         ? ((framesTotal - framesDone) * avgFrameTimeMs) / 1000
         : 0;
 
@@ -373,6 +387,7 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     exportAvailable: booleanValue(job['export_available'], booleanValue(actions['can_open_export'])),
     // Mensaje traducido por código cuando existe (p. ej. pausa por disco lleno).
     errorMessage: errorMessageFor(job),
+    queuePosition: typeof job['queue_position'] === 'number' ? job['queue_position'] : undefined,
     device: stringValue(job['realesrgan_device']) || undefined,
     avgFrameTimeMs: avgFrameTimeMs > 0 ? Math.round(avgFrameTimeMs) : undefined,
     failedFrames: pickNumber(job, ['realesrgan_failed_frames'], 0),
@@ -380,6 +395,9 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     etaTime: etaSeconds > 0 ? `~${formatSeconds(etaSeconds)}` : undefined,
     framesProcessed: pickNumber(job, ['enhanced_frames', 'frames_processed'], framesDone),
     framesTotal,
+    streaming: job['pipeline_mode'] === 'streaming',
+    previewFrameIndex:
+      typeof job['preview_frame_index'] === 'number' ? job['preview_frame_index'] : undefined,
   };
 }
 
@@ -557,7 +575,7 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     ? modelsRecord['available'].map(mapModelLike)
     : [];
   // GFPGAN no escala: se activa aparte (restauración facial), no es un modelo seleccionable.
-  const available = allModels.filter((model) => model.category !== FACE_RESTORE_CATEGORY);
+  const available = allModels.filter((model) => !OPTIONAL_STEP_CATEGORIES.includes(model.category));
   const selected = modelsRecord['selected']
     ? mapModelLike(modelsRecord['selected'])
     : (available[0] ?? emptyModelVm());
@@ -586,9 +604,21 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     faceRestoreAvailable: allModels.some(
       (model) => model.category === FACE_RESTORE_CATEGORY && model.installed && model.enabled,
     ),
+    interpolation: {
+      enabled: booleanValue(record(enhancement['interpolation'])['enabled']),
+      targetFps: interpolationTarget(record(enhancement['interpolation'])['target_fps']),
+    },
+    interpolationAvailable: allModels.some(
+      (model) => model.category === INTERPOLATION_CATEGORY && model.installed && model.enabled,
+    ),
     scale: stringValue(enhancement['scale'], '2x') as WorkspaceVm['scale'],
     exportResolution: stringValue(exportConfig['output_resolution'], '2x') as WorkspaceVm['exportResolution'],
     keepAudio: booleanValue(exportConfig['keep_audio'], true),
+    exportFileName: stringValue(exportConfig['file_name']),
+    exportDir: stringValue(exportConfig['output_dir']),
+    trim: mapTrim(exportConfig['trim']),
+    videoDurationSeconds: numberValue(record(response.video)['duration_seconds'], 0),
+    previewTimeOffset: mapTrim(record(latestJob['export_config'])['trim'])?.start ?? 0,
     compareMode:
       stringValue(workspaceState['compare_mode']) === 'side_by_side' ? 'side_by_side' : 'slider',
     zoom: stringValue(workspaceState['zoom']) === '100%' ? '100%' : 'fit',
@@ -612,6 +642,16 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
       : idlePipeline(),
     actions: response.actions,
   };
+}
+
+function mapTrim(value: unknown): WorkspaceVm['trim'] {
+  const trim = record(value);
+  if (!Object.keys(trim).length) {
+    return null;
+  }
+  const start = numberValue(trim['start_seconds'], 0);
+  const end = numberValue(trim['end_seconds'], 0);
+  return end > start ? { start, end } : null;
 }
 
 function idlePipeline(): PipelineStepVm[] {

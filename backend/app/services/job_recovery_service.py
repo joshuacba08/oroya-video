@@ -15,7 +15,8 @@ from app.schemas.job_schema import JobControlResponse, JobListResponse
 from app.services.audit_log_service import record_audit_event
 
 logger = get_logger(__name__)
-RECOVERABLE_STATUSES = {"queued", "running", "retrying", "cleaning"}
+# Los `queued` no se tocan: siguen en la cola tras reiniciar (ver requeue_waiting_jobs).
+RECOVERABLE_STATUSES = {"running", "retrying", "cleaning"}
 # Solo se terminan procesos con estos nombres: el PID guardado pudo reutilizarse.
 ORPHAN_PROCESS_NAMES = ("ffmpeg", "ffprobe")
 
@@ -110,6 +111,17 @@ def recover_interrupted_jobs_on_startup(
         raise JobRecoveryFailedError() from exc
     logger.info("Startup job recovery completed: %s", recovered_count)
     return recovered_count
+
+
+def get_waiting_job_ids(db: Session) -> list[str]:
+    """Jobs that were waiting in the queue when the app closed, in their original order."""
+    rows = (
+        db.query(ProcessingJob.id)
+        .filter(ProcessingJob.status == "queued")
+        .order_by(ProcessingJob.queued_at.asc(), ProcessingJob.created_at.asc())
+        .all()
+    )
+    return [job_id for (job_id,) in rows]
 
 
 def list_interrupted_jobs(

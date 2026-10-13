@@ -419,6 +419,36 @@ def prepare_realesrgan_context(
     return context
 
 
+def get_streaming_enhancer(
+    db: Session,
+    job: ProcessingJob,
+    settings: Settings | None = None,
+) -> RealESRGANFrameEnhancer:
+    """Real-ESRGAN for the streaming pipeline: same model, device and scale as the classic
+    one, but frames come in memory instead of from an extracted-frames folder."""
+    active_settings = _get_active_settings(settings)
+    model = _get_model_or_raise(db, _resolve_job_model_slug(job))
+    model_path = resolve_realesrgan_model_path(db, model.slug, active_settings)
+    device, _, _ = _resolve_runtime_device(active_settings, raise_on_unavailable=True)
+    if device is None:
+        raise AIRuntimeNotAvailableError()
+    working_dir = Path(job.working_dir or ".")
+    context = RealESRGANContext(
+        model_slug=model.slug,
+        model_path=model_path,
+        device=device,
+        scale=resolve_enhancement_outscale(_deserialize_job_enhancement_config(job), model),
+        tile_size=active_settings.realesrgan_tile_size,
+        tile_pad=active_settings.realesrgan_tile_pad,
+        pre_pad=active_settings.realesrgan_pre_pad,
+        half_precision=active_settings.ai_half_precision and device == "cuda",
+        input_dir=working_dir,
+        output_dir=working_dir,
+        total_frames=0,
+    )
+    return _get_enhancer(context, active_settings)
+
+
 def validate_realesrgan_job_requirements(
     db: Session,
     job: ProcessingJob,

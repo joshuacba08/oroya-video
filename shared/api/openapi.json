@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oroya Video Backend",
-    "version": "0.4.0"
+    "version": "0.5.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -1936,6 +1936,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/batch": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Create and queue jobs for several projects with the same settings",
+        "operationId": "batch_jobs_route_api_v1_jobs_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobBatchResponse"
                 }
               }
             }
@@ -5930,6 +5971,47 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JobDeleteResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/batch": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "Create and queue jobs for several projects with the same settings",
+        "operationId": "batch_jobs_route_api_jobs_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobBatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobBatchResponse"
                 }
               }
             }
@@ -11041,6 +11123,95 @@
         ],
         "title": "JobActions"
       },
+      "JobBatchRequest": {
+        "properties": {
+          "project_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Project Ids"
+          },
+          "enhancement_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enhancement Config"
+          },
+          "export_config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_ids"
+        ],
+        "title": "JobBatchRequest"
+      },
+      "JobBatchResponse": {
+        "properties": {
+          "queued_job_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Queued Job Ids"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/JobBatchSkipped"
+            },
+            "type": "array",
+            "title": "Skipped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "queued_job_ids",
+          "skipped"
+        ],
+        "title": "JobBatchResponse"
+      },
+      "JobBatchSkipped": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "error_code": {
+            "type": "string",
+            "title": "Error Code"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "error_code",
+          "reason"
+        ],
+        "title": "JobBatchSkipped"
+      },
       "JobControlResponse": {
         "properties": {
           "job": {
@@ -11675,6 +11846,50 @@
           "enhanced_frames": {
             "type": "integer",
             "title": "Enhanced Frames"
+          },
+          "pipeline_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Mode"
+          },
+          "segments_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Completed"
+          },
+          "segments_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Total"
+          },
+          "preview_frame_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Frame Index"
           },
           "estimated_time_seconds": {
             "anyOf": [
@@ -12438,6 +12653,50 @@
           "enhanced_frames": {
             "type": "integer",
             "title": "Enhanced Frames"
+          },
+          "pipeline_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Mode"
+          },
+          "segments_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Completed"
+          },
+          "segments_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Total"
+          },
+          "preview_frame_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Frame Index"
           },
           "extraction_started_at": {
             "anyOf": [
@@ -14543,6 +14802,17 @@
           },
           "actions": {
             "$ref": "#/components/schemas/JobActions"
+          },
+          "queue_position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Position"
           }
         },
         "type": "object",

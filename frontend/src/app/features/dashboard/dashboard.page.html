@@ -17,7 +17,7 @@
 
   @if (manualImportOpen()) {
     <ov-manual-path-import
-      [busy]="importing()"
+      [busy]="imports.importing()"
       (pathSubmitted)="importPath($event)"
       (cancelled)="manualImportOpen.set(false)"
     />
@@ -44,11 +44,11 @@
 
     <ov-section-header [label]="'dashboard.quickActions' | t" />
     <div class="dashboard-page__actions">
-      <button type="button" class="quick-action" [disabled]="importing()" (click)="importVideo()">
+      <button type="button" class="quick-action" [disabled]="imports.importing()" (click)="importVideo()">
         <n-icon name="file-video" size="md" />
         <span>{{ 'dashboard.importVideo' | t }}</span>
       </button>
-      <button type="button" class="quick-action" [disabled]="importing()" (click)="newProject()">
+      <button type="button" class="quick-action" [disabled]="imports.importing()" (click)="newProject()">
         <n-icon name="folder-open" size="md" />
         <span>{{ 'common.newProject' | t }}</span>
       </button>

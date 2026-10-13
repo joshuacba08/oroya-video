@@ -13,6 +13,7 @@ from app.core.errors import JobCleanupFailedError, JobInvalidStateError, JobNotF
 from app.core.logging import get_logger
 from app.core.paths import (
     get_directory_size_bytes,
+    get_exports_path,
     get_job_encoded_path,
     get_job_enhanced_frames_path,
     get_job_muxed_path,
@@ -513,7 +514,7 @@ def get_storage_usage(settings: Settings | None = None) -> dict[str, int | str |
         "db_bytes": get_directory_size_bytes(storage_path / "db"),
         "temp_bytes": get_directory_size_bytes(storage_path / "temp"),
         "imports_bytes": get_directory_size_bytes(storage_path / "imports"),
-        "exports_bytes": get_directory_size_bytes(storage_path / "exports"),
+        "exports_bytes": get_directory_size_bytes(get_exports_path(active_settings)),
         "models_bytes": get_directory_size_bytes(storage_path / "models"),
     }
     used_by_oroya_bytes = sum(breakdown.values())

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.ai_model_schema import AIModelResponse
 from app.schemas.project_schema import ProjectResponse
@@ -15,6 +15,23 @@ class JobCreateRequest(BaseModel):
     model_id: str | None = None
     enhancement_config: dict[str, Any] | None = None
     export_config: dict[str, Any] | None = None
+
+
+class JobBatchRequest(BaseModel):
+    project_ids: list[str] = Field(min_length=1, max_length=200)
+    enhancement_config: dict[str, Any] | None = None
+    export_config: dict[str, Any] | None = None
+
+
+class JobBatchSkipped(BaseModel):
+    project_id: str
+    error_code: str
+    reason: str
+
+
+class JobBatchResponse(BaseModel):
+    queued_job_ids: list[str]
+    skipped: list[JobBatchSkipped]
 
 
 class JobActions(BaseModel):
@@ -53,6 +70,10 @@ class JobResponse(BaseModel):
     extracted_frames: int
     enhancer_engine: str | None
     enhanced_frames: int
+    pipeline_mode: str | None = None
+    segments_completed: int | None = None
+    segments_total: int | None = None
+    preview_frame_index: int | None = None
     extraction_started_at: datetime | None
     extraction_completed_at: datetime | None
     enhancement_started_at: datetime | None
@@ -165,6 +186,10 @@ class JobProgressResponse(BaseModel):
     frames_processed: int
     extracted_frames: int
     enhanced_frames: int
+    pipeline_mode: str | None = None
+    segments_completed: int | None = None
+    segments_total: int | None = None
+    preview_frame_index: int | None = None
     estimated_time_seconds: int | None
     elapsed_time_seconds: int | None
     can_start: bool = False

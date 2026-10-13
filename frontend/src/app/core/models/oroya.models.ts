@@ -105,6 +105,8 @@ export interface QueueJobVm {
   previewAvailable: boolean;
   exportAvailable: boolean;
   errorMessage?: string;
+  /** Posición en la cola (1 = el siguiente). */
+  queuePosition?: number;
   device?: string;
   avgFrameTimeMs?: number;
   failedFrames: number;
@@ -113,6 +115,10 @@ export interface QueueJobVm {
   etaTime?: string;
   framesProcessed: number;
   framesTotal: number;
+  /** Pipeline por streaming: solo hay pares de muestra (índices dispersos) para la vista previa. */
+  streaming?: boolean;
+  /** Último fotograma con par original/mejorado guardado (vista en vivo del streaming). */
+  previewFrameIndex?: number;
 }
 
 export interface PreviewFrameVm {
@@ -192,6 +198,8 @@ export interface SettingsVm {
   cleanupOlderThanHours: number;
 }
 
+export type InterpolationTarget = '2x' | 48 | 50 | 60;
+
 export interface WorkspaceVm {
   project: ProjectCardVm;
   videoAssetId: string;
@@ -207,9 +215,20 @@ export interface WorkspaceVm {
   faceRestore: { enabled: boolean; strength: number };
   /** El modelo GFPGAN está instalado y habilitado. */
   faceRestoreAvailable: boolean;
+  /** Interpolación de fotogramas con RIFE (más fps); "2x" duplica los del video. */
+  interpolation: { enabled: boolean; targetFps: InterpolationTarget };
+  /** El modelo RIFE está instalado y habilitado. */
+  interpolationAvailable: boolean;
   scale: 'original' | '2x' | '4x';
   exportResolution: 'original' | '2x' | '4x';
   keepAudio: boolean;
+  exportFileName: string;
+  exportDir: string;
+  /** Fragmento a procesar (segundos del original); null = el video entero. */
+  trim: { start: number; end: number } | null;
+  videoDurationSeconds: number;
+  /** Inicio del recorte del último job: los fotogramas de la vista previa empiezan ahí. */
+  previewTimeOffset: number;
   compareMode: 'slider' | 'side_by_side';
   zoom: 'fit' | '100%';
   videoFps: number;

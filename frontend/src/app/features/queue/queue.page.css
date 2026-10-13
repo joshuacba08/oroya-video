@@ -129,3 +129,10 @@ h1 {
     flex-direction: column;
   }
 }
+
+.queue-page__position {
+  margin: 6px 0 0;
+  color: var(--n-text-3);
+  font-family: var(--n-font-mono);
+  font-size: 0.74rem;
+}

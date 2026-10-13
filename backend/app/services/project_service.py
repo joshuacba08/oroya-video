@@ -33,6 +33,7 @@ from app.db.repositories import (
     project_repository,
     video_repository,
 )
+from app.enhancers.rife_interpolator import ALLOWED_TARGET_FPS
 from app.schemas.project_schema import (
     ProjectCreateRequest,
     ProjectDeleteResponse,
@@ -42,8 +43,10 @@ from app.schemas.project_schema import (
     ProjectWorkspaceResponse,
 )
 from app.services import job_workspace_service
+from app.services.interpolation_service import get_interpolation_config
 from app.services.job_contract_service import build_job_actions, is_preview_available
 from app.services.preview_service import get_compare_frame_info, get_recommended_preview_frame_index
+from app.utils.trim import MIN_TRIM_SECONDS
 
 logger = get_logger(__name__)
 
@@ -87,8 +90,21 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "sharpen",
     "compression_cleanup",
     "face_restore",
+    # Opcional: {"enabled": bool, "target_fps": "2x" | 48 | 50 | 60} (RIFE, REQ-037).
+    "interpolation",
 }
-ALLOWED_EXPORT_KEYS = {"format", "codec", "keep_audio", "output_resolution"}
+ALLOWED_EXPORT_KEYS = {
+    "format",
+    "codec",
+    "keep_audio",
+    "output_resolution",
+    # Opcionales: nombre del archivo y carpeta elegidos por el usuario (vacío = por defecto).
+    "file_name",
+    "output_dir",
+    # Opcional: {start_seconds, end_seconds} para procesar solo un fragmento.
+    "trim",
+}
+EXPORT_FILE_NAME_MAX_LENGTH = 120
 ALLOWED_WORKSPACE_KEYS = {
     "selected_frame",
     "compare_mode",
@@ -142,7 +158,33 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
     face_restore = config.get("face_restore")
     if face_restore is not None:
         _validate_face_restore(face_restore)
+    interpolation = config.get("interpolation")
+    if interpolation is not None:
+        _validate_interpolation(interpolation)
     return config
+
+
+def _validate_interpolation(value: Any) -> None:
+    if not isinstance(value, dict) or set(value) - {"enabled", "target_fps"}:
+        raise InvalidProjectConfigurationError("Enhancement config interpolation is invalid.")
+    if not isinstance(value.get("enabled"), bool):
+        raise InvalidProjectConfigurationError("interpolation.enabled must be boolean.")
+    target = value.get("target_fps", "2x")
+    if isinstance(target, bool) or target not in ALLOWED_TARGET_FPS:
+        raise InvalidProjectConfigurationError("interpolation.target_fps must be 2x, 48, 50 or 60.")
+
+
+def validate_interpolation_against_video(enhancement_config: dict[str, Any], video_asset) -> None:
+    """A fixed target frame rate must be higher than the video's."""
+    config = get_interpolation_config(enhancement_config)
+    source_fps = getattr(video_asset, "fps", None)
+    if config is None or not source_fps:
+        return
+    target = config.get("target_fps", "2x")
+    if target != "2x" and target <= source_fps:
+        raise InvalidProjectConfigurationError(
+            f"The video already has {source_fps:g} fps: choose a higher frame rate or 2x."
+        )
 
 
 def _validate_face_restore(value: Any) -> None:
@@ -171,7 +213,46 @@ def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:
         raise InvalidProjectConfigurationError("Export config keep_audio must be boolean.")
     if config.get("output_resolution") not in ALLOWED_SCALE_VALUES:
         raise InvalidProjectConfigurationError("Export config output_resolution is invalid.")
+    file_name = config.get("file_name")
+    if file_name is not None and (
+        not isinstance(file_name, str) or len(file_name) > EXPORT_FILE_NAME_MAX_LENGTH
+    ):
+        raise InvalidProjectConfigurationError("Export file name is invalid.")
+    trim = config.get("trim")
+    if trim is not None:
+        _validate_trim_shape(trim)
+    output_dir = config.get("output_dir")
+    if output_dir is not None and output_dir != "":
+        if not isinstance(output_dir, str) or not Path(output_dir).expanduser().is_absolute():
+            raise InvalidProjectConfigurationError("The export folder must be an absolute path.")
     return config
+
+
+def _validate_trim_shape(trim: object) -> None:
+    if not isinstance(trim, dict) or set(trim) - {"start_seconds", "end_seconds"}:
+        raise InvalidProjectConfigurationError("Trim must be {start_seconds, end_seconds}.")
+    values = [trim.get("start_seconds"), trim.get("end_seconds")]
+    for value in values:
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0
+        ):
+            raise InvalidProjectConfigurationError("Trim times must be positive numbers.")
+    start, end = values
+    if start is not None and end is not None and end - start < MIN_TRIM_SECONDS:
+        raise InvalidProjectConfigurationError(
+            f"The trimmed fragment must last at least {MIN_TRIM_SECONDS} s."
+        )
+
+
+def validate_trim_against_video(export_config: dict[str, Any], video_asset) -> None:
+    """The fragment must start inside the video (the end is clamped to its duration)."""
+    trim = export_config.get("trim")
+    duration = getattr(video_asset, "duration_seconds", None)
+    if not isinstance(trim, dict) or not duration:
+        return
+    start = trim.get("start_seconds") or 0
+    if start >= duration - MIN_TRIM_SECONDS:
+        raise InvalidProjectConfigurationError("The trim starts after the end of the video.")
 
 
 def _validate_workspace_state(config: dict[str, Any]) -> dict[str, Any]:
@@ -239,22 +320,50 @@ def _serialize_config(data: dict[str, Any]) -> str:
     return json.dumps(data)
 
 
+def _saved_default_configs(
+    db: Session, settings: Settings | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Last used processing settings, or the built-in defaults if they are no longer valid
+    (e.g. the model was disabled)."""
+    from app.services.settings_service import get_processing_defaults
+
+    saved = get_processing_defaults(settings)
+    try:
+        enhancement = _validate_enhancement_config(
+            _merge_config(DEFAULT_ENHANCEMENT_CONFIG, saved["enhancement_config"])
+        )
+        _validate_model_reference(db, enhancement["model_id"])
+        export = _validate_export_config(
+            _merge_config(DEFAULT_EXPORT_CONFIG, saved["export_config"])
+        )
+    except OroyaVideoError:
+        return DEFAULT_ENHANCEMENT_CONFIG, DEFAULT_EXPORT_CONFIG
+    return enhancement, export
+
+
 def _build_project_configs(
     db: Session,
     enhancement_config: dict[str, Any] | None,
     export_config: dict[str, Any] | None,
     workspace_state: dict[str, Any] | None,
     existing_project: Project | None = None,
+    settings: Settings | None = None,
+    video_asset: VideoAsset | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    default_enhancement, default_export = (
+        (DEFAULT_ENHANCEMENT_CONFIG, DEFAULT_EXPORT_CONFIG)
+        if existing_project
+        else _saved_default_configs(db, settings)
+    )
     existing_enhancement = (
         project_repository.to_project_response(existing_project).enhancement_config
         if existing_project
-        else DEFAULT_ENHANCEMENT_CONFIG
+        else default_enhancement
     )
     existing_export = (
         project_repository.to_project_response(existing_project).export_config
         if existing_project
-        else DEFAULT_EXPORT_CONFIG
+        else default_export
     )
     existing_workspace = (
         project_repository.to_project_response(existing_project).workspace_state
@@ -266,6 +375,10 @@ def _build_project_configs(
         _merge_config(existing_enhancement, enhancement_config)
     )
     merged_export = _validate_export_config(_merge_config(existing_export, export_config))
+    if export_config is not None:
+        validate_trim_against_video(merged_export, video_asset)
+    if enhancement_config is not None:
+        validate_interpolation_against_video(merged_enhancement, video_asset)
     merged_workspace = _validate_workspace_state(_merge_config(existing_workspace, workspace_state))
     merged_enhancement["model_id"] = _validate_model_reference(
         db,
@@ -274,7 +387,11 @@ def _build_project_configs(
     return merged_enhancement, merged_export, merged_workspace
 
 
-def create_project(db: Session, request: ProjectCreateRequest) -> ProjectDetailResponse:
+def create_project(
+    db: Session,
+    request: ProjectCreateRequest,
+    settings: Settings | None = None,
+) -> ProjectDetailResponse:
     logger.info("Project create requested")
     video_asset = _get_video_asset_or_raise(db, request.video_asset_id)
     _ensure_video_asset_file_available(video_asset)
@@ -283,6 +400,8 @@ def create_project(db: Session, request: ProjectCreateRequest) -> ProjectDetailR
         enhancement_config=request.enhancement_config,
         export_config=request.export_config,
         workspace_state=request.workspace_state,
+        settings=settings,
+        video_asset=video_asset,
     )
 
     project_data = {
@@ -465,6 +584,7 @@ def update_project(
         export_config=update_data.get("export_config"),
         workspace_state=update_data.get("workspace_state"),
         existing_project=project,
+        video_asset=video_asset,
     )
     if "enhancement_config" in update_data:
         patch_data["enhancement_config_json"] = _serialize_config(enhancement_config)
@@ -498,6 +618,7 @@ def delete_project(
     if any(job.status in ACTIVE_JOB_STATUSES for job in project.processing_jobs):
         raise JobInvalidStateError()
     job_ids = [job.id for job in project.processing_jobs]
+    export_paths = job_workspace_service.collect_export_file_paths(db, job_ids)
     try:
         project_repository.delete_project(db, project)
         db.commit()
@@ -507,7 +628,9 @@ def delete_project(
         raise ProjectDeleteFailedError() from exc
 
     for job_id in job_ids:
-        job_workspace_service.delete_job_files(job_id, project_id, settings)
+        job_workspace_service.delete_job_files(
+            job_id, project_id, settings, export_paths.get(job_id)
+        )
 
     logger.info("Project deleted: %s", project_id)
     return ProjectDeleteResponse(deleted=True, project_id=project_id)

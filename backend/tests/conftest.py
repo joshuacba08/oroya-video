@@ -20,6 +20,9 @@ def _isolate_frame_enhancer_engine(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setenv("FRAME_ENHANCER_ENGINE", "mock")
     monkeypatch.delenv("OROYA_DATA_DIR", raising=False)
+    # Las pruebas de etapas (extracción, mejora, encode…) son del pipeline clásico; las del
+    # streaming pasan Settings(pipeline_mode="streaming") (tests/test_streaming_pipeline.py).
+    monkeypatch.setenv("PIPELINE_MODE", "legacy")
 
 
 @pytest.fixture(autouse=True)

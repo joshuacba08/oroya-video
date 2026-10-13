@@ -24,6 +24,7 @@ from app.core.errors import (
     JobPauseNotSupportedError,
     JobRetryNotAllowedError,
     JobStartFailedError,
+    OroyaVideoError,
     ProcessTerminationFailedError,
 )
 from app.core.logging import get_logger
@@ -54,6 +55,9 @@ from app.schemas.job_schema import (
     FinalExportSummaryResponse,
     FrameEnhancementSummaryResponse,
     FrameExtractionSummaryResponse,
+    JobBatchRequest,
+    JobBatchResponse,
+    JobBatchSkipped,
     JobControlResponse,
     JobCreateRequest,
     JobDetailResponse,
@@ -80,6 +84,7 @@ from app.services import (
 from app.services.audit_log_service import record_audit_event
 from app.services.cleanup_service import cleanup_job_temp_files
 from app.services.job_contract_service import (
+    PAUSABLE_STAGES,
     build_job_actions,
     build_stage_label,
     build_stage_progress_percent,
@@ -104,6 +109,7 @@ from app.services.realesrgan_service import (
 from app.services.realesrgan_service import (
     validate_realesrgan_job_requirements,
 )
+from app.services.settings_service import save_processing_defaults
 from app.workers.queue import job_queue
 
 logger = get_logger(__name__)
@@ -146,6 +152,7 @@ def _build_job_configs(
     model_id: str | None,
     enhancement_override: dict[str, Any] | None,
     export_override: dict[str, Any] | None,
+    video: VideoAsset | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], AIModel]:
     enhancement_input = dict(enhancement_override or {})
     if model_id:
@@ -157,6 +164,7 @@ def _build_job_configs(
         export_config=export_override,
         workspace_state=None,
         existing_project=project,
+        video_asset=video,
     )
     model = _resolve_model_for_job(db, enhancement_config["model_id"])
     return enhancement_config, export_config, model
@@ -201,6 +209,7 @@ def create_processing_job(
         model_id=request.model_id,
         enhancement_override=request.enhancement_config,
         export_override=request.export_config,
+        video=video,
     )
 
     job_data = {
@@ -347,6 +356,18 @@ def get_processing_job_detail(db: Session, job_id: str) -> JobDetailResponse:
     return _to_job_detail_response(db, job)
 
 
+def _remember_processing_settings(job: ProcessingJob, settings: Settings) -> None:
+    """The job's settings become the starting point of the next new project."""
+    try:
+        save_processing_defaults(
+            json.loads(job.enhancement_config_json or "{}"),
+            json.loads(job.export_config_json or "{}"),
+            settings,
+        )
+    except (OSError, ValueError):
+        logger.warning("Could not remember the processing settings of job %s", job.id)
+
+
 async def start_processing_job(
     db: Session,
     job_id: str,
@@ -358,6 +379,7 @@ async def start_processing_job(
         logger.warning("Job invalid state transition on start: %s", job.status)
         raise JobInvalidStateError()
 
+    first_start = job.status == "pending"
     # El preflight lanza subprocesos (ffmpeg, GPU) e importa torch: fuera del event loop.
     await asyncio.to_thread(ensure_job_preflight_ready, db, job.id, active_settings)
 
@@ -373,6 +395,7 @@ async def start_processing_job(
                 "error_code": None,
                 "error_message": None,
                 "worker_id": "local-worker",
+                "queued_at": _utcnow(),
             },
         )
         job_repository.create_job_log(db, job.id, "info", "Job queued.", stage="queued")
@@ -386,6 +409,8 @@ async def start_processing_job(
             "Job queued for processing.",
             settings=settings,
         )
+        if first_start:
+            _remember_processing_settings(job, active_settings)
     except SQLAlchemyError as exc:
         db.rollback()
         logger.exception("Job start failed")
@@ -397,7 +422,7 @@ async def start_processing_job(
 
 def pause_processing_job(db: Session, job_id: str) -> JobControlResponse:
     job = _get_job_or_raise(db, job_id)
-    if job.status == "running" and job.current_stage == "enhancing_frames":
+    if job.status == "running" and job.current_stage in PAUSABLE_STAGES:
         try:
             job = job_repository.update_job(db, job, {"pause_requested": True})
             job_repository.create_job_log(
@@ -468,6 +493,7 @@ async def resume_processing_job(
                 "pause_requested": False,
                 "cancel_requested": False,
                 "worker_id": "local-worker",
+                "queued_at": _utcnow(),
             },
         )
         job_repository.create_job_log(db, job.id, "info", "Job resumed.", stage="queued")
@@ -537,6 +563,7 @@ def delete_processing_job(
         raise JobInvalidStateError()
 
     project_id = job.project_id
+    export_paths = job_workspace_service.collect_export_file_paths(db, [job_id])[job_id]
     try:
         job_repository.delete_job(db, job)
         db.commit()
@@ -544,7 +571,9 @@ def delete_processing_job(
         db.rollback()
         raise JobDeleteFailedError() from exc
 
-    job_workspace_service.delete_job_files(job_id, project_id, _get_active_settings(settings))
+    job_workspace_service.delete_job_files(
+        job_id, project_id, _get_active_settings(settings), export_paths
+    )
 
     logger.info("Job deleted: %s", job_id)
     return {"deleted": True, "job_id": job_id}
@@ -676,6 +705,10 @@ def get_job_progress(db: Session, job_id: str) -> JobProgressResponse:
         frames_processed=job.frames_processed,
         extracted_frames=job.extracted_frames,
         enhanced_frames=job.enhanced_frames,
+        pipeline_mode=job.pipeline_mode,
+        segments_completed=job.segments_completed,
+        segments_total=job.segments_total,
+        preview_frame_index=job.preview_frame_index,
         estimated_time_seconds=estimate_remaining_seconds(job),
         elapsed_time_seconds=job.elapsed_time_seconds,
         can_start=actions["can_start"],
@@ -1179,3 +1212,50 @@ def delete_muxed_video(
     if job.status == "running":
         raise JobInvalidStateError()
     return audio_mux_service.delete_muxed_video(db, job_id)
+
+
+async def queue_projects_batch(
+    db: Session,
+    request: JobBatchRequest,
+    settings: Settings | None = None,
+) -> JobBatchResponse:
+    """Create and queue one job per project, in order, with the same settings.
+
+    A project that cannot be queued (missing video, failed preflight, job already active...)
+    is skipped with its reason; the rest of the batch goes on.
+    """
+    active_settings = _get_active_settings(settings)
+    queued: list[str] = []
+    skipped: list[JobBatchSkipped] = []
+    for project_id in dict.fromkeys(request.project_ids):
+        job_id: str | None = None
+        try:
+            created = create_processing_job(
+                db,
+                JobCreateRequest(
+                    project_id=project_id,
+                    enhancement_config=request.enhancement_config,
+                    export_config=request.export_config,
+                ),
+                active_settings,
+            )
+            job_id = created.job.id
+            await start_processing_job(db, job_id, active_settings)
+            queued.append(job_id)
+        except OroyaVideoError as exc:
+            db.rollback()
+            if job_id is not None:
+                job = job_repository.get_job_by_id(db, job_id)
+                if job is not None and job.status == "pending":
+                    job_repository.delete_job(db, job)
+                    db.commit()
+            skipped.append(
+                JobBatchSkipped(
+                    project_id=project_id, error_code=exc.error_code, reason=exc.message
+                )
+            )
+    if queued:
+        # "Últimos ajustes usados": base del siguiente lote y de los proyectos nuevos.
+        save_processing_defaults(request.enhancement_config, request.export_config, active_settings)
+    logger.info("Batch queued: %s jobs, %s skipped", len(queued), len(skipped))
+    return JobBatchResponse(queued_job_ids=queued, skipped=skipped)

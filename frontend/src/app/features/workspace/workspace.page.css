@@ -478,3 +478,83 @@ input[type='range'] {
 .enhance-hint a {
   color: var(--n-color-primary-light);
 }
+
+.export-field {
+  display: grid;
+  gap: 6px;
+  color: var(--n-text-3);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.export-field input {
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--n-text-1);
+  font: inherit;
+}
+
+.enhance-select {
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  background: var(--n-bg-elevated, #12141f);
+  color: var(--n-text-1);
+  font: inherit;
+  font-size: 0.78rem;
+}
+
+.trim-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.trim-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.trim-actions button {
+  flex: 1;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--n-text-2);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.export-field__folder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.export-field__folder code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--n-text-2);
+  font-size: 0.74rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.export-field__folder button {
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--n-text-2);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}

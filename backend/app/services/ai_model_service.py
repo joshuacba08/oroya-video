@@ -160,6 +160,34 @@ DEFAULT_MODELS = [
             }
         ),
     },
+    {
+        "name": "RIFE 4.25",
+        "slug": "rife-4.25",
+        "description": "Frame interpolation: smoother motion at a higher frame rate (optional).",
+        "provider": "RIFE",
+        "category": "frame_interpolation",
+        "model_type": "rife",
+        "scale_factor": None,
+        "version": "4.25",
+        "status": "missing",
+        "is_enabled": True,
+        "is_installed": False,
+        "is_default": True,
+        "file_name": "flownet_v4.25.pkl",
+        "relative_path": "rife/flownet_v4.25.pkl",
+        "estimated_vram_mb": 1024,
+        "supports_gpu": True,
+        "supports_cpu": True,
+        "capabilities_json": json.dumps(
+            {
+                "upscale": False,
+                "restore": False,
+                "frame_interpolation": True,
+                "face_enhancement": False,
+            }
+        ),
+        "metadata_json": json.dumps({"quality_tier": "high", "speed_tier": "fast"}),
+    },
 ]
 
 

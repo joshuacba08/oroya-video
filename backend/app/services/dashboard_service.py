@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -193,11 +194,24 @@ def get_queue_response(
         db.query(ProcessingJob, Project.name)
         .outerjoin(Project, Project.id == ProcessingJob.project_id)
         .filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES))
-        .order_by(ProcessingJob.created_at.desc())
+        # Orden real de proceso: el que corre, después la cola (FIFO) y luego el resto.
+        .order_by(
+            case(
+                (ProcessingJob.status == "running", 0),
+                (ProcessingJob.status == "queued", 1),
+                else_=2,
+            ),
+            case(
+                (ProcessingJob.status == "queued", ProcessingJob.queued_at),
+                else_=None,
+            ).asc(),
+            ProcessingJob.created_at.desc(),
+        )
         .offset(offset)
         .limit(limit)
         .all()
     )
+    queued_ids = [job.id for job, _ in items if job.status == "queued"]
     response_items = [
         QueueItemResponse(
             job_id=job.id,
@@ -223,6 +237,7 @@ def get_queue_response(
             retry_count=job.retry_count or 0,
             max_retries=job.max_retries or 0,
             actions=build_job_actions(job),
+            queue_position=(queued_ids.index(job.id) + 1) if job.id in queued_ids else None,
         )
         for job, project_name in items
     ]
