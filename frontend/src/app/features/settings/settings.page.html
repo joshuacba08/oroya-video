@@ -94,7 +94,53 @@
         </n-button>
       </ov-settings-row>
       <ov-settings-row [label]="'settings.exportsFolder' | t" [description]="settings.exportsPath">
-        <n-button variant="secondary" size="sm" (click)="openStorage('exports')">
+        <div class="settings-page__buttons">
+          <n-button variant="secondary" size="sm" [disabled]="saving()" (click)="changeExportsFolder(settings.exportsPath)">
+            <n-icon name="pencil" size="sm" />
+            {{ 'settings.change' | t }}
+          </n-button>
+          <n-button variant="secondary" size="sm" (click)="openStorage('exports')">
+            <n-icon name="folder-open" size="sm" />
+            {{ 'common.openFolder' | t }}
+          </n-button>
+        </div>
+      </ov-settings-row>
+    </section>
+
+    <section class="settings-page__section">
+      <h2>{{ 'settings.support' | t }}</h2>
+      <ov-settings-row [label]="'updates.title' | t" [description]="'updates.current' | t: { version: appVersion }">
+        @if (updates.supported()) {
+          <n-button variant="secondary" size="sm" [disabled]="updates.state() === 'checking'" (click)="updates.check()">
+            <n-icon name="refresh-cw" size="sm" />
+            {{ 'updates.check' | t }}
+          </n-button>
+        } @else {
+          <span class="settings-page__muted">{{ 'updates.desktopOnly' | t }}</span>
+        }
+      </ov-settings-row>
+      @switch (updates.state()) {
+        @case ('upToDate') {
+          <p class="settings-page__note" role="status">{{ 'updates.upToDate' | t }}</p>
+        }
+        @case ('error') {
+          <p class="settings-page__note settings-page__note--muted" role="status">{{ 'updates.checkFailed' | t }}</p>
+        }
+      }
+      @if (updates.available(); as update) {
+        <p class="settings-page__note" role="status">{{ 'updates.available' | t: { version: update.version } }}</p>
+      }
+      <ov-settings-row [label]="'settings.diagnostics' | t" [description]="'settings.diagnosticsDescription' | t">
+        <n-button variant="secondary" size="sm" [disabled]="diagnosticsBusy()" (click)="exportDiagnostics()">
+          <n-icon name="download" size="sm" />
+          {{ (diagnosticsBusy() ? 'settings.diagnosticsBusy' : 'settings.diagnosticsExport') | t }}
+        </n-button>
+      </ov-settings-row>
+      @if (diagnosticsFile(); as fileName) {
+        <p class="settings-page__note" role="status">{{ 'settings.diagnosticsDone' | t: { file: fileName } }}</p>
+      }
+      <ov-settings-row [label]="'settings.logsFolder' | t" [description]="'settings.logsFolderDescription' | t">
+        <n-button variant="secondary" size="sm" (click)="openStorage('logs')">
           <n-icon name="folder-open" size="sm" />
           {{ 'common.openFolder' | t }}
         </n-button>

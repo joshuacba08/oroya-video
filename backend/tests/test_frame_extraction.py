@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -350,7 +351,7 @@ def test_worker_extracts_frames_and_updates_progress(frame_client) -> None:
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
         patch("app.workers.job_runner.enhance_frames_for_job"),
@@ -412,7 +413,7 @@ def test_worker_marks_job_failed_when_ffmpeg_returns_error(frame_client) -> None
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
         patch("app.workers.job_runner.enhance_frames_for_job"),
@@ -504,7 +505,7 @@ def test_worker_terminates_ffmpeg_when_job_is_cancelled(frame_client) -> None:
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
         patch(
@@ -556,7 +557,7 @@ def test_cancel_from_api_that_kills_ffmpeg_leaves_job_cancelled(frame_client) ->
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
         enhance_mock as enhance,
@@ -596,7 +597,7 @@ def test_shutdown_killing_ffmpeg_leaves_job_for_startup_recovery(frame_client) -
             ),
             patch(
                 "app.services.frame_extraction_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.frame_extraction_service.subprocess.Popen",
@@ -709,7 +710,7 @@ def test_delete_job_frames_cleans_up_extracted_files(frame_client) -> None:
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
         patch("app.workers.job_runner.enhance_frames_for_job"),
@@ -738,3 +739,42 @@ def test_delete_job_frames_cleans_up_extracted_files(frame_client) -> None:
     assert summary_after.json()["extracted_frames"] == 0
     assert not Path(original_frames_dir).exists()
     assert frames_response.status_code == 404
+
+
+class HangingStdout:
+    """ffmpeg that prints one progress line and then hangs without exiting."""
+
+    def __iter__(self):
+        yield "frame=1\n"
+        threading.Event().wait()
+
+
+def test_worker_stops_a_stalled_ffmpeg_and_fails_the_job(frame_client) -> None:
+    client, source_file, settings = frame_client
+    settings.ffmpeg_stall_timeout_seconds = 1
+    video = _import_video(client, source_file)
+    project = _create_project(client, video["id"])
+    job = _create_job(client, project["id"])
+    _queue_job(client, job["id"])
+    process_holder: dict[str, FakePopen] = {}
+
+    def popen_factory(command, **kwargs):
+        process = FakePopen(command, lines=[], returncode=0)
+        process.stdout = HangingStdout()
+        process_holder["process"] = process
+        return process
+
+    with (
+        patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
+        patch(
+            "app.services.frame_extraction_service.shutil.disk_usage",
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
+        ),
+        patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_factory),
+    ):
+        process_job_skeleton_sync(job["id"], settings)
+
+    progress = client.get(f"/api/jobs/{job['id']}/progress").json()
+    assert progress["status"] == "failed"
+    assert progress["error_code"] == "ffmpeg_stalled"
+    assert process_holder["process"].killed is True

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+import psutil
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,8 @@ from app.services.audit_log_service import record_audit_event
 
 logger = get_logger(__name__)
 RECOVERABLE_STATUSES = {"queued", "running", "retrying", "cleaning"}
+# Solo se terminan procesos con estos nombres: el PID guardado pudo reutilizarse.
+ORPHAN_PROCESS_NAMES = ("ffmpeg", "ffprobe")
 
 
 def _utcnow() -> datetime:
@@ -25,7 +28,27 @@ def _get_active_settings(settings: Settings | None = None) -> Settings:
     return settings or get_settings()
 
 
+def terminate_orphan_process(pid: int | None) -> bool:
+    """Stop an ffmpeg left running by a backend that died without shutting down."""
+    if not pid:
+        return False
+    try:
+        process = psutil.Process(pid)
+        if not any(name in process.name().lower() for name in ORPHAN_PROCESS_NAMES):
+            return False
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except psutil.TimeoutExpired:
+            process.kill()
+    except (psutil.NoSuchProcess, psutil.AccessDenied):
+        return False
+    logger.warning("Terminated orphan process %s left by a previous run", pid)
+    return True
+
+
 def mark_job_as_interrupted(db: Session, job: ProcessingJob) -> ProcessingJob:
+    terminate_orphan_process(job.process_id)
     interrupted_at = _utcnow()
     updated_job = job_repository.update_job(
         db,

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
+import time
 from pathlib import Path
+from typing import Any
 
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
@@ -28,9 +33,16 @@ DEFAULT_SETTINGS_FILE = {
     },
     "processing": {},
     "cleanup": {},
+    "storage": {},
 }
 ALLOWED_FRAME_ENHANCERS = {"mock", "realesrgan"}
 ALLOWED_AI_DEVICES = {"auto", "cpu", "cuda"}
+
+# Lectura-modificación-escritura de settings.json desde peticiones y desde el hilo de
+# instalación de IA: sin el lock, una escritura podía pisar la otra.
+_settings_lock = threading.RLock()
+# Copia del settings.json ilegible que se apartó al arrancar (se avisa en /bootstrap).
+corrupt_settings_backup: Path | None = None
 
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
@@ -43,21 +55,40 @@ def _get_settings_file(settings: Settings | None = None) -> Path:
     return settings_file
 
 
+def _set_aside_corrupt_file(settings_file: Path) -> None:
+    """Keep the unreadable file for support instead of overwriting it on the next save."""
+    global corrupt_settings_backup
+    backup = settings_file.with_name(
+        f"{settings_file.name}.corrupt-{time.strftime('%Y%m%d-%H%M%S')}"
+    )
+    try:
+        os.replace(settings_file, backup)
+        corrupt_settings_backup = backup
+        logger.warning("Settings file was unreadable; moved to %s. Using defaults.", backup)
+    except OSError:
+        logger.warning("Settings file is unreadable and could not be moved. Using defaults.")
+
+
 def _load_ui_settings(settings: Settings | None = None) -> dict:
     settings_file = _get_settings_file(settings)
-    if not settings_file.exists():
-        return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
-    try:
-        loaded = json.loads(settings_file.read_text(encoding="utf-8"))
-    except (FileNotFoundError, OSError, json.JSONDecodeError):
-        logger.warning("Settings file is invalid JSON. Using defaults.")
-        return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
+    with _settings_lock:
+        if not settings_file.exists():
+            return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
+        try:
+            loaded = json.loads(settings_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            _set_aside_corrupt_file(settings_file)
+            return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
+        except OSError:
+            logger.warning("Settings file could not be read. Using defaults.")
+            return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
 
-    if not isinstance(loaded, dict):
-        return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
+        if not isinstance(loaded, dict):
+            _set_aside_corrupt_file(settings_file)
+            return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
 
     merged = json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
-    for section in ("general", "processing", "cleanup"):
+    for section in ("general", "processing", "cleanup", "storage"):
         value = loaded.get(section)
         if isinstance(value, dict):
             merged[section].update(value)
@@ -66,15 +97,30 @@ def _load_ui_settings(settings: Settings | None = None) -> dict:
 
 def _save_ui_settings(data: dict, settings: Settings | None = None) -> None:
     settings_file = _get_settings_file(settings)
-    settings_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    temp_file = settings_file.with_name(f"{settings_file.name}.tmp")
+    with _settings_lock:
+        # Atómico: un corte de luz o un cierre a mitad nunca deja un JSON a medias.
+        temp_file.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        os.replace(temp_file, settings_file)
+
+
+def _validated(field_name: str, value: Any) -> Any:
+    """Value coerced to the Settings field type, or None when it is not valid."""
+    annotation = Settings.model_fields[field_name].annotation
+    try:
+        return TypeAdapter(annotation).validate_python(value)
+    except ValidationError:
+        logger.warning("Ignoring invalid saved setting %s=%r", field_name, value)
+        return None
 
 
 def set_frame_enhancer_engine(engine: str, settings: Settings | None = None) -> None:
     """Change and persist the enhancer engine (used after installing the AI runtime)."""
     active_settings = _get_active_settings(settings)
-    ui_settings = _load_ui_settings(active_settings)
-    ui_settings.setdefault("processing", {})["frame_enhancer_engine"] = engine
-    _save_ui_settings(ui_settings, active_settings)
+    with _settings_lock:
+        ui_settings = _load_ui_settings(active_settings)
+        ui_settings.setdefault("processing", {})["frame_enhancer_engine"] = engine
+        _save_ui_settings(ui_settings, active_settings)
     active_settings.frame_enhancer_engine = engine
     logger.info("Frame enhancer engine set to %s", engine)
 
@@ -84,6 +130,9 @@ def apply_persisted_settings(settings: Settings | None = None) -> Settings:
     saved_settings = _load_ui_settings(active_settings)
     processing_settings = saved_settings.get("processing", {})
     cleanup_settings = saved_settings.get("cleanup", {})
+    exports_dir = saved_settings.get("storage", {}).get("exports_dir")
+    if isinstance(exports_dir, str) and exports_dir.strip():
+        active_settings.exports_dir = exports_dir
 
     for field_name in (
         "frame_enhancer_engine",
@@ -95,7 +144,7 @@ def apply_persisted_settings(settings: Settings | None = None) -> Settings:
         "realesrgan_pre_pad",
     ):
         value = processing_settings.get(field_name)
-        if value is not None:
+        if value is not None and (value := _validated(field_name, value)) is not None:
             setattr(active_settings, field_name, value)
 
     for field_name in (
@@ -104,7 +153,7 @@ def apply_persisted_settings(settings: Settings | None = None) -> Settings:
         "cleanup_temp_older_than_hours",
     ):
         value = cleanup_settings.get(field_name)
-        if value is not None:
+        if value is not None and (value := _validated(field_name, value)) is not None:
             setattr(active_settings, field_name, value)
 
     return active_settings
@@ -149,6 +198,15 @@ def _ensure_no_running_jobs(db: Session) -> None:
 
 
 def update_settings(
+    db: Session,
+    payload: SettingsUpdateRequest,
+    settings: Settings | None = None,
+) -> SettingsUpdateResponse:
+    with _settings_lock:
+        return _update_settings_locked(db, payload, settings)
+
+
+def _update_settings_locked(
     db: Session,
     payload: SettingsUpdateRequest,
     settings: Settings | None = None,
@@ -221,5 +279,30 @@ def update_settings(
                 "cleanup_temp_older_than_hours"
             ]
 
+    if "storage" in update_data and update_data["storage"] is not None:
+        exports_dir = update_data["storage"].get("exports_dir")
+        if exports_dir is not None:
+            _ensure_no_running_jobs(db)
+            folder = _validated_exports_dir(exports_dir)
+            active_settings.exports_dir = str(folder)
+            ui_settings.setdefault("storage", {})["exports_dir"] = str(folder)
+
     _save_ui_settings(ui_settings, active_settings)
     return SettingsUpdateResponse(updated=True, settings=build_settings_response(active_settings))
+
+
+def _validated_exports_dir(raw_path: str) -> Path:
+    """Absolute, existing (or creatable) and writable folder for the exported videos."""
+    folder = Path(raw_path.strip()).expanduser()
+    if not raw_path.strip() or not folder.is_absolute():
+        raise InvalidProjectConfigurationError("The export folder must be an absolute path.")
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        probe = folder / ".oroya-write-test"
+        probe.write_bytes(b"")
+        probe.unlink()
+    except OSError as exc:
+        raise InvalidProjectConfigurationError(
+            "The export folder cannot be created or written to."
+        ) from exc
+    return folder.resolve()

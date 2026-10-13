@@ -39,6 +39,9 @@ def _serialize_entry(
     )
 
 
+AUDIT_LOG_MAX_BYTES = 5 * 1024 * 1024
+
+
 def get_audit_log_file_path(settings: Settings | None = None) -> Path:
     audit_path = get_audit_log_path(settings)
     audit_path.parent.mkdir(parents=True, exist_ok=True)
@@ -59,7 +62,9 @@ def record_audit_event(
 
     audit_log_path = get_audit_log_file_path(active_settings)
     audit_log_path.parent.mkdir(parents=True, exist_ok=True)
-    audit_log_path.write_text("", encoding="utf-8") if not audit_log_path.exists() else None
+    if audit_log_path.exists() and audit_log_path.stat().st_size > AUDIT_LOG_MAX_BYTES:
+        # Rotación simple: se conserva el archivo anterior como audit.log.1.
+        audit_log_path.replace(audit_log_path.with_name(f"{audit_log_path.name}.1"))
     with audit_log_path.open("a", encoding="utf-8") as handle:
         handle.write(_serialize_entry(event_type, entity_type, entity_id, message, metadata) + "\n")
     logger.info("Audit event recorded: %s %s", event_type, entity_id)

@@ -171,7 +171,7 @@ def _queue_job(client: TestClient, job_id: str) -> None:
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.job_service.job_queue.enqueue", new_callable=AsyncMock),
     ):
@@ -280,7 +280,7 @@ def test_mux_audio_for_job_uses_copy_strategy_when_audio_exists(export_client) -
             patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.audio_mux_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.audio_mux_service.subprocess.Popen",
@@ -332,7 +332,7 @@ def test_mux_audio_for_job_skips_audio_when_keep_audio_disabled(export_client) -
             patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.audio_mux_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.audio_mux_service.subprocess.Popen",
@@ -380,7 +380,7 @@ def test_mux_audio_for_job_falls_back_to_aac_when_copy_fails(export_client) -> N
             patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.audio_mux_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch("app.services.audio_mux_service.subprocess.Popen", side_effect=popen_factory),
         ):
@@ -408,7 +408,7 @@ def test_mux_audio_for_job_uses_none_strategy_when_video_has_no_audio(export_cli
             patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.audio_mux_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.audio_mux_service.subprocess.Popen",
@@ -443,7 +443,7 @@ def test_create_final_export_for_job_creates_export_record_and_job_fields(export
     try:
         with patch(
             "app.services.export_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ):
             export_asset = create_final_export_for_job(db, job["id"], settings=settings)
     finally:
@@ -477,7 +477,7 @@ def test_final_export_records_upscaled_output_resolution(export_client) -> None:
         with (
             patch(
                 "app.services.export_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.export_service.video_probe_service.probe_video",
@@ -508,7 +508,7 @@ def test_export_endpoints_support_detail_delete_open_and_job_summary(
     try:
         with patch(
             "app.services.export_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ):
             export_asset = create_final_export_for_job(db, job["id"], settings=settings)
     finally:
@@ -551,7 +551,7 @@ def test_export_file_endpoint_streams_video_and_supports_range(export_client) ->
     try:
         with patch(
             "app.services.export_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ):
             export_asset = create_final_export_for_job(db, job["id"], settings=settings)
     finally:
@@ -629,7 +629,7 @@ def test_cancel_during_mux_marks_job_cancelled(export_client) -> None:
             patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.audio_mux_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch("app.services.audio_mux_service.subprocess.Popen", side_effect=popen_factory),
             patch(
@@ -673,7 +673,7 @@ def test_cancel_during_export_marks_job_cancelled(export_client) -> None:
         with (
             patch(
                 "app.services.export_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.export_service.copy_muxed_video_to_exports",

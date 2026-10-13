@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import shutil
+import time
 from pathlib import Path
 
 from app.core.errors import OriginalFramesNotFoundError
@@ -10,6 +11,10 @@ from app.enhancers.base import CancelCallback, FrameEnhancer, PauseCallback, Pro
 class MockFrameEnhancer(FrameEnhancer):
     name = "Mock Frame Enhancer"
     engine = "mock"
+
+    def __init__(self, frame_delay_seconds: float = 0.0) -> None:
+        # Retardo opcional por frame (tests E2E y demos): permite pausar o cancelar a mitad.
+        self.frame_delay_seconds = max(frame_delay_seconds, 0.0)
 
     def enhance_frames(
         self,
@@ -33,6 +38,8 @@ class MockFrameEnhancer(FrameEnhancer):
             if pause_callback and pause_callback():
                 break
 
+            if self.frame_delay_seconds:
+                time.sleep(self.frame_delay_seconds)
             shutil.copy2(frame, output_dir / frame.name)
             processed += 1
             if progress_callback:

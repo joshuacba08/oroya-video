@@ -140,6 +140,9 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
                     progress_callback(self.completed_frames, total)
                 if self.failed_frames > self.max_failed_frames:
                     raise
+                # Fallo tolerado: el encode lee frame_%08d.png y se detiene en el primer
+                # hueco, así que se escribe el original reescalado en su lugar.
+                self.write_fallback_frame(frame, output_path)
                 continue
 
             self.processed_frames += 1
@@ -160,6 +163,34 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
                 clear_cuda_cache_if_available()
 
         return self.processed_frames
+
+    def write_fallback_frame(self, input_path: Path, output_path: Path) -> bool:
+        """Original frame resized to the output scale, to keep the sequence contiguous."""
+        try:
+            if self._cv2 is None:
+                import cv2
+
+                self._cv2 = cv2
+            cv2 = self._cv2
+            image = cv2.imread(str(input_path), cv2.IMREAD_UNCHANGED)
+            if image is None:
+                return False
+            scale = self.scale or self._default_outscale or 1
+            height, width = image.shape[:2]
+            resized = cv2.resize(
+                image,
+                (int(width * scale), int(height * scale)),
+                interpolation=cv2.INTER_CUBIC,
+            )
+            encoded_ok, encoded = cv2.imencode(output_path.suffix, resized)
+            if not encoded_ok:
+                return False
+            temp_path = output_path.with_name(f"{output_path.stem}.fallback{output_path.suffix}")
+            temp_path.write_bytes(encoded.tobytes())
+            temp_path.replace(output_path)
+            return True
+        except Exception:  # noqa: BLE001 - el fallback nunca debe tumbar el job
+            return False
 
     def load_model(self) -> None:
         if self._upsampler is not None:

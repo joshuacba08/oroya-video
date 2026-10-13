@@ -1,6 +1,6 @@
 [package]
 name = "oroya-video"
-version = "0.3.0"
+version = "0.4.0"
 description = "Oroya Video desktop client"
 authors = ["Oroya Video"]
 edition = "2021"
@@ -13,6 +13,14 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = "2"
+
+[target."cfg(windows)".dependencies]
+win32job = "2"

@@ -1,4 +1,13 @@
+import os
+import tempfile
+
 import pytest
+
+# Antes de importar la app: ningún test puede tocar el almacenamiento real del desarrollador
+# (backend/storage). Los tests que necesitan rutas propias pasan Settings(storage_path=...).
+_TEST_STORAGE = tempfile.mkdtemp(prefix="oroya-tests-")
+os.environ["STORAGE_PATH"] = _TEST_STORAGE
+os.environ.pop("DATABASE_URL", None)
 
 
 @pytest.fixture(autouse=True)
@@ -57,3 +66,11 @@ def _assume_face_restore_packages_installed(monkeypatch: pytest.MonkeyPatch) -> 
     monkeypatch.setattr(
         "app.services.ai_runtime_service.get_missing_face_restore_modules", lambda: []
     )
+
+
+@pytest.fixture(autouse=True)
+def _no_real_videos_folder(monkeypatch: pytest.MonkeyPatch, tmp_path_factory) -> None:
+    """With OROYA_DATA_DIR the export folder defaults to the user's Videos folder: never the
+    real one in tests."""
+    videos = tmp_path_factory.mktemp("videos")
+    monkeypatch.setattr("app.core.config.default_videos_dir", lambda: videos)

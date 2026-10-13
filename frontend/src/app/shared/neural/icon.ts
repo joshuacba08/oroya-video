@@ -49,6 +49,7 @@ import {
   LucideTrash2,
   LucideUpload,
   LucideWandSparkles,
+  LucideX,
   provideLucideIcons,
 } from '@lucide/angular';
 
@@ -105,6 +106,7 @@ const icons = [
   LucideTrash2,
   LucideUpload,
   LucideWandSparkles,
+  LucideX,
 ] as const;
 
 const fallbackIcon = 'circle-question-mark';

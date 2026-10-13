@@ -107,6 +107,12 @@ function jobElapsedSeconds(job: Record<string, unknown>, status: string): unknow
   return job['elapsed_time_seconds'];
 }
 
+function errorMessageFor(job: UnknownRecord): string {
+  const message = stringValue(job['error_message']);
+  const code = stringValue(job['error_code']);
+  return code ? translate(`errors.${code}`, undefined, message) : message;
+}
+
 function formatSeconds(seconds: unknown, fallback = '--:--'): string {
   if (typeof seconds !== 'number' || !Number.isFinite(seconds)) {
     return fallback;
@@ -365,7 +371,8 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     canCleanup: booleanValue(job['can_cleanup'], booleanValue(actions['can_cleanup'])),
     previewAvailable: booleanValue(job['preview_available']),
     exportAvailable: booleanValue(job['export_available'], booleanValue(actions['can_open_export'])),
-    errorMessage: stringValue(job['error_message']),
+    // Mensaje traducido por código cuando existe (p. ej. pausa por disco lleno).
+    errorMessage: errorMessageFor(job),
     device: stringValue(job['realesrgan_device']) || undefined,
     avgFrameTimeMs: avgFrameTimeMs > 0 ? Math.round(avgFrameTimeMs) : undefined,
     failedFrames: pickNumber(job, ['realesrgan_failed_frames'], 0),

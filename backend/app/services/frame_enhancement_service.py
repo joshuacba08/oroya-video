@@ -31,6 +31,7 @@ from app.core.paths import (
     get_job_enhanced_frames_path,
     get_temp_path,
 )
+from app.db.database import commit_progress
 from app.db.repositories import job_repository
 from app.enhancers.registry import get_frame_enhancer
 from app.schemas.job_schema import JobEnhancedFrameItem, JobEnhancedFramesResponse
@@ -136,7 +137,9 @@ def enhance_frames_for_job(
 
     try:
         ensure_enhancement_storage_capacity(original_frames_dir, active_settings)
-        enhancer = get_frame_enhancer(engine)
+        enhancer = get_frame_enhancer(
+            engine, frame_delay_ms=active_settings.mock_enhancer_frame_delay_ms
+        )
     except (InsufficientTempStorageError, FrameEnhancerNotFoundError) as exc:
         _mark_enhancement_failed(
             db,
@@ -181,8 +184,8 @@ def enhance_frames_for_job(
                 f"Frame enhancement progress: {processed}/{total}",
                 stage="enhancing_frames",
             )
-        db.commit()
-        logger.info("Frame enhancement progress updated: %s", processed)
+        commit_progress(db)
+        logger.debug("Frame enhancement progress updated: %s", processed)
 
     def cancel_callback() -> bool:
         db.refresh(job)

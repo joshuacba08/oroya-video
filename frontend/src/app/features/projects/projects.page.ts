@@ -4,6 +4,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { BehaviorSubject, catchError, combineLatest, firstValueFrom, map, of, switchMap } from 'rxjs';
 
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { DialogService } from '../../core/dialogs/dialog.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -20,6 +21,7 @@ import { OvProjectCardComponent } from '../../shared/ui/ov-project-card.componen
 })
 export class ProjectsPage {
   private readonly data = inject(OroyaDataService);
+  private readonly dialogs = inject(DialogService);
   private readonly desktop = inject(DesktopService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -53,7 +55,12 @@ export class ProjectsPage {
   }
 
   async renameProject(project: ProjectCardVm): Promise<void> {
-    const name = window.prompt(translate('projects.renamePrompt'), project.name)?.trim();
+    const name = await this.dialogs.prompt({
+      title: translate('common.rename'),
+      label: translate('projects.renamePrompt'),
+      value: project.name,
+      confirmLabel: translate('common.rename'),
+    });
     if (!name || name === project.name) {
       return;
     }
@@ -61,7 +68,13 @@ export class ProjectsPage {
   }
 
   async deleteProject(project: ProjectCardVm): Promise<void> {
-    if (!window.confirm(translate('projects.deleteConfirm', { name: project.name }))) {
+    const confirmed = await this.dialogs.confirm({
+      title: translate('common.delete'),
+      message: translate('projects.deleteConfirm', { name: project.name }),
+      confirmLabel: translate('common.delete'),
+      danger: true,
+    });
+    if (!confirmed) {
       return;
     }
     await this.runAction(() => firstValueFrom(this.data.deleteProject(project.id)));

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oroya Video Backend",
-    "version": "0.3.0"
+    "version": "0.4.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -187,6 +187,110 @@
         }
       }
     },
+    "/api/v1/system/shutdown": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Graceful shutdown requested by the desktop app",
+        "operationId": "shutdown_route_api_v1_system_shutdown_post",
+        "parameters": [
+          {
+            "name": "x-oroya-instance",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oroya-Instance"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShutdownResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/diagnostics": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Create a diagnostic zip (logs, system state, recent jobs) and reveal it",
+        "operationId": "diagnostics_route_api_v1_system_diagnostics_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/client-log": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Record an error reported by the UI in backend.log",
+        "operationId": "client_log_route_api_v1_system_client_log_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientLogRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/info": {
       "get": {
         "tags": [
@@ -339,7 +443,7 @@
         "tags": [
           "System"
         ],
-        "summary": "Open a storage folder (temp, models or exports) in the file explorer",
+        "summary": "Open a storage folder (temp, models, exports or logs) in the file explorer",
         "operationId": "storage_open_route_api_v1_system_storage_open_post",
         "parameters": [
           {
@@ -350,7 +454,8 @@
               "enum": [
                 "temp",
                 "models",
-                "exports"
+                "exports",
+                "logs"
               ],
               "type": "string",
               "title": "Target"
@@ -4076,6 +4181,110 @@
         }
       }
     },
+    "/api/system/shutdown": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Graceful shutdown requested by the desktop app",
+        "operationId": "shutdown_route_api_system_shutdown_post",
+        "parameters": [
+          {
+            "name": "x-oroya-instance",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Oroya-Instance"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShutdownResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/diagnostics": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Create a diagnostic zip (logs, system state, recent jobs) and reveal it",
+        "operationId": "diagnostics_route_api_system_diagnostics_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/client-log": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Record an error reported by the UI in backend.log",
+        "operationId": "client_log_route_api_system_client_log_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClientLogRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/system/info": {
       "get": {
         "tags": [
@@ -4228,7 +4437,7 @@
         "tags": [
           "System"
         ],
-        "summary": "Open a storage folder (temp, models or exports) in the file explorer",
+        "summary": "Open a storage folder (temp, models, exports or logs) in the file explorer",
         "operationId": "storage_open_route_api_system_storage_open_post",
         "parameters": [
           {
@@ -4239,7 +4448,8 @@
               "enum": [
                 "temp",
                 "models",
-                "exports"
+                "exports",
+                "logs"
               ],
               "type": "string",
               "title": "Target"
@@ -9333,6 +9543,53 @@
         ],
         "title": "CleanupSettingsResponse"
       },
+      "ClientLogRequest": {
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning"
+            ],
+            "title": "Level",
+            "default": "error"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Message"
+          },
+          "stack": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stack"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ClientLogRequest"
+      },
       "CompareFrameResponse": {
         "properties": {
           "job_id": {
@@ -9556,6 +9813,34 @@
           "job_id"
         ],
         "title": "DeleteMuxedVideoResponse"
+      },
+      "DiagnosticsResponse": {
+        "properties": {
+          "file_name": {
+            "type": "string",
+            "title": "File Name"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "title": "Size Bytes"
+          },
+          "opened": {
+            "type": "boolean",
+            "title": "Opened"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_name",
+          "path",
+          "size_bytes",
+          "opened"
+        ],
+        "title": "DiagnosticsResponse"
       },
       "DiskInfo": {
         "properties": {
@@ -10693,6 +10978,17 @@
               }
             ],
             "title": "Version"
+          },
+          "instance_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instance Id"
           }
         },
         "type": "object",
@@ -14848,6 +15144,16 @@
                 "type": "null"
               }
             ]
+          },
+          "storage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StorageSettingsPatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -14869,6 +15175,19 @@
           "settings"
         ],
         "title": "SettingsUpdateResponse"
+      },
+      "ShutdownResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean",
+            "title": "Accepted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accepted"
+        ],
+        "title": "ShutdownResponse"
       },
       "StorageOpenResponse": {
         "properties": {
@@ -14946,6 +15265,23 @@
           "disk"
         ],
         "title": "StorageResponse"
+      },
+      "StorageSettingsPatch": {
+        "properties": {
+          "exports_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exports Dir"
+          }
+        },
+        "type": "object",
+        "title": "StorageSettingsPatch"
       },
       "StorageSettingsResponse": {
         "properties": {

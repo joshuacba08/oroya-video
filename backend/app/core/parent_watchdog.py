@@ -43,6 +43,11 @@ def _request_shutdown() -> None:
     os._exit(0)
 
 
+def request_shutdown_in_background() -> None:
+    """Graceful stop requested by the desktop app (POST /system/shutdown)."""
+    threading.Thread(target=_request_shutdown, daemon=True, name="shutdown").start()
+
+
 def start_parent_watchdog() -> threading.Thread | None:
     raw_pid = os.environ.get(PARENT_PID_ENV)
     if not raw_pid:

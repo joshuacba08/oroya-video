@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Oroya Video",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "identifier": "dev.oroya.video",
   "build": {
     "beforeDevCommand": "pnpm start",
@@ -15,8 +15,8 @@
         "title": "Oroya Video",
         "width": 1440,
         "height": 920,
-        "minWidth": 1100,
-        "minHeight": 720,
+        "minWidth": 1024,
+        "minHeight": 640,
         "resizable": true
       }
     ],
@@ -26,9 +26,9 @@
         "script-src": "'self'",
         "style-src": "'self' 'unsafe-inline'",
         "font-src": "'self' data:",
-        "img-src": "'self' data: blob: http://127.0.0.1:8001",
-        "media-src": "'self' blob: http://127.0.0.1:8001",
-        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:8001",
+        "img-src": "'self' data: blob: http://127.0.0.1:*",
+        "media-src": "'self' blob: http://127.0.0.1:*",
+        "connect-src": "'self' ipc: http://ipc.localhost http://127.0.0.1:*",
         "object-src": "'none'",
         "base-uri": "'self'",
         "frame-ancestors": "'none'"
@@ -37,10 +37,42 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
-    "icon": ["icons/icon.ico"],
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/icon.ico"
+    ],
     "resources": {
       "resources/backend": "backend"
+    },
+    "publisher": "Oroya Video",
+    "shortDescription": "Mejora de video local con IA",
+    "category": "Video",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "Spanish",
+          "English"
+        ],
+        "displayLanguageSelector": false
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDgxMzcwOEVEMTIzMzMxOEEKUldTS01UTVM3UWczZ1IyYm9QdEl3Y3hNU05ucG9YREZzbXVHNHE2a1ZjZGVxam1MdGU2TFdOUlUK",
+      "endpoints": [
+        "https://github.com/joshuacba08/oroya-video/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

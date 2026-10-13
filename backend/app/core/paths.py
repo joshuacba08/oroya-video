@@ -39,7 +39,21 @@ def get_jobs_temp_path(settings: Settings | None = None) -> Path:
 
 
 def get_exports_path(settings: Settings | None = None) -> Path:
-    return get_storage_path(settings) / "exports"
+    active_settings = _get_active_settings(settings)
+    if active_settings.exports_dir:
+        return Path(active_settings.exports_dir).expanduser()
+    return get_storage_path(active_settings) / "exports"
+
+
+def get_export_roots(settings: Settings | None = None) -> list[Path]:
+    """Current export folder first, then the classic one (exports made before changing it)."""
+    active_settings = _get_active_settings(settings)
+    roots = [get_exports_path(active_settings), get_storage_path(active_settings) / "exports"]
+    unique: list[Path] = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return unique
 
 
 def get_imports_path(settings: Settings | None = None) -> Path:
@@ -216,7 +230,7 @@ def get_storage_path_strings(settings: Settings | None = None) -> dict[str, str]
         "storage": storage_root.as_posix(),
         "db": (storage_root / "db").as_posix(),
         "temp": (storage_root / "temp").as_posix(),
-        "exports": (storage_root / "exports").as_posix(),
+        "exports": get_exports_path(active_settings).as_posix(),
         "models": (storage_root / "models").as_posix(),
         "logs": (storage_root / "logs").as_posix(),
     }
@@ -264,7 +278,15 @@ def get_directory_size_bytes(path: Path) -> int:
         return 0
     if path.is_file():
         return path.stat().st_size
-    return sum(item.stat().st_size for item in path.rglob("*") if item.is_file())
+    total = 0
+    for item in path.rglob("*"):
+        # Otra limpieza (o el pipeline) puede borrar archivos mientras se recorre la carpeta.
+        try:
+            if item.is_file():
+                total += item.stat().st_size
+        except OSError:
+            continue
+    return total
 
 
 def to_client_path(path: Path, settings: Settings | None = None) -> str:

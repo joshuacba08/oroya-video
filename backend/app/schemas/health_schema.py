@@ -5,6 +5,7 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     version: str | None = None
+    instance_id: str | None = None
 
 
 class VersionResponse(BaseModel):

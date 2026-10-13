@@ -1,5 +1,6 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { NButton } from '@neuralangular/angular-ui/button';
 import { NIcon } from '@neuralangular/angular-ui/icon';
@@ -24,16 +25,22 @@ import {
 } from 'rxjs';
 
 import { environment } from '../../environments/environment';
+import { getApiBaseUrl } from '../core/api/api-base-url';
 import { APP_VERSION } from '../core/app-version';
 import { OroyaDataService } from '../core/data/oroya-data.service';
 import { mapGpu } from '../core/data/oroya.mappers';
+import { DesktopBackendService } from '../core/desktop/desktop-backend.service';
 import { DesktopService } from '../core/desktop/desktop.service';
+import { UpdateService } from '../core/desktop/update.service';
+import { NotificationService } from '../core/notifications/notification.service';
 import type { TranslationKey } from '../core/i18n/en';
 import { translate } from '../core/i18n/i18n';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
 import type { ApiErrorVm, PickedVideo, StartupVm } from '../core/models/oroya.models';
+import { OvDialogHostComponent } from '../shared/ui/ov-dialog-host.component';
 import { OvGpuMeterComponent } from '../shared/ui/ov-gpu-meter.component';
 import { OvManualPathImportComponent } from '../shared/ui/ov-manual-path-import.component';
+import { OvNotificationsComponent } from '../shared/ui/ov-notifications.component';
 
 type NavItem = {
   path: string;
@@ -56,8 +63,10 @@ type NavItem = {
     NSidebar,
     NSidebarItem,
     NSidebarSection,
+    OvDialogHostComponent,
     OvGpuMeterComponent,
     OvManualPathImportComponent,
+    OvNotificationsComponent,
     RouterOutlet,
   ],
   templateUrl: './app-shell.component.html',
@@ -67,6 +76,10 @@ export class AppShellComponent {
   private readonly router = inject(Router);
   private readonly desktop = inject(DesktopService);
   readonly data = inject(OroyaDataService);
+  readonly desktopBackend = inject(DesktopBackendService);
+  readonly updates = inject(UpdateService);
+  private readonly notifications = inject(NotificationService);
+  private updateChecked = false;
 
   readonly searchQuery = signal('');
   readonly actionError = signal<ApiErrorVm | null>(null);
@@ -93,7 +106,9 @@ export class AppShellComponent {
     }),
   );
   private readonly retry$ = new BehaviorSubject(0);
-  readonly apiBaseUrl = environment.apiBaseUrl;
+  get apiBaseUrl(): string {
+    return getApiBaseUrl();
+  }
   readonly appVersion = APP_VERSION;
   readonly startup$ = this.retry$.pipe(
     switchMap(() =>
@@ -129,15 +144,65 @@ export class AppShellComponent {
     shareReplay({ bufferSize: 1, refCount: false }),
   );
 
+  readonly startup = toSignal(this.startup$, { initialValue: null });
+  /** Paneles de arranque, fallo o "sin conexión": la página queda montada pero oculta. */
+  readonly pageHidden = computed(() => {
+    if (this.desktopBackendPhase()) {
+      return true;
+    }
+    const startup = this.startup();
+    return !!startup && this.showOfflinePanel(startup);
+  });
+
   retryBackend(): void {
     this.retry$.next(Date.now());
   }
 
+  /** Escritorio: el backend arranca, se reinicia tras una caída o no pudo arrancar. */
+  readonly desktopBackendPhase = computed<'starting' | 'failed' | null>(() => {
+    const status = this.desktopBackend.info()?.status;
+    if (status === 'starting' || status === 'exited') {
+      return 'starting';
+    }
+    return status === 'failed' ? 'failed' : null;
+  });
+
+  // `startup` es la foto inicial; el estado en vivo detecta también una caída a mitad de sesión.
   showOfflinePanel(startup: StartupVm): boolean {
+    const live = this.data.backendStatus();
     return (
       environment.dataMode === 'api' &&
-      (startup.backend.isOffline || startup.backend.wrongBackend)
+      (live.isOffline || live.wrongBackend || startup.backend.wrongBackend)
     );
+  }
+
+  openReleaseNotes(version: string): void {
+    void this.desktop.openUrl(
+      `https://github.com/joshuacba08/oroya-video/releases/tag/v${encodeURIComponent(version)}`,
+    );
+  }
+
+  /** No se reinicia la app con un job en marcha: se perdería el progreso de la etapa. */
+  async installUpdate(): Promise<void> {
+    const jobs = await firstValueFrom(this.data.queue()).catch(() => []);
+    if (jobs.some((job) => ['running', 'queued', 'retrying'].includes(job.status))) {
+      this.notifications.show(
+        'info',
+        translate('updates.waitTitle'),
+        translate('updates.waitForJobs'),
+      );
+      return;
+    }
+    await this.updates.install();
+  }
+
+  async restartDesktopBackend(): Promise<void> {
+    if (!this.desktop.isDesktop()) {
+      this.retryBackend();
+      return;
+    }
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('restart_backend');
   }
 
   showSetupBanner(startup: StartupVm): boolean {
@@ -177,6 +242,20 @@ export class AppShellComponent {
   });
 
   constructor() {
+    // Cada vez que el backend de escritorio queda listo (también tras reiniciarse) se
+    // vuelve a cargar el estado de arranque.
+    effect(() => {
+      if (this.desktopBackend.readyCount() > 0) {
+        untracked(() => {
+          this.retryBackend();
+          // Una comprobación por sesión, cuando el backend ya está listo.
+          if (!this.updateChecked) {
+            this.updateChecked = true;
+            void this.updates.check();
+          }
+        });
+      }
+    });
     this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe((event) => this.currentUrl.set(event.urlAfterRedirects));

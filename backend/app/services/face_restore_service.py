@@ -26,6 +26,7 @@ from app.core.errors import (
 )
 from app.core.logging import get_logger
 from app.core.paths import get_job_working_path, get_model_path, get_models_path
+from app.db.database import commit_progress
 from app.db.models import ProcessingJob
 from app.db.repositories import ai_model_repository, job_repository
 from app.enhancers.gfpgan_enhancer import GFPGANFaceRestorer
@@ -165,7 +166,7 @@ def restore_faces_for_job(
             },
         )
         if processed >= total or time.monotonic() - last_sync >= DB_SYNC_INTERVAL_SECONDS:
-            db.commit()
+            commit_progress(db)
             last_sync = time.monotonic()
 
     def stop_callback() -> bool:
@@ -173,7 +174,7 @@ def restore_faces_for_job(
         if is_shutting_down():
             return True
         if time.monotonic() - last_sync >= DB_SYNC_INTERVAL_SECONDS:
-            db.commit()
+            commit_progress(db)
             db.refresh(job)
             last_sync = time.monotonic()
         return job.cancel_requested or job.status == "cancelled"

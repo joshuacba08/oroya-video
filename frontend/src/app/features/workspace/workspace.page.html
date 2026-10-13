@@ -34,6 +34,14 @@
       }
     }
 
+    @if (liveJob(); as pausedJob) {
+      @if (pausedJob.status === 'paused' && pausedJob.errorMessage) {
+        <div class="workspace-page__error workspace-page__error--soft" role="status">
+          <strong>{{ pausedJob.errorMessage }}</strong>
+        </div>
+      }
+    }
+
     @if (previewError(); as previewErrorVm) {
       <div class="workspace-page__error workspace-page__error--soft">
         <strong>{{ previewErrorVm.message }}</strong>

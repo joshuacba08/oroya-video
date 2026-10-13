@@ -1,3 +1,4 @@
+import hashlib
 import io
 import threading
 import zipfile
@@ -31,7 +32,11 @@ class FakeHttpResponse(io.BytesIO):
         self.close()
 
 
-def test_oroya_data_dir_redirects_storage_and_database(tmp_path: Path) -> None:
+def test_oroya_data_dir_redirects_storage_and_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # conftest fija STORAGE_PATH para aislar la suite; aquí se prueban los valores por defecto.
+    monkeypatch.delenv("STORAGE_PATH", raising=False)
     data_dir = tmp_path / "oroya-data"
     settings = Settings(oroya_data_dir=str(data_dir))
 
@@ -56,7 +61,8 @@ def test_oroya_data_dir_respects_explicit_overrides(tmp_path: Path) -> None:
     assert settings.database_url == "sqlite:///C:/custom/oroya.sqlite"
 
 
-def test_defaults_unchanged_without_data_dir() -> None:
+def test_defaults_unchanged_without_data_dir(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("STORAGE_PATH", raising=False)
     settings = Settings()
 
     assert settings.oroya_data_dir is None
@@ -105,15 +111,20 @@ def setup_client(tmp_path: Path):
 
 def test_ffmpeg_download_extracts_binaries_to_data_bin(setup_client) -> None:
     client, data_dir = setup_client
+    archive = _build_ffmpeg_zip()
 
     with (
         patch.object(download_service.threading, "Thread", InlineThread),
         patch.object(
             download_service.urllib.request,
             "urlopen",
-            return_value=FakeHttpResponse(_build_ffmpeg_zip()),
+            return_value=FakeHttpResponse(archive),
         ),
         patch("app.services.system_setup_service.resolve_tool_path", return_value=None),
+        patch(
+            "app.services.system_setup_service.FFMPEG_SHA256",
+            hashlib.sha256(archive).hexdigest(),
+        ),
     ):
         start_response = client.post("/api/system/ffmpeg/download")
 
@@ -138,3 +149,32 @@ def test_ffmpeg_download_reports_already_installed(setup_client) -> None:
     assert response.status_code == 202
     assert response.json()["already_installed"] is True
     assert response.json()["status"] == "completed"
+
+
+def test_ffmpeg_download_rejects_an_archive_with_another_checksum(setup_client) -> None:
+    client, data_dir = setup_client
+
+    with (
+        patch.object(download_service.threading, "Thread", InlineThread),
+        patch.object(
+            download_service.urllib.request,
+            "urlopen",
+            return_value=FakeHttpResponse(_build_ffmpeg_zip()),
+        ),
+        patch("app.services.system_setup_service.resolve_tool_path", return_value=None),
+    ):
+        client.post("/api/system/ffmpeg/download")
+
+    progress = client.get("/api/system/ffmpeg/download/progress").json()
+    assert progress["status"] == "failed"
+    assert not (data_dir / "bin" / "ffmpeg.exe").exists()
+
+
+def test_custom_storage_path_moves_the_default_database(tmp_path, monkeypatch) -> None:
+    # Aunque el .env repita DATABASE_URL con su valor por defecto.
+    monkeypatch.setenv("DATABASE_URL", "sqlite:///storage/db/oroya-video.sqlite")
+    settings = Settings(storage_path=str(tmp_path / "e2e-storage"))
+
+    assert settings.database_url == (
+        f"sqlite:///{(tmp_path / 'e2e-storage' / 'db' / 'oroya-video.sqlite').as_posix()}"
+    )

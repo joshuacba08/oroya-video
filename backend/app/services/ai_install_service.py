@@ -33,26 +33,29 @@ logger = get_logger(__name__)
 
 TORCH_INDEX_CUDA = "https://download.pytorch.org/whl/cu132"
 TORCH_INDEX_CPU = "https://download.pytorch.org/whl/cpu"
-TORCH_PACKAGES = ("torch", "torchvision")
+# Versiones fijadas: la combinación probada con GPU (RTX 50, CUDA 13.2). Sin fijarlas, cada
+# usuario recibía lo último publicado y una versión nueva podía romper instalaciones de
+# versiones ya distribuidas de la app. Existen ruedas cp312 win_amd64 en cu132 y cpu.
+TORCH_PACKAGES = ("torch==2.12.1", "torchvision==0.27.1")
 AI_PACKAGES = ("realesrgan==0.3.0", "gfpgan==1.3.8", "facexlib==0.3.0")
-# Dependencias de basicsr/realesrgan (sin torch ni tb-nightly); numpy/Pillow llegan con torchvision.
+# Dependencias de basicsr/realesrgan (sin torch ni tb-nightly).
 AI_DEPENDENCIES = (
-    "addict",
-    "setuptools",  # basicsr importa distutils; setuptools lo provee en Python 3.12+
-    "future",
-    "lmdb",
-    "numpy",
-    "opencv-python",
-    "Pillow",
-    "pyyaml",
-    "requests",
-    "scikit-image",
-    "scipy",
-    "tqdm",
-    "yapf",
+    "addict==2.4.0",
+    "setuptools==70.2.0",  # basicsr importa distutils; setuptools lo provee en Python 3.12+
+    "future==1.0.0",
+    "lmdb==2.2.1",
+    "numpy==2.4.4",
+    "opencv-python==4.13.0.92",
+    "Pillow==12.2.0",
+    "pyyaml==6.0.3",
+    "requests==2.34.2",
+    "scikit-image==0.26.0",
+    "scipy==1.18.0",
+    "tqdm==4.68.3",
+    "yapf==0.43.0",
     # facexlib (detección de caras para GFPGAN)
-    "filterpy",
-    "numba",
+    "filterpy==1.4.5",
+    "numba==0.65.1",
 )
 # Wheels empaquetados por scripts/build_installer.ps1 (resources/backend/wheels).
 BUNDLED_WHEELS_DIR = BACKEND_ROOT / "wheels"

@@ -8,11 +8,12 @@ from fastapi.responses import JSONResponse
 from app.api.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import OroyaVideoError
-from app.core.logging import configure_logging, get_logger
+from app.core.logging import configure_logging, get_logger, install_exception_hooks
 from app.core.parent_watchdog import start_parent_watchdog
 from app.core.paths import ensure_storage_directories, get_storage_path
 from app.db import database
 from app.middleware.access_log import AccessLogMiddleware
+from app.middleware.local_only import LocalOnlyMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
 from app.services.ai_runtime_service import ensure_ai_extra_site_dir
@@ -98,6 +99,10 @@ def create_lifespan(settings: Settings):
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     active_settings = apply_persisted_settings(settings or get_settings())
+    # Antes de crear la app: los errores de arranque (settings, base de datos...) quedan
+    # registrados en backend.log y no solo en una consola que nadie ve.
+    configure_logging(active_settings)
+    install_exception_hooks()
     app = FastAPI(
         title=active_settings.app_name,
         version=active_settings.app_version,
@@ -115,6 +120,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.add_middleware(AccessLogMiddleware)
     app.add_middleware(RequestIdMiddleware)
+    # El último añadido es el más externo: Host/Origin se comprueban antes que nada.
+    app.add_middleware(LocalOnlyMiddleware, allowed_origins=_parse_cors_origins(active_settings))
 
     @app.exception_handler(OroyaVideoError)
     async def oroya_video_error_handler(request: Request, exc: OroyaVideoError) -> JSONResponse:

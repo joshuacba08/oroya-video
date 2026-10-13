@@ -23,6 +23,7 @@ export type NButtonType = 'button' | 'submit' | 'reset';
       [class.n-button--primary]="variant() === 'primary'"
       [class.n-button--gemini]="variant() === 'gemini'"
       [class.n-button--secondary]="variant() === 'secondary'"
+      [class.n-button--danger]="variant() === 'danger'"
       [class.n-button--sm]="size() === 'sm'"
       [class.n-button--lg]="size() === 'lg'"
       [class.n-button--full]="fullWidth()"
@@ -96,6 +97,12 @@ export type NButtonType = 'button' | 'submit' | 'reset';
       .n-button--primary {
         background: var(--n-gradient-gemini);
         box-shadow: var(--n-glow-primary-xs);
+      }
+
+      .n-button--danger {
+        border-color: color-mix(in srgb, var(--n-color-danger), transparent 40%);
+        background: color-mix(in srgb, var(--n-color-danger), transparent 20%);
+        color: #fff;
       }
 
       .n-button--secondary {

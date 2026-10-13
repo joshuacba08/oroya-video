@@ -947,15 +947,26 @@ powershell -ExecutionPolicy Bypass -File scripts/build_installer.ps1
 El script empaqueta un runtime CPython portable (python-build-standalone 3.12) con el
 backend y sus dependencias core dentro de la app Tauri. Al instalar:
 
-- La app arranca el backend automáticamente (sidecar) y lo detiene al cerrar.
-- Todos los datos de usuario viven en `%LOCALAPPDATA%\dev.oroya.video\`:
-  - `storage/` — base de datos, imports, exports, temporales y modelos.
+- La app arranca el backend automáticamente, lo vigila (lo reinicia si se cae) y lo detiene
+  de forma ordenada al cerrar. Solo puede haber una ventana abierta.
+- Los datos de la app viven en `%LOCALAPPDATA%\dev.oroya.video\`:
+  - `storage/` — base de datos (con copias antes de cada migración en `db/backups`),
+    temporales, modelos, logs y diagnósticos.
   - `bin/` — FFmpeg/FFprobe descargados por el asistente.
   - `ai-env/` — stack de IA (PyTorch) instalado bajo demanda.
+- Los videos exportados van a `Vídeos\Oroya Video` (configurable en Ajustes): desinstalar
+  la app con "borrar datos" no los elimina.
+- Si algo falla, **Ajustes → Soporte → Exportar diagnóstico** genera un zip con logs y estado
+  del sistema (sin enviar nada) para adjuntarlo a un issue.
 - En la primera ejecución, el asistente (`/setup`) descarga FFmpeg y los modelos
   Real-ESRGAN (con verificación SHA256 desde los releases oficiales) e instala con un clic
   el runtime de IA (PyTorch CUDA o CPU según la GPU, más Real-ESRGAN) en `ai-env/`.
 - Sin IA instalada, la app funciona en modo básico (motor mock); al instalarla pasa a Real-ESRGAN.
+
+**Aviso de Windows SmartScreen**: el instalador todavía no está firmado con un certificado
+de código, así que Windows puede mostrar "Windows protegió su PC" / "editor desconocido".
+Para instalar: **Más información → Ejecutar de todas formas**. Comprueba antes que el archivo
+viene de la página de releases del repositorio y que su SHA-256 coincide con el publicado.
 
 Releases: al publicar un tag `v*`, el workflow `.github/workflows/release.yml` construye el
 instalador y lo adjunta al GitHub Release (también se puede lanzar a mano para obtener el

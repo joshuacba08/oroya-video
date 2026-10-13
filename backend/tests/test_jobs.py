@@ -377,7 +377,7 @@ def test_completed_job_cannot_start_and_pending_job_cannot_resume(jobs_client) -
         patch("app.services.frame_extraction_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
     ):
         start_response = client.post(f"/api/jobs/{job_id}/start")

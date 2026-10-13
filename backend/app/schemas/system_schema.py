@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class OSInfo(BaseModel):
@@ -85,6 +87,24 @@ class AIInstallProgressResponse(BaseModel):
     error_code: str | None
     error_message: str | None
     output_tail: list[str]
+
+
+class ShutdownResponse(BaseModel):
+    accepted: bool
+
+
+class DiagnosticsResponse(BaseModel):
+    file_name: str
+    path: str
+    size_bytes: int
+    opened: bool
+
+
+class ClientLogRequest(BaseModel):
+    level: Literal["error", "warning"] = "error"
+    message: str = Field(max_length=2000)
+    stack: str | None = Field(default=None, max_length=8000)
+    url: str | None = Field(default=None, max_length=500)
 
 
 class StorageOpenResponse(BaseModel):

@@ -48,3 +48,8 @@ Thumbs.db
 # Backend empaquetado por scripts/build_installer.ps1
 /src-tauri/resources/backend/*
 !/src-tauri/resources/backend/README.txt
+
+# Playwright
+/e2e/.tmp
+/test-results
+/playwright-report

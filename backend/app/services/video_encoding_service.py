@@ -13,6 +13,8 @@ from app.core.errors import (
     EncodedVideoNotFoundError,
     EnhancedFramesRequiredError,
     FFmpegNotAvailableError,
+    FFmpegStalledError,
+    InsufficientDiskSpaceError,
     InsufficientTempStorageError,
     JobNotFoundError,
     VideoEncodingFailedError,
@@ -24,6 +26,7 @@ from app.core.paths import (
     get_job_silent_video_path,
     get_temp_path,
 )
+from app.db.database import commit_progress
 from app.db.repositories import job_repository
 from app.schemas.job_schema import (
     DeleteEncodedVideoResponse,
@@ -46,7 +49,12 @@ from app.services.process_registry_service import (
     unregister_process,
 )
 from app.utils.enhancement_config import parse_enhancement_config_json
-from app.utils.process_output import StderrDrain
+from app.utils.process_output import (
+    StderrDrain,
+    is_disk_full,
+    stop_process_quietly,
+    watch_process_output,
+)
 
 logger = get_logger(__name__)
 ENCODED_VIDEO_FILE_NAME = "video_silent.mp4"
@@ -194,6 +202,8 @@ def _mark_encoding_failed(
             "error_message": error_message,
             "encoding_error_code": error_code,
             "encoding_error_message": error_message,
+            "process_id": None,
+            "process_kind": None,
         },
     )
     job_repository.create_job_log(
@@ -388,51 +398,60 @@ def encode_video_for_job(
     last_logged_frame = -100
 
     try:
-        if process.stdout is not None:
-            for raw_line in process.stdout:
-                line = raw_line.strip()
-                if not line:
-                    continue
-
-                progress_data = parse_ffmpeg_encoding_progress_line(line)
-                if not progress_data:
-                    continue
-
-                if "frame" in progress_data:
-                    frames_processed = _safe_int(progress_data["frame"]) or 0
-                    progress_percent = calculate_stage_progress(
-                        frames_processed,
-                        enhanced_frames,
-                        start=ENCODING_PROGRESS_START,
-                        end=ENCODING_PROGRESS_END,
-                        clamp_to=84.9,
-                    )
-                    job_repository.update_job(
-                        db,
-                        job,
-                        {
-                            "frames_processed": frames_processed,
-                            "progress_percent": progress_percent,
-                            "elapsed_time_seconds": int(time.monotonic() - started_at),
-                        },
-                    )
-                    if frames_processed - last_logged_frame >= 100:
-                        last_logged_frame = frames_processed
-                        job_repository.create_job_log(
-                            db,
-                            job.id,
-                            "info",
-                            f"Encoding progress: {frames_processed}/{enhanced_frames}",
-                            stage="encoding_video",
-                        )
-                    db.commit()
-                    logger.info("Video encoding progress updated: %s", frames_processed)
-
+        for raw_line in watch_process_output(
+            process.stdout, active_settings.ffmpeg_stall_timeout_seconds
+        ):
+            if raw_line is None:
+                # Sin salida de ffmpeg este segundo: comprobar la cancelación igualmente.
                 db.refresh(job)
                 if job.cancel_requested or job.status == "cancelled":
                     return finish_cancelled_ffmpeg_stage(
                         db, job, process, "Video encoding cancelled by user."
                     )
+                continue
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            progress_data = parse_ffmpeg_encoding_progress_line(line)
+            if not progress_data:
+                continue
+
+            if "frame" in progress_data:
+                frames_processed = _safe_int(progress_data["frame"]) or 0
+                progress_percent = calculate_stage_progress(
+                    frames_processed,
+                    enhanced_frames,
+                    start=ENCODING_PROGRESS_START,
+                    end=ENCODING_PROGRESS_END,
+                    clamp_to=84.9,
+                )
+                job_repository.update_job(
+                    db,
+                    job,
+                    {
+                        "frames_processed": frames_processed,
+                        "progress_percent": progress_percent,
+                        "elapsed_time_seconds": int(time.monotonic() - started_at),
+                    },
+                )
+                if frames_processed - last_logged_frame >= 100:
+                    last_logged_frame = frames_processed
+                    job_repository.create_job_log(
+                        db,
+                        job.id,
+                        "info",
+                        f"Encoding progress: {frames_processed}/{enhanced_frames}",
+                        stage="encoding_video",
+                    )
+                commit_progress(db)
+                logger.debug("Video encoding progress updated: %s", frames_processed)
+
+            db.refresh(job)
+            if job.cancel_requested or job.status == "cancelled":
+                return finish_cancelled_ffmpeg_stage(
+                    db, job, process, "Video encoding cancelled by user."
+                )
 
         stderr_output = stderr_drain.text()
 
@@ -448,6 +467,13 @@ def encode_video_for_job(
             logger.warning("Video encoding stopped by backend shutdown: %s", job.id)
             return job
         if return_code != 0:
+            unregister_process(job.id)
+            if is_disk_full(stderr_output):
+                disk_error = InsufficientDiskSpaceError()
+                _mark_encoding_failed(
+                    db, job, error_code=disk_error.error_code, error_message=disk_error.message
+                )
+                raise disk_error
             _mark_encoding_failed(
                 db,
                 job,
@@ -499,6 +525,12 @@ def encode_video_for_job(
         db.commit()
         logger.info("Video encoding completed: %s", job_id)
         return job
+    except FFmpegStalledError as exc:
+        stop_process_quietly(process)
+        unregister_process(job.id)
+        _mark_encoding_failed(db, job, error_code=exc.error_code, error_message=exc.message)
+        logger.error("Video encoding stalled: %s", job_id)
+        raise
     except (OSError, SQLAlchemyError) as exc:
         db.rollback()
         unregister_process(job.id)

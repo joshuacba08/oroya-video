@@ -9,12 +9,11 @@ from app.core.logging import get_logger
 from app.core.paths import (
     delete_job_frames_directories,
     ensure_job_directories,
+    get_export_roots,
     get_job_encoded_path,
     get_job_enhanced_frames_path,
-    get_job_export_path,
     get_job_original_frames_path,
     get_job_working_path,
-    get_project_exports_path,
 )
 
 logger = get_logger(__name__)
@@ -62,14 +61,16 @@ def delete_job_files(
 ) -> None:
     """Remove a deleted job's temp workspace and export folder. Call only after the DB commit."""
     active_settings = _get_active_settings(settings)
-    for path in (
-        get_job_working_path(job_id, active_settings),
-        get_job_export_path(project_id, job_id, active_settings),
-    ):
-        if path.exists():
-            shutil.rmtree(path, ignore_errors=True)
+    working = get_job_working_path(job_id, active_settings)
+    if working.exists():
+        shutil.rmtree(working, ignore_errors=True)
 
-    project_exports = get_project_exports_path(project_id, active_settings)
-    if project_exports.is_dir() and not any(project_exports.iterdir()):
-        project_exports.rmdir()
+    # Las exportaciones pueden estar en la carpeta actual o en la anterior al cambiarla.
+    for root in get_export_roots(active_settings):
+        project_exports = root / project_id
+        job_exports = project_exports / job_id
+        if job_exports.exists():
+            shutil.rmtree(job_exports, ignore_errors=True)
+        if project_exports.is_dir() and not any(project_exports.iterdir()):
+            project_exports.rmdir()
     logger.info("Job files deleted: %s", job_id)

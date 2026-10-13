@@ -15,15 +15,35 @@
 .PARAMETER PythonStandaloneUrl
     URL del asset install_only de python-build-standalone (CPython 3.12 win64).
 
+.PARAMETER PythonStandaloneSha256
+    SHA-256 del asset anterior (el que publica GitHub para esa release). Si se cambia la URL,
+    hay que cambiar también el hash.
+
 .PARAMETER SkipFrontendTests
     Omite pnpm test antes del build.
 #>
 param(
-    [string]$PythonStandaloneUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20241206/cpython-3.12.8+20241206-x86_64-pc-windows-msvc-install_only.tar.gz",
+    [string]$PythonStandaloneUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/20260924/cpython-3.12.14+20260924-x86_64-pc-windows-msvc-install_only.tar.gz",
+    [string]$PythonStandaloneSha256 = "c5303174bc29f5205decf6721ac549d4eb41c448f9b8c46cbc562d00348865bb",
     [switch]$SkipFrontendTests
 )
 
 $ErrorActionPreference = "Stop"
+# La barra de progreso de Invoke-WebRequest hace las descargas muchísimo más lentas.
+$ProgressPreference = "SilentlyContinue"
+
+function Invoke-DownloadWithRetry([string]$Uri, [string]$OutFile, [int]$Attempts = 3) {
+    for ($attempt = 1; $attempt -le $Attempts; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            return
+        } catch {
+            if ($attempt -eq $Attempts) { throw }
+            Write-Host "Descarga fallida (intento $attempt), reintentando..." -ForegroundColor Yellow
+            Start-Sleep -Seconds (5 * $attempt)
+        }
+    }
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $buildCache = Join-Path $repoRoot "build"
 $resourcesDir = Join-Path $repoRoot "frontend\src-tauri\resources\backend"
@@ -39,9 +59,14 @@ $archivePath = Join-Path $buildCache $archiveName
 
 if (-not (Test-Path $archivePath)) {
     Write-Host "Descargando CPython portable..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri $PythonStandaloneUrl -OutFile $archivePath
+    Invoke-DownloadWithRetry $PythonStandaloneUrl $archivePath
 } else {
     Write-Host "CPython portable en cache: $archivePath"
+}
+$actualHash = (Get-FileHash $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($actualHash -ne $PythonStandaloneSha256.ToLowerInvariant()) {
+    Remove-Item $archivePath -Force
+    throw "SHA-256 de CPython no coincide (esperado $PythonStandaloneSha256, obtenido $actualHash)"
 }
 
 if (Test-Path $resourcesDir) {
@@ -62,8 +87,9 @@ Move-Item (Join-Path $extractDir "python") $pythonDir
 
 # 2. Dependencias core del backend
 Write-Host "Instalando dependencias core del backend..." -ForegroundColor Yellow
-& (Join-Path $pythonDir "python.exe") -m pip install --no-warn-script-location `
-    -r (Join-Path $repoRoot "backend\requirements-core.txt")
+# Lock con hashes: dos builds del mismo commit empaquetan exactamente las mismas versiones.
+& (Join-Path $pythonDir "python.exe") -m pip install --no-warn-script-location --require-hashes `
+    -r (Join-Path $repoRoot "backend\requirements-core.lock")
 if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
 
 # 3. Código del backend (sin tests, storage ni cachés)
@@ -88,7 +114,15 @@ try {
     }
 
     Write-Host "Construyendo instalador (pnpm tauri build)..." -ForegroundColor Yellow
-    pnpm tauri build
+    if ($env:TAURI_SIGNING_PRIVATE_KEY) {
+        # Firma el instalador (.exe.sig) para el actualizador automático.
+        pnpm tauri build
+    } else {
+        Write-Host "Sin TAURI_SIGNING_PRIVATE_KEY: instalador sin firma de actualización." -ForegroundColor Yellow
+        $noUpdaterConfig = Join-Path $buildCache "tauri.no-updater.json"
+        Set-Content -Encoding utf8 $noUpdaterConfig '{"bundle":{"createUpdaterArtifacts":false}}'
+        pnpm tauri build --config $noUpdaterConfig
+    }
     if ($LASTEXITCODE -ne 0) { throw "tauri build failed" }
 } finally {
     Pop-Location

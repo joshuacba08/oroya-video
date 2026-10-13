@@ -449,7 +449,7 @@ def test_encode_video_for_job_updates_progress_and_output_metadata(encoding_clie
             patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.video_encoding_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.video_encoding_service.subprocess.Popen",
@@ -516,7 +516,7 @@ def test_encode_video_for_job_applies_enhancement_filters(encoding_client) -> No
             patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.video_encoding_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.video_encoding_service.subprocess.Popen",
@@ -578,23 +578,23 @@ def test_worker_runs_extraction_enhancement_and_encoding(encoding_client) -> Non
         patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.frame_enhancement_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.video_encoding_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.audio_mux_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.export_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_dispatch),
     ):
@@ -673,23 +673,23 @@ def test_worker_cleans_temp_after_success_preserving_preview(tmp_path: Path) -> 
             patch("app.services.audio_mux_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.frame_extraction_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.frame_enhancement_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.video_encoding_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.audio_mux_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.export_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.frame_extraction_service.subprocess.Popen",
@@ -753,15 +753,15 @@ def test_worker_marks_job_failed_when_encoding_fails(encoding_client) -> None:
         patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
         patch(
             "app.services.frame_extraction_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.frame_enhancement_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch(
             "app.services.video_encoding_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ),
         patch("app.services.frame_extraction_service.subprocess.Popen", side_effect=popen_dispatch),
     ):
@@ -813,7 +813,7 @@ def test_cancel_during_encoding_marks_job_cancelled(encoding_client) -> None:
             patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.video_encoding_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.video_encoding_service.subprocess.Popen",
@@ -855,7 +855,7 @@ def test_delete_encoded_video_keeps_frame_directories(encoding_client) -> None:
             patch("app.services.video_encoding_service.shutil.which", return_value="C:/ffmpeg.exe"),
             patch(
                 "app.services.video_encoding_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.video_encoding_service.subprocess.Popen",

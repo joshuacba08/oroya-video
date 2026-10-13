@@ -282,7 +282,7 @@ def test_enhance_frames_for_job_updates_progress_and_timestamps(enhancement_clie
     try:
         with patch(
             "app.services.frame_enhancement_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ):
             enhance_frames_for_job(db, job["id"], settings=settings)
     finally:
@@ -333,7 +333,7 @@ def test_cancel_during_enhancement_marks_job_cancelled(enhancement_client) -> No
         with (
             patch(
                 "app.services.frame_enhancement_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.frame_enhancement_service.job_repository.update_job",
@@ -378,7 +378,7 @@ def test_pause_during_enhancement_marks_job_paused(enhancement_client) -> None:
         with (
             patch(
                 "app.services.frame_enhancement_service.shutil.disk_usage",
-                return_value=(1000, 100, 900),
+                return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
             ),
             patch(
                 "app.services.frame_enhancement_service.job_repository.update_job",
@@ -415,7 +415,7 @@ def test_delete_enhanced_frames_keeps_original_frames(enhancement_client) -> Non
     try:
         with patch(
             "app.services.frame_enhancement_service.shutil.disk_usage",
-            return_value=(1000, 100, 900),
+            return_value=(100 * 1024**3, 10 * 1024**3, 90 * 1024**3),
         ):
             enhance_frames_for_job(db, job["id"], settings=settings)
     finally:
