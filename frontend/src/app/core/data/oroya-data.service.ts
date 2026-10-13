@@ -16,7 +16,7 @@ import {
 
 import { environment } from '../../../environments/environment';
 import { APP_VERSION } from '../app-version';
-import { setLanguage, translate } from '../i18n/i18n';
+import { applyServerLanguage, currentLanguageEpoch, translate } from '../i18n/i18n';
 import type {
   AIInstallProgressResponse,
   AIInstallStartResponse,
@@ -291,11 +291,14 @@ export class OroyaDataService {
   }
 
   settings(): Observable<SettingsVm> {
-    return this.resolve<SettingsResponse, SettingsVm>(
-      '/settings',
-      mapSettings,
-      MOCK_SETTINGS,
-    ).pipe(tap((settings) => setLanguage(settings.language)));
+    return defer(() => {
+      const epoch = currentLanguageEpoch();
+      return this.resolve<SettingsResponse, SettingsVm>(
+        '/settings',
+        mapSettings,
+        MOCK_SETTINGS,
+      ).pipe(tap((settings) => applyServerLanguage(settings.language, epoch)));
+    });
   }
 
   workspace(projectId: string): Observable<WorkspaceVm> {
@@ -585,12 +588,15 @@ export class OroyaDataService {
   }
 
   patchSettings(payload: SettingsUpdateRequest): Observable<SettingsVm> {
-    return this.command(() =>
-      this.api.patch<SettingsUpdateResponse>('/settings', payload),
-    ).pipe(
-      map((response) => mapSettings(response.settings)),
-      tap((settings) => setLanguage(settings.language)),
-    );
+    return defer(() => {
+      const epoch = currentLanguageEpoch();
+      return this.command(() =>
+        this.api.patch<SettingsUpdateResponse>('/settings', payload),
+      ).pipe(
+        map((response) => mapSettings(response.settings)),
+        tap((settings) => applyServerLanguage(settings.language, epoch)),
+      );
+    });
   }
 
   /** Zip con logs, estado del sistema y jobs recientes; el backend abre su carpeta. */
@@ -717,6 +723,7 @@ export class OroyaDataService {
     }
 
     try {
+      const languageEpoch = currentLanguageEpoch();
       const health = await this.verifyBackend();
       const [bootstrap, appState, settings, interrupted] = await Promise.all([
         this.api.get<BootstrapResponse>('/bootstrap'),
@@ -724,7 +731,7 @@ export class OroyaDataService {
         this.api.get<SettingsResponse>('/settings'),
         this.api.get<JobListResponse>('/jobs/interrupted'),
       ]);
-      setLanguage(settings.general?.language);
+      applyServerLanguage(settings.general?.language, languageEpoch);
       const warnings = [
         ...bootstrap.warnings,
         ...(!appState.system.ready ? [translate('backend.notReady')] : []),

@@ -102,8 +102,10 @@ def build_frame_extraction_command(
         str(input_path),
         "-map",
         "0:v:0",
-        "-vsync",
-        "0",
+        # Un PNG por fotograma decodificado, sin duplicar ni descartar (antes `-vsync 0`,
+        # opción obsoleta que las versiones nuevas de ffmpeg ya no aceptan).
+        "-fps_mode",
+        "passthrough",
         "-start_number",
         "0",
         "-progress",

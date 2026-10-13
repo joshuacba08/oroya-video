@@ -112,6 +112,8 @@ def test_ffmpeg_extracts_only_the_trimmed_fragment(tmp_path) -> None:
     frames_dir.mkdir()
     command = build_frame_extraction_command(clip, frames_dir, trim=TrimRange(1.0, 2.0))
 
-    subprocess.run(command, check=True, capture_output=True)
+    result = subprocess.run(command, capture_output=True)
+
+    assert result.returncode == 0, result.stderr.decode("utf-8", "replace")
 
     assert len(list(frames_dir.glob("*.png"))) == 10
