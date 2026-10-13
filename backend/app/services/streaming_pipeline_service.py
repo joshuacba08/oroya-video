@@ -73,6 +73,13 @@ from app.enhancers.stream import (
     PassthroughProcessor,
 )
 from app.services import job_workspace_service
+from app.services.encoding_options import (
+    EncodingChoice,
+    build_video_codec_args,
+    detect_hardware_encoders,
+    hardware_fits,
+    resolve_encoding,
+)
 from app.services.face_restore_service import build_face_restorer
 from app.services.frame_extraction_service import (
     FRAME_FILE_PATTERN,
@@ -101,11 +108,9 @@ from app.services.realesrgan_service import (
 from app.services.tool_detection_service import resolve_tool_path
 from app.services.video_encoding_service import (
     ENCODED_VIDEO_FILE_NAME,
-    ENCODING_CODEC,
     ENCODING_FORMAT,
-    ENCODING_PIXEL_FORMAT,
     EVEN_DIMENSIONS_FILTER,
-    FFMPEG_ENCODING_CODEC,
+    OUTPUT_RESOLUTION_FACTORS,
     build_enhancement_video_filters,
     build_output_scale_filter,
     build_post_ai_filters,
@@ -137,9 +142,8 @@ DB_SYNC_INTERVAL_SECONDS = 0.5
 LIVE_PREVIEW_INTERVAL_SECONDS = 2.0
 LIVE_PREVIEW_MAX_OVERHEAD = 10
 FRAME_QUEUE_SIZE = 4
-# Calidad de los tramos: los parámetros deben ser idénticos en todos para unirlos sin recodificar.
-SEGMENT_PRESET = "medium"
-SEGMENT_CRF = "18"
+# Los parámetros del codificador (encoding_options) son idénticos en todos los tramos para
+# unirlos sin recodificar.
 
 PROCESSOR_ERRORS = (
     AIModelFileNotFoundError,
@@ -265,7 +269,10 @@ def build_segment_encoder_command(
     height: int,
     fps: float | Fraction,
     video_filters: str | None = None,
+    codec_args: list[str] | None = None,
 ) -> list[str]:
+    if codec_args is None:
+        codec_args = build_video_codec_args(EncodingChoice(), hardware_available=False).args
     return [
         "ffmpeg",
         "-hide_banner",
@@ -283,14 +290,7 @@ def build_segment_encoder_command(
         "-i",
         "pipe:0",
         *(["-vf", video_filters] if video_filters else []),
-        "-c:v",
-        FFMPEG_ENCODING_CODEC,
-        "-preset",
-        SEGMENT_PRESET,
-        "-crf",
-        SEGMENT_CRF,
-        "-pix_fmt",
-        ENCODING_PIXEL_FORMAT,
+        *codec_args,
         *OUTPUT_COLOR_ARGS,
         "-f",
         "mp4",
@@ -388,11 +388,14 @@ class SegmentEncoder:
         height: int,
         fps: float | Fraction,
         video_filters: str | None,
+        codec_args: list[str] | None = None,
     ) -> None:
         self.job_id = job_id
         self.temp_path = temp_path
         self.frames = 0
-        command = build_segment_encoder_command(self.temp_path, width, height, fps, video_filters)
+        command = build_segment_encoder_command(
+            self.temp_path, width, height, fps, video_filters, codec_args
+        )
         command[0] = ffmpeg_path
         self.process = subprocess.Popen(
             command,
@@ -667,11 +670,34 @@ class _StreamingRun:
             build_enhancement_video_filters(enhancement_config),
             build_output_scale_filter(export_config, job.video_asset, processor_scale),
         )
+        # Códec, calidad, GPU y 10 bits (REQ-040): iguales en todos los tramos.
+        self.encoding = resolve_encoding(export_config)
+        output_factor = OUTPUT_RESOLUTION_FACTORS.get(
+            str(export_config.get("output_resolution", "")).lower(), 1
+        )
+        video = job.video_asset
+        hardware = (
+            self.encoding.hardware
+            and hardware_fits(
+                (getattr(video, "width", 0) or 0) * output_factor,
+                (getattr(video, "height", 0) or 0) * output_factor,
+            )
+            and detect_hardware_encoders(self.ffmpeg_path).get(self.encoding.codec, False)
+        )
+        self.encoder_args = build_video_codec_args(self.encoding, hardware)
+        if self.encoding.hardware and not hardware:
+            job_repository.create_job_log(
+                db,
+                job.id,
+                "warning",
+                "GPU encoding is not available here; encoding on the CPU.",
+                stage=STAGE,
+            )
         self.video_filters = combine_video_filters(
             build_post_ai_filters(enhancement_config),
             build_output_scale_filter(export_config, job.video_asset, processor_scale),
             EVEN_DIMENSIONS_FILTER,
-            encode_color_filter(),
+            encode_color_filter(self.encoder_args.pix_fmt),
         )
 
         trim_start = trim.start_seconds if trim else 0.0
@@ -934,6 +960,7 @@ class _StreamingRun:
                     frame.height,
                     self.output_fps,
                     self.video_filters,
+                    self.encoder_args.args,
                 )
             self.encoder.write(frame.data)
         # Un tramo cuenta fotogramas de origen completos: reanudar empieza en el siguiente.
@@ -1117,7 +1144,7 @@ class _StreamingRun:
             "encoded_video_size_bytes": output_size,
             "encoded_size_bytes": output_size,
             "encoding_fps": float(self.output_fps),
-            "encoding_codec": ENCODING_CODEC,
+            "encoding_codec": self.encoding.codec,
             "encoding_format": ENCODING_FORMAT,
             "process_id": None,
             "process_kind": None,

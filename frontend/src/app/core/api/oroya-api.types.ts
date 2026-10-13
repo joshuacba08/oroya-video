@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/encoders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Available GPU encoders */
+        get: operations["system_encoders_api_v1_system_encoders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/ffmpeg/download": {
         parameters: {
             query?: never;
@@ -1596,6 +1613,23 @@ export interface paths {
         };
         /** Detected GPU status */
         get: operations["system_gpu_api_system_gpu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/encoders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Available GPU encoders */
+        get: operations["system_encoders_api_system_encoders_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3385,6 +3419,16 @@ export interface components {
             codec: string;
             /** Has Audio */
             has_audio: boolean;
+        };
+        /**
+         * EncodersResponse
+         * @description GPU (NVENC) encoders that really work here, per codec (REQ-040).
+         */
+        EncodersResponse: {
+            /** Hardware */
+            hardware: {
+                [key: string]: boolean;
+            };
         };
         /** ExportAssetResponse */
         ExportAssetResponse: {
@@ -5479,6 +5523,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GPUResponse"];
+                };
+            };
+        };
+    };
+    system_encoders_api_v1_system_encoders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncodersResponse"];
                 };
             };
         };
@@ -8276,6 +8340,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GPUResponse"];
+                };
+            };
+        };
+    };
+    system_encoders_api_system_encoders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncodersResponse"];
                 };
             };
         };

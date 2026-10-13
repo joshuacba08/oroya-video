@@ -33,6 +33,12 @@ from app.schemas.job_schema import (
     EncodedVideoResponse,
     VideoEncodingSummaryResponse,
 )
+from app.services.encoding_options import (
+    build_video_codec_args,
+    detect_hardware_encoders,
+    hardware_fits,
+    resolve_encoding,
+)
 from app.services.frame_extraction_service import (
     finish_cancelled_ffmpeg_stage,
     time_to_datetime,
@@ -152,6 +158,7 @@ def build_video_encoding_command(
     pix_fmt: str = ENCODING_PIXEL_FORMAT,
     video_filters: str | None = None,
     color_args: list[str] | None = None,
+    codec_args: list[str] | None = None,
 ) -> list[str]:
     command = [
         "ffmpeg",
@@ -164,10 +171,7 @@ def build_video_encoding_command(
         "-i",
         str(input_pattern),
         *(["-vf", video_filters] if video_filters else []),
-        "-c:v",
-        codec,
-        "-pix_fmt",
-        pix_fmt,
+        *(codec_args or ["-c:v", codec, "-pix_fmt", pix_fmt]),
         *(color_args or []),
         "-movflags",
         "+faststart",
@@ -308,8 +312,21 @@ def encode_video_for_job(
         build_post_ai_filters(enhancement_config),
         build_output_scale_filter(export_config, job.video_asset, enhanced_scale),
     )
+    encoding = resolve_encoding(export_config)
+    output_factor = OUTPUT_RESOLUTION_FACTORS.get(
+        str(export_config.get("output_resolution", "")).lower(), 1
+    )
+    hardware = (
+        encoding.hardware
+        and hardware_fits(
+            (getattr(job.video_asset, "width", 0) or 0) * output_factor,
+            (getattr(job.video_asset, "height", 0) or 0) * output_factor,
+        )
+        and detect_hardware_encoders(ffmpeg_path).get(encoding.codec, False)
+    )
+    encoder_args = build_video_codec_args(encoding, hardware)
     video_filters = combine_video_filters(
-        user_filters, EVEN_DIMENSIONS_FILTER, encode_color_filter()
+        user_filters, EVEN_DIMENSIONS_FILTER, encode_color_filter(encoder_args.pix_fmt)
     )
     encoded_dir = ensure_job_encoded_directory(job.id, active_settings)
     output_path = get_job_silent_video_path(job.id, active_settings)
@@ -319,6 +336,7 @@ def encode_video_for_job(
         fps,
         video_filters=video_filters,
         color_args=OUTPUT_COLOR_ARGS,
+        codec_args=encoder_args.args,
     )
     command[0] = ffmpeg_path
     started_at = time.monotonic()
@@ -335,7 +353,7 @@ def encode_video_for_job(
             "encoded_video_path": str(output_path),
             "encoded_video_file_name": ENCODED_VIDEO_FILE_NAME,
             "encoding_fps": fps,
-            "encoding_codec": ENCODING_CODEC,
+            "encoding_codec": encoding.codec,
             "encoding_format": ENCODING_FORMAT,
             "encoding_started_at": job.encoding_started_at or time_to_datetime(now),
             "encoding_error_code": None,
@@ -516,7 +534,7 @@ def encode_video_for_job(
                 "encoded_video_file_name": ENCODED_VIDEO_FILE_NAME,
                 "encoded_video_size_bytes": output_size,
                 "encoding_fps": fps,
-                "encoding_codec": ENCODING_CODEC,
+                "encoding_codec": encoding.codec,
                 "encoding_format": ENCODING_FORMAT,
                 "elapsed_time_seconds": int(time.monotonic() - started_at),
                 "encoding_completed_at": time_to_datetime(time.time()),

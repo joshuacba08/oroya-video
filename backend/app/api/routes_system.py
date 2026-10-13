@@ -22,6 +22,7 @@ from app.schemas.system_schema import (
     AIInstallStartResponse,
     ClientLogRequest,
     DiagnosticsResponse,
+    EncodersResponse,
     FFmpegDownloadProgressResponse,
     FFmpegDownloadStartResponse,
     GPUResponse,
@@ -36,13 +37,14 @@ from app.services import desktop_open_service
 from app.services.ai_install_service import get_ai_install_progress, start_ai_install
 from app.services.cleanup_service import cleanup_old_temp_files, get_storage_usage
 from app.services.diagnostics_service import create_diagnostics_bundle
+from app.services.encoding_options import detect_hardware_encoders
 from app.services.gpu_detection_service import get_gpu_status
 from app.services.system_service import get_requirements_status, get_storage_info, get_system_info
 from app.services.system_setup_service import (
     get_ffmpeg_download_progress,
     start_ffmpeg_download,
 )
-from app.services.tool_detection_service import get_tools_status
+from app.services.tool_detection_service import get_tools_status, resolve_tool_path
 
 router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
@@ -134,6 +136,14 @@ def system_tools() -> ToolsResponse:
 @router.get("/gpu", response_model=GPUResponse, summary="Detected GPU status")
 def system_gpu() -> GPUResponse:
     return get_gpu_status()
+
+
+@router.get("/encoders", response_model=EncodersResponse, summary="Available GPU encoders")
+def system_encoders(request: Request) -> EncodersResponse:
+    # Una codificación de prueba por códec (cacheada): no bloquear el event loop la primera vez.
+    return EncodersResponse(
+        hardware=detect_hardware_encoders(resolve_tool_path("ffmpeg", request.app.state.settings))
+    )
 
 
 @router.post(

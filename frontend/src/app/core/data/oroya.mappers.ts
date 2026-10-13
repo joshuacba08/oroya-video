@@ -609,6 +609,7 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
       targetFps: interpolationTarget(record(enhancement['interpolation'])['target_fps']),
     },
     aiStrength: numberValue(enhancement['ai_strength'], 100),
+    encoding: mapEncoding(exportConfig),
     modelDenoise: numberValue(enhancement['model_denoise'], 50),
     videoWidth: numberValue(record(response.video)['width'], 0),
     videoHeight: numberValue(record(response.video)['height'], 0),
@@ -646,6 +647,18 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
         )
       : idlePipeline(),
     actions: response.actions,
+  };
+}
+
+function mapEncoding(exportConfig: UnknownRecord): WorkspaceVm['encoding'] {
+  const encoding = record(exportConfig['encoding']);
+  const codec = stringValue(encoding['codec'], stringValue(exportConfig['codec'], 'h264'));
+  const quality = stringValue(encoding['quality'], 'high');
+  return {
+    codec: codec === 'h265' ? 'h265' : 'h264',
+    quality: quality === 'balanced' || quality === 'small' ? quality : 'high',
+    hardware: booleanValue(encoding['hardware']),
+    tenBit: booleanValue(encoding['ten_bit']),
   };
 }
 

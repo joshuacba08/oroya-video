@@ -150,3 +150,9 @@ class RequirementsResponse(BaseModel):
     minimum: RequirementsMinimum
     recommended: RequirementsRecommended
     warnings: list[str]
+
+
+class EncodersResponse(BaseModel):
+    """GPU (NVENC) encoders that really work here, per codec (REQ-040)."""
+
+    hardware: dict[str, bool]

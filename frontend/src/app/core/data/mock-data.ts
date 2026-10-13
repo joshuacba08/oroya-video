@@ -342,6 +342,7 @@ export const MOCK_WORKSPACE: WorkspaceVm = {
   interpolationAvailable: false,
   aiStrength: 100,
   modelDenoise: 50,
+  encoding: { codec: 'h264', quality: 'high', hardware: false, tenBit: false },
   videoWidth: 1920,
   videoHeight: 1080,
   scale: '2x',

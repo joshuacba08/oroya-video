@@ -32,6 +32,7 @@ import type {
   ExportOpenResponse,
   FFmpegDownloadProgressResponse,
   FFmpegDownloadStartResponse,
+  EncodersResponse,
   GPUResponse,
   HealthResponse,
   JobControlResponse,
@@ -167,6 +168,16 @@ export class OroyaDataService {
     }
 
     return defer(() => this.api.get<GPUResponse>('/system/gpu')).pipe(
+      catchError(() => of(null)),
+    );
+  }
+
+  /** Codificadores de GPU (NVENC) que funcionan aquí, por códec. */
+  encoders(): Observable<EncodersResponse | null> {
+    if (environment.dataMode === 'mock' || !this.backendStatus().isApi) {
+      return of(null);
+    }
+    return defer(() => this.api.get<EncodersResponse>('/system/encoders')).pipe(
       catchError(() => of(null)),
     );
   }

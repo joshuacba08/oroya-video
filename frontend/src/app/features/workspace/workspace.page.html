@@ -403,6 +403,51 @@
             } }}
           </p>
         }
+        <label class="enhance-row">
+          <span>{{ 'workspace.codec' | t }}</span>
+          <select class="enhance-select" (change)="setEncoding(workspace, { codec: $any($event.target).value })">
+            <option value="h264" [selected]="current.codec === 'h264'">H.264 ({{ 'workspace.codecCompatible' | t }})</option>
+            <option value="h265" [selected]="current.codec === 'h265'">H.265 ({{ 'workspace.codecSmaller' | t }})</option>
+          </select>
+        </label>
+        <label class="enhance-row">
+          <span>{{ 'workspace.quality' | t }}</span>
+          <select class="enhance-select" (change)="setEncoding(workspace, { quality: $any($event.target).value })">
+            <option value="high" [selected]="current.quality === 'high'">{{ 'workspace.qualityHigh' | t }}</option>
+            <option value="balanced" [selected]="current.quality === 'balanced'">{{ 'workspace.qualityBalanced' | t }}</option>
+            <option value="small" [selected]="current.quality === 'small'">{{ 'workspace.qualitySmall' | t }}</option>
+          </select>
+        </label>
+        <div class="enhance-row" [class.enhance-row--disabled]="!gpuEncodingAvailable(current.codec)">
+          <span>{{ 'workspace.gpuEncoding' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.gpuEncoding' | t"
+              [checked]="current.gpuEncoding && gpuEncodingAvailable(current.codec)"
+              [disabled]="!gpuEncodingAvailable(current.codec)"
+              (change)="setEncoding(workspace, { gpuEncoding: $any($event.target).checked })"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (gpuEncoders() && !gpuEncodingAvailable(current.codec)) {
+          <p class="enhance-hint">{{ 'workspace.gpuEncodingUnavailable' | t }}</p>
+        }
+        @if (current.codec === 'h265') {
+          <div class="enhance-row">
+            <span>{{ 'workspace.tenBit' | t }}</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                [attr.aria-label]="'workspace.tenBit' | t"
+                [checked]="current.tenBit"
+                (change)="setEncoding(workspace, { tenBit: $any($event.target).checked })"
+              />
+              <i></i>
+            </label>
+          </div>
+        }
         <label class="export-field">
           <span>{{ 'workspace.exportName' | t }}</span>
           <input

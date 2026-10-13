@@ -354,6 +354,27 @@
         }
       }
     },
+    "/api/v1/system/encoders": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Available GPU encoders",
+        "operationId": "system_encoders_api_v1_system_encoders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncodersResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/system/ffmpeg/download": {
       "post": {
         "tags": [
@@ -4382,6 +4403,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GPUResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/encoders": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Available GPU encoders",
+        "operationId": "system_encoders_api_system_encoders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncodersResponse"
                 }
               }
             }
@@ -10020,6 +10062,23 @@
           "has_audio"
         ],
         "title": "EncodedVideoResponse"
+      },
+      "EncodersResponse": {
+        "properties": {
+          "hardware": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Hardware"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hardware"
+        ],
+        "title": "EncodersResponse",
+        "description": "GPU (NVENC) encoders that really work here, per codec (REQ-040)."
       },
       "ExportAssetResponse": {
         "properties": {

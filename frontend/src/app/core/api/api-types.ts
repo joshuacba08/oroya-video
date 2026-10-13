@@ -13,6 +13,7 @@ export type DashboardResponse = components['schemas']['DashboardResponse'];
 export type DiagnosticsResponse = components['schemas']['DiagnosticsResponse'];
 export type ExportDeleteResponse = components['schemas']['ExportDeleteResponse'];
 export type GPUResponse = components['schemas']['GPUResponse'];
+export type EncodersResponse = components['schemas']['EncodersResponse'];
 export type FFmpegDownloadStartResponse = components['schemas']['FFmpegDownloadStartResponse'];
 export type FFmpegDownloadProgressResponse =
   components['schemas']['FFmpegDownloadProgressResponse'];

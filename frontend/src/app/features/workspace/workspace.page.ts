@@ -27,10 +27,12 @@ import { DialogService } from '../../core/dialogs/dialog.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import type {
   ApiErrorVm,
+  EncodingQuality,
   InterpolationTarget,
   ModelVm,
   PreviewFrameVm,
   QueueJobVm,
+  VideoCodec,
   WorkspaceVm,
 } from '../../core/models/oroya.models';
 import { OvVideoPreviewComponent } from '../../shared/ui/ov-video-preview.component';
@@ -51,6 +53,10 @@ type WorkspaceControls = {
   aiStrength: number;
   modelDenoise: number;
   keepAudio: boolean;
+  codec: VideoCodec;
+  quality: EncodingQuality;
+  gpuEncoding: boolean;
+  tenBit: boolean;
   /** Vacío: nombre por defecto ("<proyecto> (Oroya 2x)"). */
   exportFileName: string;
   /** Vacío: la carpeta de exportación de Ajustes (con una subcarpeta por proyecto). */
@@ -65,6 +71,8 @@ type WorkspaceControls = {
 
 /** Máximo de píxeles por segundo del nivel H.264 5.1 (983 040 macrobloques/s). */
 const H264_LEVEL_51_PIXEL_RATE = 983_040 * 256;
+/** H.265 nivel 5.1: 534 773 760 muestras de luma por segundo. */
+const H265_LEVEL_51_PIXEL_RATE = 534_773_760;
 
 type QualityPreset = {
   id: string;
@@ -169,6 +177,13 @@ export class WorkspacePage {
       return of(null);
     }),
   );
+
+  constructor() {
+    this.data
+      .encoders()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.gpuEncoders.set(response?.hardware ?? {}));
+  }
 
   backToProjects(): void {
     void this.router.navigateByUrl('/projects');
@@ -434,6 +449,17 @@ export class WorkspacePage {
     });
   }
 
+  /** Codificación por GPU que funciona en este equipo, por códec (null = aún sin saber). */
+  readonly gpuEncoders = signal<Record<string, boolean> | null>(null);
+
+  gpuEncodingAvailable(codec: VideoCodec): boolean {
+    return this.gpuEncoders()?.[codec] === true;
+  }
+
+  setEncoding(workspace: WorkspaceVm, patch: Partial<Pick<WorkspaceControls, 'codec' | 'quality' | 'gpuEncoding' | 'tenBit'>>): void {
+    this.updateControls(workspace, patch);
+  }
+
   setAiStrength(workspace: WorkspaceVm, value: string): void {
     this.updateControls(workspace, { aiStrength: this.clampPercent(value) });
   }
@@ -474,7 +500,8 @@ export class WorkspacePage {
       : controls.interpolationTarget === '2x'
         ? workspace.videoFps * 2
         : controls.interpolationTarget;
-    if (!width || !height || width * height * fps <= H264_LEVEL_51_PIXEL_RATE) {
+    const limit = controls.codec === 'h265' ? H265_LEVEL_51_PIXEL_RATE : H264_LEVEL_51_PIXEL_RATE;
+    if (!width || !height || width * height * fps <= limit) {
       return null;
     }
     return `${width}×${height} · ${Math.round(fps)} fps`;
@@ -757,11 +784,17 @@ export class WorkspacePage {
   private exportConfig(controls: WorkspaceControls) {
     return {
       format: 'mp4' as const,
-      codec: 'h264' as const,
       keep_audio: controls.keepAudio,
       output_resolution: controls.exportResolution,
       file_name: controls.exportFileName.trim(),
       output_dir: controls.exportDir,
+      codec: controls.codec,
+      encoding: {
+        codec: controls.codec,
+        quality: controls.quality,
+        hardware: controls.gpuEncoding,
+        ten_bit: controls.tenBit && controls.codec === 'h265',
+      },
       trim: controls.trimEnabled
         ? { start_seconds: controls.trimStart, end_seconds: controls.trimEnd }
         : null,
@@ -856,6 +889,10 @@ export class WorkspacePage {
       interpolationTarget: workspace.interpolation.targetFps,
       aiStrength: workspace.aiStrength,
       modelDenoise: workspace.modelDenoise,
+      codec: workspace.encoding.codec,
+      quality: workspace.encoding.quality,
+      gpuEncoding: workspace.encoding.hardware,
+      tenBit: workspace.encoding.tenBit,
       keepAudio: workspace.keepAudio,
       exportFileName: workspace.exportFileName,
       exportDir: workspace.exportDir,
