@@ -265,6 +265,8 @@ export const es: Record<TranslationKey, string> = {
   'workspace.presetAnimation': 'Animación',
   'workspace.presetMaxDetail': 'Detalle máximo',
   'workspace.aiStrength': 'Intensidad de IA',
+  'workspace.temporalStability': 'Estabilidad temporal',
+  'workspace.temporalStabilityHint': 'Reduce el parpadeo de la textura de la IA entre fotogramas, siguiendo el movimiento (sin estelas). 0 = desactivado.',
   'workspace.aiCleanup': 'Limpieza de compresión con IA',
   'workspace.aiCleanupHint': 'Elimina con IA los artefactos de compresión H.264 antes de escalar: más limpio y natural.',
   'workspace.aiCleanupUnavailable': 'Descarga el modelo de limpieza de compresión con IA para usarlo:',

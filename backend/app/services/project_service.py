@@ -99,6 +99,8 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "model_denoise",
     # Opcional (REQ-039): {"enabled": bool}, limpieza de compresión con IA antes de escalar.
     "ai_cleanup",
+    # Opcional (REQ-041): 0-100, estabilidad temporal tras la IA.
+    "temporal_stability",
 }
 ALLOWED_EXPORT_KEYS = {
     "format",
@@ -177,7 +179,7 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
         or not isinstance(ai_cleanup.get("enabled"), bool)
     ):
         raise InvalidProjectConfigurationError("Enhancement config ai_cleanup is invalid.")
-    for key in ("ai_strength", "model_denoise"):
+    for key in ("ai_strength", "model_denoise", "temporal_stability"):
         value = config.get(key)
         if value is not None and (not _is_non_negative_int(value) or value > 100):
             raise InvalidProjectConfigurationError(f"Enhancement config {key} must be 0-100.")

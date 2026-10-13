@@ -227,6 +227,8 @@ export interface WorkspaceVm {
   modelDenoise: number;
   /** Limpieza de compresión con IA (modelo 1x) antes de escalar. */
   aiCleanup: boolean;
+  /** 0-100: estabilidad temporal (menos parpadeo de la textura de la IA). */
+  temporalStability: number;
   aiCleanupAvailable: boolean;
   /** Codificación de la exportación (REQ-040). */
   encoding: { codec: VideoCodec; quality: EncodingQuality; hardware: boolean; tenBit: boolean };

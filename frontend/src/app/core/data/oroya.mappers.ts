@@ -615,6 +615,7 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     },
     aiStrength: numberValue(enhancement['ai_strength'], 100),
     aiCleanup: booleanValue(record(enhancement['ai_cleanup'])['enabled']),
+    temporalStability: numberValue(enhancement['temporal_stability'], 0),
     aiCleanupAvailable: allModels.some(
       (model) => model.category === CLEANUP_CATEGORY && model.installed && model.enabled,
     ),

@@ -234,6 +234,17 @@
             <a routerLink="/models">{{ 'nav.models' | t }}</a>
           </p>
         }
+        <label class="slider-row" [title]="'workspace.temporalStabilityHint' | t">
+          <span>{{ 'workspace.temporalStability' | t }}</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            [value]="current.temporalStability"
+            (input)="setTemporalStability(workspace, $any($event.target).value)"
+          />
+          <strong>{{ current.temporalStability }}</strong>
+        </label>
         <label class="slider-row" [title]="'workspace.aiStrengthHint' | t">
           <span>{{ 'workspace.aiStrength' | t }}</span>
           <input

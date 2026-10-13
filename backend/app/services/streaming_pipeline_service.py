@@ -489,14 +489,26 @@ def build_frame_processor(
             ai_strength = 100
         cleanup = build_ai_cleanup(db, job, settings)
         return (
-            ImageProcessor(enhancer, face_restorer, ai_strength / 100, cleanup),
+            ImageProcessor(
+                enhancer, face_restorer, ai_strength / 100, cleanup, build_stabilizer(job)
+            ),
             enhancer.scale or 1,
         )
     if engine != "mock":
         raise FrameEnhancerNotFoundError()
     if face_restorer is not None:
-        return ImageProcessor(None, face_restorer), 1
+        return ImageProcessor(None, face_restorer, stabilizer=build_stabilizer(job)), 1
     return PassthroughProcessor(settings.mock_enhancer_frame_delay_ms / 1000), 1
+
+
+def build_stabilizer(job: ProcessingJob):
+    """Temporal stabilizer (REQ-041) when `temporal_stability` > 0."""
+    value = parse_enhancement_config_json(job.enhancement_config_json).get("temporal_stability")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    from app.enhancers.temporal import TemporalStabilizer
+
+    return TemporalStabilizer(value / 100)
 
 
 AI_CLEANUP_MODEL_SLUG = "deh264-1x"

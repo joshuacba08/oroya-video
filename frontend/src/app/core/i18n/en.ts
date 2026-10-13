@@ -263,6 +263,8 @@ export const en = {
   'workspace.presetAnimation': 'Animation',
   'workspace.presetMaxDetail': 'Maximum detail',
   'workspace.aiStrength': 'AI strength',
+  'workspace.temporalStability': 'Temporal stability',
+  'workspace.temporalStabilityHint': 'Reduces the flicker of AI texture between frames, following the motion (no ghosting). 0 = off.',
   'workspace.aiCleanup': 'AI compression cleanup',
   'workspace.aiCleanupHint': 'Removes H.264 compression artifacts with AI before upscaling: cleaner and more natural.',
   'workspace.aiCleanupUnavailable': 'Download the AI compression cleanup model to use it:',

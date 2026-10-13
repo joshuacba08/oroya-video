@@ -53,6 +53,7 @@ type WorkspaceControls = {
   aiStrength: number;
   modelDenoise: number;
   aiCleanup: boolean;
+  temporalStability: number;
   keepAudio: boolean;
   codec: VideoCodec;
   quality: EncodingQuality;
@@ -90,6 +91,7 @@ type QualityPreset = {
   /** Limpieza de compresión con IA (DeH264) antes de escalar, si está instalada. */
   aiCleanup: boolean;
   compressionCleanup: boolean;
+  temporalStability: number;
 };
 
 /** Valores elegidos comparando recortes reales de video de DVD (piano, caras) y animación. */
@@ -104,6 +106,7 @@ const QUALITY_PRESETS: QualityPreset[] = [
     scale: '2x',
     aiCleanup: true,
     compressionCleanup: true,
+    temporalStability: 50,
   },
   {
     id: 'animation',
@@ -115,6 +118,7 @@ const QUALITY_PRESETS: QualityPreset[] = [
     scale: '2x',
     aiCleanup: false,
     compressionCleanup: true,
+    temporalStability: 30,
   },
   {
     id: 'max-detail',
@@ -126,6 +130,7 @@ const QUALITY_PRESETS: QualityPreset[] = [
     scale: '4x',
     aiCleanup: false,
     compressionCleanup: false,
+    temporalStability: 50,
   },
 ];
 
@@ -227,6 +232,7 @@ export class WorkspacePage {
             ai_strength: controls.aiStrength,
             model_denoise: controls.modelDenoise,
             ai_cleanup: { enabled: controls.aiCleanup && workspace.aiCleanupAvailable },
+            temporal_stability: controls.temporalStability,
           },
           export_config: this.exportConfig(controls),
         }),
@@ -509,10 +515,15 @@ export class WorkspacePage {
       aiStrength: uses.aiStrength,
       modelDenoise: uses.modelDenoise,
       aiCleanup,
+      temporalStability: preset.temporalStability,
       denoise: 0,
       sharpen: 0,
       compressionCleanup: preset.compressionCleanup && !aiCleanup,
     });
+  }
+
+  setTemporalStability(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { temporalStability: this.clampPercent(value) });
   }
 
   setAiCleanup(workspace: WorkspaceVm, checked: boolean): void {
@@ -782,6 +793,7 @@ export class WorkspacePage {
             ai_strength: controls.aiStrength,
             model_denoise: controls.modelDenoise,
             ai_cleanup: { enabled: controls.aiCleanup && workspace.aiCleanupAvailable },
+            temporal_stability: controls.temporalStability,
           },
           export_config: this.exportConfig(controls),
           workspace_state: {
@@ -921,6 +933,7 @@ export class WorkspacePage {
       aiStrength: workspace.aiStrength,
       modelDenoise: workspace.modelDenoise,
       aiCleanup: workspace.aiCleanup,
+      temporalStability: workspace.temporalStability,
       codec: workspace.encoding.codec,
       quality: workspace.encoding.quality,
       gpuEncoding: workspace.encoding.hardware,

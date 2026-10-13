@@ -101,11 +101,14 @@ class ImageProcessor:
         face_restorer: Any | None = None,
         ai_strength: float = 1.0,
         cleanup: Any | None = None,
+        stabilizer: Any | None = None,
     ) -> None:
         self.enhancer = enhancer
         self.face_restorer = face_restorer
         # Limpieza de compresión con IA (1x) antes de escalar (REQ-039).
         self.cleanup = cleanup
+        # Estabilidad temporal tras la IA y las caras (REQ-041).
+        self.stabilizer = stabilizer
         # < 1: la salida de la IA se mezcla con un escalado normal (Lanczos) para conservar la
         # textura real y evitar el aspecto "pintado" en video real de baja resolución.
         self.ai_strength = min(max(ai_strength, 0.0), 1.0)
@@ -128,6 +131,7 @@ class ImageProcessor:
 
         rgb = np.frombuffer(frame.data, dtype=np.uint8).reshape(frame.height, frame.width, 3)
         image = np.ascontiguousarray(rgb[:, :, ::-1])
+        original = image
         if self.cleanup is not None:
             image = self.cleanup.enhance_image(image)
         if self.enhancer is not None:
@@ -137,6 +141,8 @@ class ImageProcessor:
                 image = blend_with_plain_upscale(source, image, self.ai_strength)
         if self.face_restorer is not None:
             image = self.face_restorer.restore_image(image)
+        if self.stabilizer is not None:
+            image = self.stabilizer.apply(original, image)
         output = np.ascontiguousarray(image[:, :, ::-1])
         height, width = output.shape[:2]
         return Frame(output.tobytes(), width, height)
