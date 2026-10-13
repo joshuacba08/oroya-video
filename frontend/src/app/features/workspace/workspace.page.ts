@@ -477,9 +477,9 @@ export class WorkspacePage {
         // Elegir un frame durante el procesamiento fija la vista (deja de seguir en vivo).
         this.followLive.set(false);
       }
-      this.selectedFrameIndex.set(frameIndex);
       const preview = await firstValueFrom(this.data.compareFrame(jobId, frameIndex));
       this.selectedPreview.set(preview);
+      this.selectedFrameIndex.set(frameIndex);
       if (!this.hasActiveLiveJob()) {
         this.updateControls(workspace, undefined, frameIndex);
       }
@@ -494,7 +494,7 @@ export class WorkspacePage {
 
   previewAfter(workspace: WorkspaceVm): string {
     const preview = this.selectedPreview();
-    const frameIndex = this.selectedFrameIndex();
+    const frameIndex = preview?.frame_index ?? null;
     const jobId = this.previewJobId(workspace);
     if (
       preview &&
@@ -569,12 +569,13 @@ export class WorkspacePage {
     try {
       this.previewError.set(null);
       const recommended = await firstValueFrom(this.data.previewRecommended(workspace.latestJobId));
-      const frameOffset = Math.max(recommended.frame_index - 12, 0);
       const frames = await firstValueFrom(
-        this.data.previewFrames(workspace.latestJobId, {
-          limit: 24,
-          offset: frameOffset,
-        }),
+        this.data.previewFrames(
+          workspace.latestJobId,
+          workspace.previewSparse
+            ? { limit: 100, offset: 0 }
+            : { limit: 24, offset: Math.max(recommended.frame_index - 12, 0) },
+        ),
       );
       this.selectedPreview.set(recommended);
       this.selectedFrameIndex.set(recommended.frame_index);

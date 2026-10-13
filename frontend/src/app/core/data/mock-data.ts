@@ -348,6 +348,7 @@ export const MOCK_WORKSPACE: WorkspaceVm = {
   trim: null,
   videoDurationSeconds: 222,
   previewTimeOffset: 0,
+  previewSparse: false,
   compareMode: 'slider',
   zoom: 'fit',
   videoFps: 24,
