@@ -497,6 +497,10 @@ input[type='range'] {
   font: inherit;
 }
 
+.enhance-hint--warning {
+  color: var(--n-warning, #f5b74e);
+}
+
 .enhance-select {
   height: 30px;
   padding: 0 8px;

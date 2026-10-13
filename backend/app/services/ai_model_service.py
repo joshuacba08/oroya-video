@@ -37,6 +37,8 @@ ALLOWED_MODEL_STATUSES = {
     "incompatible",
     "error",
 }
+GENERAL_WDN_RELATIVE_PATH = "realesrgan/realesr-general-wdn-x4v3.pth"
+
 DEFAULT_MODELS = [
     {
         "name": "Real-ESRGAN x2",
@@ -120,7 +122,14 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({"quality_tier": "medium", "speed_tier": "fast"}),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "medium",
+                "speed_tier": "fast",
+                # Variante "wdn": se mezcla con la principal para regular la reducción de ruido.
+                "auxiliary_files": [GENERAL_WDN_RELATIVE_PATH],
+            }
+        ),
     },
     {
         "name": "GFPGAN v1.4",

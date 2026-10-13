@@ -83,12 +83,29 @@ class InterpolationStage:
         return [first if step == 0 else next(synthesised) for step in timesteps]
 
 
+def blend_with_plain_upscale(source: Any, enhanced: Any, ai_strength: float) -> Any:
+    """`ai_strength` of the AI result over a Lanczos upscale of the source (same size)."""
+    import cv2
+
+    height, width = enhanced.shape[:2]
+    plain = cv2.resize(source, (width, height), interpolation=cv2.INTER_LANCZOS4)
+    return cv2.addWeighted(enhanced, ai_strength, plain, 1 - ai_strength, 0)
+
+
 class ImageProcessor:
     """Real-ESRGAN upscale and/or GFPGAN face restoration on in-memory images."""
 
-    def __init__(self, enhancer: Any | None = None, face_restorer: Any | None = None) -> None:
+    def __init__(
+        self,
+        enhancer: Any | None = None,
+        face_restorer: Any | None = None,
+        ai_strength: float = 1.0,
+    ) -> None:
         self.enhancer = enhancer
         self.face_restorer = face_restorer
+        # < 1: la salida de la IA se mezcla con un escalado normal (Lanczos) para conservar la
+        # textura real y evitar el aspecto "pintado" en video real de baja resolución.
+        self.ai_strength = min(max(ai_strength, 0.0), 1.0)
         self.engine = getattr(enhancer, "engine", "mock")
 
     @property
@@ -107,7 +124,10 @@ class ImageProcessor:
         rgb = np.frombuffer(frame.data, dtype=np.uint8).reshape(frame.height, frame.width, 3)
         image = np.ascontiguousarray(rgb[:, :, ::-1])
         if self.enhancer is not None:
+            source = image
             image = self.enhancer.enhance_image(image)
+            if self.ai_strength < 1:
+                image = blend_with_plain_upscale(source, image, self.ai_strength)
         if self.face_restorer is not None:
             image = self.face_restorer.restore_image(image)
         output = np.ascontiguousarray(image[:, :, ::-1])

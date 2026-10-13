@@ -48,6 +48,8 @@ type WorkspaceControls = {
   faceStrength: number;
   interpolation: boolean;
   interpolationTarget: InterpolationTarget;
+  aiStrength: number;
+  modelDenoise: number;
   keepAudio: boolean;
   /** Vacío: nombre por defecto ("<proyecto> (Oroya 2x)"). */
   exportFileName: string;
@@ -60,6 +62,50 @@ type WorkspaceControls = {
   compareMode: WorkspaceVm['compareMode'];
   zoom: WorkspaceVm['zoom'];
 };
+
+/** Máximo de píxeles por segundo del nivel H.264 5.1 (983 040 macrobloques/s). */
+const H264_LEVEL_51_PIXEL_RATE = 983_040 * 256;
+
+type QualityPreset = {
+  id: string;
+  labelKey: string;
+  modelSlug: string;
+  scale: WorkspaceVm['scale'];
+  aiStrength: number;
+  modelDenoise: number;
+  compressionCleanup: boolean;
+};
+
+/** Valores elegidos comparando en video real de DVD (piano, caras) y animación. */
+const QUALITY_PRESETS: QualityPreset[] = [
+  {
+    id: 'old-video',
+    labelKey: 'workspace.presetOldVideo',
+    modelSlug: 'realesrgan-general',
+    scale: '2x',
+    aiStrength: 85,
+    modelDenoise: 30,
+    compressionCleanup: true,
+  },
+  {
+    id: 'animation',
+    labelKey: 'workspace.presetAnimation',
+    modelSlug: 'realesrgan-x4',
+    scale: '2x',
+    aiStrength: 100,
+    modelDenoise: 50,
+    compressionCleanup: true,
+  },
+  {
+    id: 'max-detail',
+    labelKey: 'workspace.presetMaxDetail',
+    modelSlug: 'realesrgan-x4',
+    scale: '4x',
+    aiStrength: 100,
+    modelDenoise: 50,
+    compressionCleanup: false,
+  },
+];
 
 /** El progreso llega cada ~0,5 s (SSE); la vista previa en vivo basta con refrescarla cada 2 s. */
 const LIVE_PREVIEW_REFRESH_MS = 2000;
@@ -149,6 +195,8 @@ export class WorkspacePage {
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
             interpolation: this.interpolationConfig(workspace, controls),
+            ai_strength: controls.aiStrength,
+            model_denoise: controls.modelDenoise,
           },
           export_config: this.exportConfig(controls),
         }),
@@ -384,6 +432,52 @@ export class WorkspacePage {
       scale,
       exportResolution: scale,
     });
+  }
+
+  setAiStrength(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { aiStrength: this.clampPercent(value) });
+  }
+
+  setModelDenoise(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { modelDenoise: this.clampPercent(value) });
+  }
+
+  readonly presets = QUALITY_PRESETS;
+
+  /** Ajustes recomendados por tipo de video (modelo, escala, intensidad y filtros). */
+  applyPreset(workspace: WorkspaceVm, presetId: string): void {
+    const preset = QUALITY_PRESETS.find((item) => item.id === presetId);
+    if (!preset) {
+      return;
+    }
+    const model = workspace.alternateModels.find((item) => item.slug === preset.modelSlug);
+    this.updateControls(workspace, {
+      ...(model?.enabled ? { modelId: model.id } : {}),
+      scale: preset.scale,
+      exportResolution: preset.scale,
+      aiStrength: preset.aiStrength,
+      modelDenoise: preset.modelDenoise,
+      denoise: 0,
+      sharpen: 0,
+      compressionCleanup: preset.compressionCleanup,
+    });
+  }
+
+  /** Salida que muchos reproductores (los de Windows, navegadores) no decodifican con fluidez:
+   * por encima del nivel H.264 5.1 van a saltos y el audio parece desfasado. */
+  heavyOutput(workspace: WorkspaceVm, controls: WorkspaceControls): string | null {
+    const factor = controls.exportResolution === '4x' ? 4 : controls.exportResolution === '2x' ? 2 : 1;
+    const width = workspace.videoWidth * factor;
+    const height = workspace.videoHeight * factor;
+    const fps = !controls.interpolation || !workspace.interpolationAvailable
+      ? workspace.videoFps
+      : controls.interpolationTarget === '2x'
+        ? workspace.videoFps * 2
+        : controls.interpolationTarget;
+    if (!width || !height || width * height * fps <= H264_LEVEL_51_PIXEL_RATE) {
+      return null;
+    }
+    return `${width}×${height} · ${Math.round(fps)} fps`;
   }
 
   setDenoise(workspace: WorkspaceVm, value: string): void {
@@ -628,6 +722,8 @@ export class WorkspacePage {
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
             interpolation: this.interpolationConfig(workspace, controls),
+            ai_strength: controls.aiStrength,
+            model_denoise: controls.modelDenoise,
           },
           export_config: this.exportConfig(controls),
           workspace_state: {
@@ -758,6 +854,8 @@ export class WorkspacePage {
       faceStrength: Math.round(workspace.faceRestore.strength * 100),
       interpolation: workspace.interpolation.enabled,
       interpolationTarget: workspace.interpolation.targetFps,
+      aiStrength: workspace.aiStrength,
+      modelDenoise: workspace.modelDenoise,
       keepAudio: workspace.keepAudio,
       exportFileName: workspace.exportFileName,
       exportDir: workspace.exportDir,

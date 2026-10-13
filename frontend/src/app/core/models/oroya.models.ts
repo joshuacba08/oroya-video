@@ -219,6 +219,12 @@ export interface WorkspaceVm {
   interpolation: { enabled: boolean; targetFps: InterpolationTarget };
   /** El modelo RIFE está instalado y habilitado. */
   interpolationAvailable: boolean;
+  /** 0-100: mezcla de la IA con un escalado normal (menos aspecto "pintado"). */
+  aiStrength: number;
+  /** 0-100: reducción de ruido del modelo Real-ESRGAN General. */
+  modelDenoise: number;
+  videoWidth: number;
+  videoHeight: number;
   scale: 'original' | '2x' | '4x';
   exportResolution: 'original' | '2x' | '4x';
   keepAudio: boolean;

@@ -466,7 +466,12 @@ def build_frame_processor(
     face_restorer = build_face_restorer(db, job, settings)
     if engine == "realesrgan":
         enhancer = get_streaming_enhancer(db, job, settings)
-        return ImageProcessor(enhancer, face_restorer), enhancer.scale or 1
+        ai_strength = parse_enhancement_config_json(job.enhancement_config_json).get(
+            "ai_strength", 100
+        )
+        if isinstance(ai_strength, bool) or not isinstance(ai_strength, int):
+            ai_strength = 100
+        return ImageProcessor(enhancer, face_restorer, ai_strength / 100), enhancer.scale or 1
     if engine != "mock":
         raise FrameEnhancerNotFoundError()
     if face_restorer is not None:
