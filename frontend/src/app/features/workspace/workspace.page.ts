@@ -235,16 +235,19 @@ export class WorkspacePage {
     if (job.framesProcessed > this.lastEnhancedCount && job.status === 'running' && previewDue) {
       this.lastEnhancedCount = job.framesProcessed;
       this.lastPreviewRefresh = Date.now();
+      // Streaming: solo hay pares de muestra (pocos, con índices dispersos) y el último procesado.
+      const latestIndex = job.streaming ? job.previewFrameIndex : job.framesProcessed - 1;
       try {
         const frames = await firstValueFrom(
-          this.data.previewFrames(job.id, {
-            limit: 24,
-            offset: Math.max(job.framesProcessed - 24, 0),
-          }),
+          this.data.previewFrames(
+            job.id,
+            job.streaming
+              ? { limit: 100, offset: 0 }
+              : { limit: 24, offset: Math.max(job.framesProcessed - 24, 0) },
+          ),
         );
         this.previewFrames.set(frames);
-        if (this.followLive()) {
-          const latestIndex = job.framesProcessed - 1;
+        if (this.followLive() && latestIndex !== undefined && latestIndex >= 0) {
           const preview = await firstValueFrom(this.data.compareFrame(job.id, latestIndex));
           this.selectedPreview.set(preview);
           this.selectedFrameIndex.set(latestIndex);

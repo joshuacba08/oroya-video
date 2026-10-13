@@ -11847,6 +11847,50 @@
             "type": "integer",
             "title": "Enhanced Frames"
           },
+          "pipeline_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Mode"
+          },
+          "segments_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Completed"
+          },
+          "segments_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Total"
+          },
+          "preview_frame_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Frame Index"
+          },
           "estimated_time_seconds": {
             "anyOf": [
               {
@@ -12609,6 +12653,50 @@
           "enhanced_frames": {
             "type": "integer",
             "title": "Enhanced Frames"
+          },
+          "pipeline_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Mode"
+          },
+          "segments_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Completed"
+          },
+          "segments_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Segments Total"
+          },
+          "preview_frame_index": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Frame Index"
           },
           "extraction_started_at": {
             "anyOf": [

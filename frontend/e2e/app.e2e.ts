@@ -45,7 +45,7 @@ test('imports a video, processes it with pause and resume, and exports it', asyn
 
   await page.getByRole('button', { name: 'Start Processing' }).click();
   const liveStatus = page.locator('.workspace-page__live-status');
-  await expect(liveStatus).toContainText('Enhancing frames', { timeout: 60_000 });
+  await expect(liveStatus).toContainText('Processing frames', { timeout: 60_000 });
 
   await page.getByRole('button', { name: 'Pause', exact: true }).click();
   await expect(liveStatus).toContainText('paused');

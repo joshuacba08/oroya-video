@@ -170,6 +170,7 @@ def apply_persisted_settings(settings: Settings | None = None) -> Settings:
 
     for field_name in (
         "frame_enhancer_engine",
+        "pipeline_mode",
         "ai_device",
         "ai_allow_cpu",
         "ai_half_precision",

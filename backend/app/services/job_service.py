@@ -84,6 +84,7 @@ from app.services import (
 from app.services.audit_log_service import record_audit_event
 from app.services.cleanup_service import cleanup_job_temp_files
 from app.services.job_contract_service import (
+    PAUSABLE_STAGES,
     build_job_actions,
     build_stage_label,
     build_stage_progress_percent,
@@ -406,7 +407,7 @@ async def start_processing_job(
 
 def pause_processing_job(db: Session, job_id: str) -> JobControlResponse:
     job = _get_job_or_raise(db, job_id)
-    if job.status == "running" and job.current_stage == "enhancing_frames":
+    if job.status == "running" and job.current_stage in PAUSABLE_STAGES:
         try:
             job = job_repository.update_job(db, job, {"pause_requested": True})
             job_repository.create_job_log(
@@ -689,6 +690,10 @@ def get_job_progress(db: Session, job_id: str) -> JobProgressResponse:
         frames_processed=job.frames_processed,
         extracted_frames=job.extracted_frames,
         enhanced_frames=job.enhanced_frames,
+        pipeline_mode=job.pipeline_mode,
+        segments_completed=job.segments_completed,
+        segments_total=job.segments_total,
+        preview_frame_index=job.preview_frame_index,
         estimated_time_seconds=estimate_remaining_seconds(job),
         elapsed_time_seconds=job.elapsed_time_seconds,
         can_start=actions["can_start"],

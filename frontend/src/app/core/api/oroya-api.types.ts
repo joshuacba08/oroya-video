@@ -3942,6 +3942,14 @@ export interface components {
             extracted_frames: number;
             /** Enhanced Frames */
             enhanced_frames: number;
+            /** Pipeline Mode */
+            pipeline_mode?: string | null;
+            /** Segments Completed */
+            segments_completed?: number | null;
+            /** Segments Total */
+            segments_total?: number | null;
+            /** Preview Frame Index */
+            preview_frame_index?: number | null;
             /** Estimated Time Seconds */
             estimated_time_seconds: number | null;
             /** Elapsed Time Seconds */
@@ -4107,6 +4115,14 @@ export interface components {
             enhancer_engine: string | null;
             /** Enhanced Frames */
             enhanced_frames: number;
+            /** Pipeline Mode */
+            pipeline_mode?: string | null;
+            /** Segments Completed */
+            segments_completed?: number | null;
+            /** Segments Total */
+            segments_total?: number | null;
+            /** Preview Frame Index */
+            preview_frame_index?: number | null;
             /** Extraction Started At */
             extraction_started_at: string | null;
             /** Extraction Completed At */

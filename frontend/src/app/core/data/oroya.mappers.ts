@@ -171,6 +171,8 @@ function stageToPipeline(stage: string, progress: number, status = ''): Pipeline
     queued: 0,
     extracting_frames: 1,
     enhancing_frames: 2,
+    // Streaming: extraer, mejorar y codificar a la vez.
+    processing: 2,
     restoring_faces: 2,
     encoding_video: 3,
     muxing_audio: 3,
@@ -343,7 +345,10 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
   const etaSeconds =
     backendEta > 0
       ? backendEta
-      : status === 'running' && stage === 'enhancing_frames' && avgFrameTimeMs > 0 && framesTotal > framesDone
+      : status === 'running' &&
+          ['enhancing_frames', 'processing'].includes(stage) &&
+          avgFrameTimeMs > 0 &&
+          framesTotal > framesDone
         ? ((framesTotal - framesDone) * avgFrameTimeMs) / 1000
         : 0;
 
@@ -381,6 +386,9 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     etaTime: etaSeconds > 0 ? `~${formatSeconds(etaSeconds)}` : undefined,
     framesProcessed: pickNumber(job, ['enhanced_frames', 'frames_processed'], framesDone),
     framesTotal,
+    streaming: job['pipeline_mode'] === 'streaming',
+    previewFrameIndex:
+      typeof job['preview_frame_index'] === 'number' ? job['preview_frame_index'] : undefined,
   };
 }
 

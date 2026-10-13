@@ -1,6 +1,7 @@
 import sys
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -36,6 +37,13 @@ class Settings(BaseSettings):
         "tauri://localhost,http://tauri.localhost,https://tauri.localhost"
     )
     frame_enhancer_engine: str = "mock"
+    # "streaming": decodifica, mejora y codifica por tramos en memoria (poco disco).
+    # "legacy": extrae todos los fotogramas a PNG; respaldo oculto mientras se asienta el otro.
+    pipeline_mode: Literal["streaming", "legacy"] = "streaming"
+    # Fotogramas de entrada por tramo codificado (~10 s a 24 fps): lo que se repite al reanudar.
+    streaming_segment_frames: int = 240
+    # Pares original/mejorado que se guardan para la vista previa.
+    streaming_preview_samples: int = 24
     # Solo para pruebas: ralentiza el motor mock (ms por frame).
     mock_enhancer_frame_delay_ms: int = 0
     ai_device: str = "auto"

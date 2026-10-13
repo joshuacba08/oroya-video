@@ -13,6 +13,10 @@ MUX_PROGRESS_START = 85.0
 MUX_PROGRESS_END = 97.0
 EXPORT_PROGRESS_START = 97.0
 EXPORT_PROGRESS_END = 100.0
+# Pipeline por streaming: decodificar, mejorar y codificar van juntos en una sola etapa,
+# seguida del audio (MUX_*) y la exportación.
+PROCESSING_PROGRESS_START = 0.0
+PROCESSING_PROGRESS_END = MUX_PROGRESS_START
 
 
 def calculate_stage_progress(

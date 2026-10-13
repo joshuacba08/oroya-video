@@ -14,6 +14,8 @@ from app.services.pipeline_progress import (
     FACE_RESTORE_PROGRESS_START,
     MUX_PROGRESS_END,
     MUX_PROGRESS_START,
+    PROCESSING_PROGRESS_END,
+    PROCESSING_PROGRESS_START,
 )
 
 STAGE_LABELS = {
@@ -23,6 +25,7 @@ STAGE_LABELS = {
     "recovering": "Recovering",
     "retrying": "Retrying",
     "extracting_frames": "Extracting frames",
+    "processing": "Processing frames",
     "enhancing_frames": "Enhancing frames",
     "restoring_faces": "Restoring faces",
     "encoding_video": "Encoding video",
@@ -46,7 +49,7 @@ def build_job_actions(job: ProcessingJob) -> dict[str, bool]:
         "can_pause": job.status == "queued"
         or (
             job.status == "running"
-            and job.current_stage == "enhancing_frames"
+            and job.current_stage in PAUSABLE_STAGES
             and not job.pause_requested
         ),
         "can_retry": can_retry,
@@ -54,6 +57,10 @@ def build_job_actions(job: ProcessingJob) -> dict[str, bool]:
         "can_delete": job.status != "running",
         "can_open_export": bool(job.final_export_path),
     }
+
+
+# Etapas que se detienen limpiamente y se reanudan donde quedaron.
+PAUSABLE_STAGES = {"enhancing_frames", "processing"}
 
 
 def build_stage_label(stage: str) -> str:
@@ -72,6 +79,10 @@ def build_stage_progress_percent(job: ProcessingJob) -> float:
     if stage == "enhancing_frames":
         return _relative_stage_progress(
             progress, ENHANCEMENT_PROGRESS_START, ENHANCEMENT_PROGRESS_END
+        )
+    if stage == "processing":
+        return _relative_stage_progress(
+            progress, PROCESSING_PROGRESS_START, PROCESSING_PROGRESS_END
         )
     if stage == "restoring_faces":
         return _relative_stage_progress(
@@ -128,6 +139,13 @@ def estimate_remaining_seconds(job: ProcessingJob) -> int | None:
     total_frames = job.realesrgan_frames_total or job.frames_total or 0
     stage = job.current_stage
 
+    if stage == "processing":
+        # Streaming: decodificar, mejorar y codificar en el mismo ms/frame medido.
+        average_ms = job.realesrgan_average_frame_time_ms
+        if not average_ms or not total_frames:
+            return _extrapolate_stage(job)
+        remaining_frames = max(total_frames - (job.frames_processed or 0), 0)
+        return int(remaining_frames * average_ms / 1000) + MUX_SECONDS_GUESS
     if stage == "enhancing_frames":
         average_ms = job.realesrgan_average_frame_time_ms
         if not average_ms or not total_frames:

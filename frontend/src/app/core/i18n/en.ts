@@ -78,6 +78,7 @@ export const en = {
   'stage.retrying': 'Retrying',
   'stage.extracting_frames': 'Extracting frames',
   'stage.enhancing_frames': 'Enhancing frames',
+  'stage.processing': 'Processing frames',
   'stage.restoring_faces': 'Restoring faces',
   'stage.encoding_video': 'Encoding video',
   'stage.muxing_audio': 'Muxing audio',

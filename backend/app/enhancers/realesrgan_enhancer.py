@@ -164,6 +164,75 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
 
         return self.processed_frames
 
+    def enhance_image(self, image: Any) -> Any:
+        """Upscale one BGR image in memory (streaming pipeline).
+
+        Same rules as `enhance_frames`: smaller tiles after a CUDA OOM, and up to
+        `max_failed_frames` failures replaced by the original resized to the output scale.
+        """
+        self.load_model()
+        if self._upsampler is None:
+            raise RealESRGANModelLoadFailedError()
+        while True:
+            started_at = time.perf_counter()
+            try:
+                result = self._run_upsampler(image)
+                break
+            except CUDAOutOfMemoryError:
+                clear_cuda_cache_if_available()
+                if not self._reduce_memory_footprint():
+                    raise
+            except RealESRGANFrameProcessingFailedError:
+                self.failed_frames += 1
+                self.completed_frames += 1
+                if self.failed_frames > self.max_failed_frames:
+                    raise
+                return self.resize_to_output(image)
+
+        elapsed_time_ms = (time.perf_counter() - started_at) * 1000
+        self.processed_frames += 1
+        self.completed_frames += 1
+        self.timed_frames += 1
+        self.total_frame_time_ms += elapsed_time_ms
+        self.average_frame_time_ms = calculate_average_ms(
+            self.total_frame_time_ms, self.timed_frames
+        )
+        if (
+            self.clear_cuda_cache
+            and self.device == "cuda"
+            and self.processed_frames % CUDA_CACHE_CLEAR_INTERVAL == 0
+        ):
+            clear_cuda_cache_if_available()
+        return result
+
+    def _run_upsampler(self, image: Any) -> Any:
+        try:
+            result, _ = self._upsampler.enhance(  # type: ignore[union-attr]
+                image,
+                outscale=self.scale or self._default_outscale,
+            )
+        except RuntimeError as exc:
+            if "out of memory" in str(exc).lower():
+                raise CUDAOutOfMemoryError() from exc
+            raise RealESRGANFrameProcessingFailedError() from exc
+        except Exception as exc:  # pragma: no cover - defensive runtime wrapper
+            raise RealESRGANFrameProcessingFailedError() from exc
+        return result
+
+    def resize_to_output(self, image: Any) -> Any:
+        """The image resized to the output scale (stand-in for a frame that failed)."""
+        if self._cv2 is None:
+            import cv2
+
+            self._cv2 = cv2
+        scale = self.scale or self._default_outscale or 1
+        height, width = image.shape[:2]
+        return self._cv2.resize(
+            image,
+            (int(width * scale), int(height * scale)),
+            interpolation=self._cv2.INTER_CUBIC,
+        )
+
     def write_fallback_frame(self, input_path: Path, output_path: Path) -> bool:
         """Original frame resized to the output scale, to keep the sequence contiguous."""
         try:

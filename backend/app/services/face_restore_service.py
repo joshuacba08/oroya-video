@@ -71,6 +71,28 @@ def get_face_restore_model_path(db: Session, settings: Settings | None = None) -
     return path if path.is_file() else None
 
 
+def build_face_restorer(
+    db: Session,
+    job: ProcessingJob,
+    settings: Settings | None = None,
+) -> GFPGANFaceRestorer | None:
+    """GFPGAN for the job when face restoration is enabled, else None."""
+    active_settings = _get_active_settings(settings)
+    strength = get_face_restore_strength(job)
+    if strength is None:
+        return None
+    model_path = get_face_restore_model_path(db, active_settings)
+    if model_path is None:
+        raise FaceRestoreNotAvailableError()
+    device = resolve_ai_device(active_settings.ai_device, allow_cpu=active_settings.ai_allow_cpu)
+    return GFPGANFaceRestorer(
+        model_path=model_path,
+        weights_dir=get_models_path(active_settings) / FACE_RESTORE_WEIGHTS_SUBDIR,
+        device=device,
+        strength=strength,
+    )
+
+
 def _mark_failed(db: Session, job: ProcessingJob, exc: OroyaVideoError) -> None:
     db.rollback()
     job_repository.update_job(

@@ -115,6 +115,33 @@ class GFPGANFaceRestorer:
                 progress_callback(index, total)
         return self.processed_frames
 
+    def restore_image(self, image: Any) -> Any:
+        """Restore the faces of one BGR image in memory (streaming pipeline)."""
+        self.load_model()
+        assert self._restorer is not None
+        started_at = time.perf_counter()
+        try:
+            _, restored_faces, restored = self._restorer.enhance(
+                image,
+                has_aligned=False,
+                only_center_face=False,
+                paste_back=True,
+                weight=self.strength,
+            )
+        except RuntimeError as exc:
+            if "out of memory" in str(exc).lower():
+                clear_cuda_cache_if_available()
+                raise CUDAOutOfMemoryError() from exc
+            raise FaceRestoreFailedError() from exc
+        self.faces_restored += len(restored_faces)
+        self.processed_frames += 1
+        self.total_frame_time_ms += (time.perf_counter() - started_at) * 1000
+        self.timed_frames += 1
+        self.average_frame_time_ms = calculate_average_ms(
+            self.total_frame_time_ms, self.timed_frames
+        )
+        return image if restored is None else restored
+
     def _restore_frame(self, input_path: Path, output_path: Path) -> None:
         assert self._restorer is not None and self._cv2 is not None
         image = self._cv2.imread(str(input_path), self._cv2.IMREAD_COLOR)

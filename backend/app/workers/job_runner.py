@@ -19,10 +19,12 @@ from app.core.errors import (
     FaceRestoreFailedError,
     FaceRestoreNotAvailableError,
     FFmpegNotAvailableError,
+    FFmpegStalledError,
     FinalExportFailedError,
     FrameEnhancementFailedError,
     FrameEnhancerNotFoundError,
     FrameExtractionFailedError,
+    InsufficientDiskSpaceError,
     InsufficientExportStorageError,
     InsufficientTempStorageError,
     MuxedVideoNotFoundError,
@@ -49,12 +51,14 @@ from app.services.export_service import create_final_export_for_job
 from app.services.face_restore_service import restore_faces_for_job
 from app.services.frame_enhancement_service import enhance_frames_for_job
 from app.services.frame_extraction_service import extract_frames_for_job, time_to_datetime
+from app.services.job_contract_service import PAUSABLE_STAGES
 from app.services.process_registry_service import (
     clear_shutdown,
     is_shutting_down,
     request_shutdown,
     terminate_all_processes,
 )
+from app.services.streaming_pipeline_service import process_job_streaming
 from app.services.video_encoding_service import encode_video_for_job
 from app.workers.queue import job_queue
 
@@ -181,6 +185,16 @@ def _sync_project_status(db, job_id: str) -> None:
         logger.exception("Could not sync project status for job %s", job_id)
 
 
+def resolve_pipeline_mode(job, settings: Settings) -> str:
+    """The job keeps the pipeline it started with; jobs from before 0.5 (frames already
+    extracted to PNG) continue with the classic one."""
+    if job.pipeline_mode in {"streaming", "legacy"}:
+        return job.pipeline_mode
+    if job.extraction_started_at is not None:
+        return "legacy"
+    return settings.pipeline_mode
+
+
 def start_job_worker(settings: Settings | None = None) -> None:
     global _worker_task, _worker_settings
 
@@ -199,7 +213,7 @@ def _request_pause_of_running_enhancement() -> None:
     try:
         running_jobs = job_repository.list_jobs(db, limit=50, offset=0, status="running")
         for job in running_jobs:
-            if job.current_stage == "enhancing_frames":
+            if job.current_stage in PAUSABLE_STAGES:
                 job_repository.update_job(db, job, {"pause_requested": True})
         db.commit()
     except SQLAlchemyError:
@@ -248,6 +262,31 @@ async def run_job_worker() -> None:
             job_queue.task_done()
 
 
+def _run_legacy_frame_stages(db, job, settings: Settings) -> bool:
+    """Classic pipeline: every frame to PNG, enhance, faces, encode. False when it stopped."""
+    job_id = job.id
+    extract_frames_for_job(db, job_id, settings)
+    db.refresh(job)
+    if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
+        return False
+    enhance_frames_for_job(
+        db,
+        job_id,
+        engine=settings.frame_enhancer_engine,
+        settings=settings,
+    )
+    db.refresh(job)
+    if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
+        return False
+    trim_original_frames_after_enhancement(db, job_id, settings)
+    restore_faces_for_job(db, job_id, settings)
+    db.refresh(job)
+    if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
+        return False
+    encode_video_for_job(db, job_id, settings)
+    return True
+
+
 def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> None:
     active_settings = _get_active_settings(settings)
     if database.SessionLocal is None:
@@ -269,25 +308,13 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
         db.commit()
         _sync_project_status(db, job_id)
         job = job_repository.get_job_by_id(db, job_id)
-        extract_frames_for_job(db, job_id, active_settings)
-        db.refresh(job)
-        if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
-            return
-        enhance_frames_for_job(
-            db,
-            job_id,
-            engine=active_settings.frame_enhancer_engine,
-            settings=active_settings,
-        )
-        db.refresh(job)
-        if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
-            return
-        trim_original_frames_after_enhancement(db, job_id, active_settings)
-        restore_faces_for_job(db, job_id, active_settings)
-        db.refresh(job)
-        if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
-            return
-        encode_video_for_job(db, job_id, active_settings)
+        if resolve_pipeline_mode(job, active_settings) == "streaming":
+            process_job_streaming(db, job_id, active_settings)
+        else:
+            job_repository.update_job(db, job, {"pipeline_mode": "legacy"})
+            db.commit()
+            if not _run_legacy_frame_stages(db, job, active_settings):
+                return
         db.refresh(job)
         if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
             return
@@ -332,6 +359,8 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
     except (
         AudioMuxFailedError,
         AIRuntimeNotAvailableError,
+        FFmpegStalledError,
+        InsufficientDiskSpaceError,
         AIModelFileNotFoundError,
         CUDANotAvailableError,
         CUDAOutOfMemoryError,

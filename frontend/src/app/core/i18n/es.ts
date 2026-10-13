@@ -79,6 +79,7 @@ export const es: Record<TranslationKey, string> = {
   'stage.retrying': 'Reintentando',
   'stage.extracting_frames': 'Extrayendo frames',
   'stage.enhancing_frames': 'Mejorando frames',
+  'stage.processing': 'Procesando frames',
   'stage.restoring_faces': 'Restaurando rostros',
   'stage.encoding_video': 'Codificando video',
   'stage.muxing_audio': 'Uniendo audio',

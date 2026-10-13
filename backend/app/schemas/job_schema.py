@@ -70,6 +70,10 @@ class JobResponse(BaseModel):
     extracted_frames: int
     enhancer_engine: str | None
     enhanced_frames: int
+    pipeline_mode: str | None = None
+    segments_completed: int | None = None
+    segments_total: int | None = None
+    preview_frame_index: int | None = None
     extraction_started_at: datetime | None
     extraction_completed_at: datetime | None
     enhancement_started_at: datetime | None
@@ -182,6 +186,10 @@ class JobProgressResponse(BaseModel):
     frames_processed: int
     extracted_frames: int
     enhanced_frames: int
+    pipeline_mode: str | None = None
+    segments_completed: int | None = None
+    segments_total: int | None = None
+    preview_frame_index: int | None = None
     estimated_time_seconds: int | None
     elapsed_time_seconds: int | None
     can_start: bool = False

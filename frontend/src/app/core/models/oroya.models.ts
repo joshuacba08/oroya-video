@@ -115,6 +115,10 @@ export interface QueueJobVm {
   etaTime?: string;
   framesProcessed: number;
   framesTotal: number;
+  /** Pipeline por streaming: solo hay pares de muestra (índices dispersos) para la vista previa. */
+  streaming?: boolean;
+  /** Último fotograma con par original/mejorado guardado (vista en vivo del streaming). */
+  previewFrameIndex?: number;
 }
 
 export interface PreviewFrameVm {
