@@ -16,6 +16,7 @@ from app.core.paths import (
     get_exports_path,
     get_job_encoded_path,
     get_job_enhanced_frames_path,
+    get_job_filtered_frames_path,
     get_job_muxed_path,
     get_job_original_frames_path,
     get_jobs_temp_path,
@@ -134,6 +135,12 @@ def cleanup_job_temp_files(
         )
         freed_bytes += _delete_path_if_requested(
             get_job_enhanced_frames_path(job.id, active_settings),
+            enabled=include_enhanced_frames,
+            deleted_paths=deleted_paths,
+        )
+        # Las vistas previas con filtros salen de los mejorados: sin ellos quedarían obsoletas.
+        freed_bytes += _delete_path_if_requested(
+            get_job_filtered_frames_path(job.id, active_settings),
             enabled=include_enhanced_frames,
             deleted_paths=deleted_paths,
         )

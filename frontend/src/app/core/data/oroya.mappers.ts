@@ -619,6 +619,7 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     trim: mapTrim(exportConfig['trim']),
     videoDurationSeconds: numberValue(record(response.video)['duration_seconds'], 0),
     previewTimeOffset: mapTrim(record(latestJob['export_config'])['trim'])?.start ?? 0,
+    previewSparse: latestJob['pipeline_mode'] === 'streaming',
     compareMode:
       stringValue(workspaceState['compare_mode']) === 'side_by_side' ? 'side_by_side' : 'slider',
     zoom: stringValue(workspaceState['zoom']) === '100%' ? '100%' : 'fit',

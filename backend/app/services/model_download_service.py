@@ -43,7 +43,7 @@ MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, Any]] = {
     "realesrgan-general": {
         "url": (
             "https://github.com/xinntao/Real-ESRGAN/releases/download/"
-            "v0.3.0/realesr-general-x4v3.pth"
+            "v0.2.5.0/realesr-general-x4v3.pth"
         ),
         "sha256": "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292",
     },

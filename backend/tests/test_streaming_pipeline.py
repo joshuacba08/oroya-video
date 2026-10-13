@@ -264,3 +264,26 @@ def test_streaming_processes_only_the_trimmed_fragment(stream_client) -> None:
     assert job.frames_total == CLIP_FPS
     assert abs(_duration(Path(job.final_export_path)) - 1) < 0.15
     assert json.loads(job.export_config_json)["trim"] == {"start_seconds": 1, "end_seconds": 2}
+
+
+@needs_ffmpeg
+def test_a_preview_frame_locked_by_the_viewer_does_not_stop_the_job(stream_client) -> None:
+    """Windows: deleting the previous live frame while the preview reads it (WinError 32)."""
+    client, clip, settings = stream_client
+    settings.mock_enhancer_frame_delay_ms = 40
+    job_id = _queued_job(client, clip)
+    original_unlink = Path.unlink
+
+    def locked_unlink(self, missing_ok=False):
+        if self.name.startswith("frame_"):
+            raise PermissionError(32, "El proceso no tiene acceso al archivo")
+        return original_unlink(self, missing_ok=missing_ok)
+
+    with (
+        patch("app.services.streaming_pipeline_service.LIVE_PREVIEW_INTERVAL_SECONDS", 0.05),
+        patch.object(Path, "unlink", locked_unlink),
+    ):
+        process_job_skeleton_sync(job_id, settings)
+
+    job = _job(job_id)
+    assert job.status == "completed", job.error_message

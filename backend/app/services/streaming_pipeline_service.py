@@ -874,6 +874,10 @@ class _StreamingRun:
         if self.encoder is not None:
             self._close_segment()
         self._check_decoder_exit()
+        # Al terminar solo quedan los pares de muestra (la limpieza conserva N fotogramas).
+        if live_index is not None and live_index not in self.samples:
+            self._delete_pair(live_index)
+            live_index = max(self.samples, default=None)
         sync(force=True)
         return "completed"
 
@@ -957,9 +961,20 @@ class _StreamingRun:
             logger.warning("Preview sample %s could not be saved", frame_index, exc_info=True)
 
     def _delete_pair(self, frame_index: int) -> None:
+        """Drop a live-preview pair (and its filtered variants). Best effort: on Windows the
+        file can be open by the preview right now (WinError 32); it must never stop the job."""
         name = build_frame_file_name(frame_index)
-        (self.originals_dir / name).unlink(missing_ok=True)
-        (self.enhanced_dir / name).unlink(missing_ok=True)
+        filtered_dir = self.enhanced_dir.parent / "filtered"
+        paths = [
+            self.originals_dir / name,
+            self.enhanced_dir / name,
+            *filtered_dir.glob(f"{Path(name).stem}_*.png"),
+        ]
+        for path in paths:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError:
+                logger.debug("Preview frame %s still in use; left in place", path)
 
     # -- desenlaces ----------------------------------------------------------------------
 

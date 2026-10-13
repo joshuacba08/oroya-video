@@ -229,6 +229,8 @@ export interface WorkspaceVm {
   videoDurationSeconds: number;
   /** Inicio del recorte del último job: los fotogramas de la vista previa empiezan ahí. */
   previewTimeOffset: number;
+  /** Último job por streaming: solo hay pares de muestra (índices dispersos). */
+  previewSparse: boolean;
   compareMode: 'slider' | 'side_by_side';
   zoom: 'fit' | '100%';
   videoFps: number;
