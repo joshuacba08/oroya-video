@@ -23,6 +23,7 @@ import { OroyaApiError } from '../../core/api/oroya-api-client';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
 import { translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
+import { DialogService } from '../../core/dialogs/dialog.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import type {
   ApiErrorVm,
@@ -44,6 +45,10 @@ type WorkspaceControls = {
   /** 0-100 en la UI; el backend usa 0-1. */
   faceStrength: number;
   keepAudio: boolean;
+  /** Vacío: nombre por defecto ("<proyecto> (Oroya 2x)"). */
+  exportFileName: string;
+  /** Vacío: la carpeta de exportación de Ajustes (con una subcarpeta por proyecto). */
+  exportDir: string;
   compareMode: WorkspaceVm['compareMode'];
   zoom: WorkspaceVm['zoom'];
 };
@@ -72,6 +77,7 @@ export class WorkspacePage {
   private readonly router = inject(Router);
   private readonly data = inject(OroyaDataService);
   private readonly desktop = inject(DesktopService);
+  private readonly dialogs = inject(DialogService);
   private readonly destroyRef = inject(DestroyRef);
   private saveTimer: ReturnType<typeof setTimeout> | undefined;
   private hydratedProjectId: string | undefined;
@@ -135,12 +141,7 @@ export class WorkspacePage {
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
           },
-          export_config: {
-            format: 'mp4',
-            codec: 'h264',
-            keep_audio: controls.keepAudio,
-            output_resolution: controls.exportResolution,
-          },
+          export_config: this.exportConfig(controls),
         }),
       );
       const jobId = created.id;
@@ -583,12 +584,7 @@ export class WorkspacePage {
             compression_cleanup: controls.compressionCleanup,
             face_restore: this.faceRestoreConfig(workspace, controls),
           },
-          export_config: {
-            format: 'mp4',
-            codec: 'h264',
-            keep_audio: controls.keepAudio,
-            output_resolution: controls.exportResolution,
-          },
+          export_config: this.exportConfig(controls),
           workspace_state: {
             selected_frame: selectedFrame ?? 0,
             compare_mode: controls.compareMode,
@@ -617,6 +613,46 @@ export class WorkspacePage {
     return initial;
   }
 
+  private exportConfig(controls: WorkspaceControls) {
+    return {
+      format: 'mp4' as const,
+      codec: 'h264' as const,
+      keep_audio: controls.keepAudio,
+      output_resolution: controls.exportResolution,
+      file_name: controls.exportFileName.trim(),
+      output_dir: controls.exportDir,
+    };
+  }
+
+  /** Nombre que tendrá el archivo si no se elige otro (mismo criterio que el backend). */
+  defaultExportName(workspace: WorkspaceVm, controls: WorkspaceControls): string {
+    const base = workspace.project.name.replace(/\.(mp4|mov|mkv|avi|webm|m4v)$/i, '');
+    const scale = controls.scale === 'original' ? '' : ` ${controls.scale}`;
+    return `${base} (Oroya${scale})`;
+  }
+
+  setExportFileName(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { exportFileName: value });
+  }
+
+  async chooseExportDir(workspace: WorkspaceVm, current: string): Promise<void> {
+    const folder = this.desktop.isDesktop()
+      ? await this.desktop.pickFolder(current || undefined)
+      : await this.dialogs.prompt({
+          title: translate('workspace.exportFolder'),
+          label: translate('settings.exportsFolderPrompt'),
+          value: current,
+          confirmLabel: translate('common.save'),
+        });
+    if (folder !== null && folder !== current) {
+      this.updateControls(workspace, { exportDir: folder });
+    }
+  }
+
+  resetExportDir(workspace: WorkspaceVm): void {
+    this.updateControls(workspace, { exportDir: '' });
+  }
+
   private toControls(workspace: WorkspaceVm): WorkspaceControls {
     return {
       modelId: workspace.selectedModel.id,
@@ -628,6 +664,8 @@ export class WorkspacePage {
       faceRestore: workspace.faceRestore.enabled,
       faceStrength: Math.round(workspace.faceRestore.strength * 100),
       keepAudio: workspace.keepAudio,
+      exportFileName: workspace.exportFileName,
+      exportDir: workspace.exportDir,
       compareMode: workspace.compareMode,
       zoom: workspace.zoom,
     };

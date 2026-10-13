@@ -280,6 +280,32 @@
             <i></i>
           </label>
         </div>
+        <label class="export-field">
+          <span>{{ 'workspace.exportName' | t }}</span>
+          <input
+            type="text"
+            maxlength="120"
+            [value]="current.exportFileName"
+            [placeholder]="defaultExportName(workspace, current)"
+            (change)="setExportFileName(workspace, $any($event.target).value)"
+          />
+        </label>
+        <div class="export-field">
+          <span>{{ 'workspace.exportFolder' | t }}</span>
+          <div class="export-field__folder">
+            <code [title]="current.exportDir || ('workspace.exportFolderDefault' | t)">
+              {{ current.exportDir || ('workspace.exportFolderDefault' | t) }}
+            </code>
+            <button type="button" (click)="chooseExportDir(workspace, current.exportDir)">
+              {{ 'settings.change' | t }}
+            </button>
+            @if (current.exportDir) {
+              <button type="button" (click)="resetExportDir(workspace)">
+                {{ 'workspace.exportFolderReset' | t }}
+              </button>
+            }
+          </div>
+        </div>
         <p class="save-state" [class.save-state--error]="saveState() === 'error'">
           @switch (saveState()) {
             @case ('saving') { {{ 'workspace.saving' | t }} }

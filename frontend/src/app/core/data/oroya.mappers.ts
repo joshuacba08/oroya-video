@@ -589,6 +589,8 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     scale: stringValue(enhancement['scale'], '2x') as WorkspaceVm['scale'],
     exportResolution: stringValue(exportConfig['output_resolution'], '2x') as WorkspaceVm['exportResolution'],
     keepAudio: booleanValue(exportConfig['keep_audio'], true),
+    exportFileName: stringValue(exportConfig['file_name']),
+    exportDir: stringValue(exportConfig['output_dir']),
     compareMode:
       stringValue(workspaceState['compare_mode']) === 'side_by_side' ? 'side_by_side' : 'slider',
     zoom: stringValue(workspaceState['zoom']) === '100%' ? '100%' : 'fit',

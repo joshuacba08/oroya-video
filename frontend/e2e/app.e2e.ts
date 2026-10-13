@@ -33,7 +33,7 @@ test('imports a video, processes it with pause and resume, and exports it', asyn
   });
   await page.getByRole('link', { name: 'Open Exports' }).click();
   await expect(page).toHaveURL(/\/exports$/);
-  await expect(page.locator('.exports-page__summary h2')).toContainText('clip');
+  await expect(page.locator('.exports-page__summary h2')).toHaveText('clip (Oroya 2x).mp4');
 });
 
 test('switches the interface language without reloading', async ({ page }) => {

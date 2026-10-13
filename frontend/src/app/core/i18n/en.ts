@@ -394,6 +394,10 @@ export const en = {
   'updates.failed': 'The update could not be installed. Try again later.',
   'updates.waitTitle': 'A job is running',
   'updates.waitForJobs': 'Install the update when processing finishes, so no progress is lost.',
+  'workspace.exportName': 'Export file name',
+  'workspace.exportFolder': 'Export folder',
+  'workspace.exportFolderDefault': 'Default (Settings) / project name',
+  'workspace.exportFolderReset': 'Default',
 } as const;
 
 export type TranslationKey = keyof typeof en;

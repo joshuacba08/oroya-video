@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 import shutil
 import time
 import uuid
@@ -20,8 +19,11 @@ from app.core.errors import (
 )
 from app.core.logging import get_logger
 from app.core.paths import (
-    ensure_job_export_directory,
     get_exports_path,
+    get_project_export_dir,
+    project_display_name,
+    remove_empty_export_dirs,
+    safe_folder_name,
     to_client_path,
 )
 from app.db.repositories import (
@@ -42,6 +44,7 @@ from app.services import desktop_open_service, video_probe_service
 from app.services.audit_log_service import record_audit_event
 from app.services.frame_extraction_service import time_to_datetime
 from app.services.pipeline_progress import EXPORT_PROGRESS_END, EXPORT_PROGRESS_START
+from app.utils.enhancement_config import parse_enhancement_config_json
 
 logger = get_logger(__name__)
 
@@ -54,30 +57,66 @@ def _get_active_settings(settings: Settings | None = None) -> Settings:
     return settings or get_settings()
 
 
-def _slugify(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip().lower()).strip("_")
-    return normalized or "oroya_project"
-
-
 def _format_size_mb(size_bytes: int) -> float:
     return round(size_bytes / (1024**2), 2)
+
+
+def _job_export_config(job) -> dict[str, object]:
+    # Instantánea del job: cambiar el proyecto mientras procesa no altera su exportación.
+    return parse_enhancement_config_json(job.export_config_json)
+
+
+def _existing_parent(path: Path) -> Path:
+    for candidate in (path, *path.parents):
+        if candidate.exists():
+            return candidate
+    return path
 
 
 def ensure_export_storage_capacity(
     muxed_video_path: Path,
     settings: Settings | None = None,
+    target_dir: Path | None = None,
 ) -> None:
     active_settings = _get_active_settings(settings)
-    exports_path = get_exports_path(active_settings)
-    _, _, free_bytes = shutil.disk_usage(exports_path)
+    target = target_dir or get_exports_path(active_settings)
+    _, _, free_bytes = shutil.disk_usage(_existing_parent(target))
     required_bytes = max(muxed_video_path.stat().st_size, 1)
     if free_bytes < required_bytes:
         raise InsufficientExportStorageError()
 
 
+def _export_label(job) -> str:
+    """`Oroya 2x`, `Oroya 4x 60fps`...: what was done, readable in the file name."""
+    enhancement = parse_enhancement_config_json(job.enhancement_config_json)
+    parts = ["Oroya"]
+    scale = str(enhancement.get("scale") or "").lower()
+    if scale in {"2x", "4x"}:
+        parts.append(scale)
+    interpolation = enhancement.get("interpolation")
+    if isinstance(interpolation, dict) and interpolation.get("enabled"):
+        target_fps = interpolation.get("target_fps")
+        if isinstance(target_fps, (int, float)) and not isinstance(target_fps, bool):
+            parts.append(f"{target_fps:g}fps")
+    return " ".join(parts)
+
+
 def build_export_file_name(project, job) -> str:
-    base_name = f"{_slugify(project.name)}_oroya_export"
-    return f"{base_name}.mp4"
+    custom_name = _job_export_config(job).get("file_name")
+    if isinstance(custom_name, str) and custom_name.strip():
+        stem = safe_folder_name(project_display_name(custom_name))
+    else:
+        stem = f"{safe_folder_name(project_display_name(project.name))} ({_export_label(job)})"
+    return f"{stem}.mp4"
+
+
+def get_export_directory(project, job, settings: Settings | None = None) -> Path:
+    output_dir = _job_export_config(job).get("output_dir")
+    return get_project_export_dir(
+        project.name,
+        settings,
+        output_dir if isinstance(output_dir, str) and output_dir.strip() else None,
+    )
 
 
 def _build_unique_export_destination(export_dir: Path, file_name: str) -> Path:
@@ -89,7 +128,7 @@ def _build_unique_export_destination(export_dir: Path, file_name: str) -> Path:
     suffix = destination.suffix
     counter = 2
     while True:
-        candidate = export_dir / f"{stem}_{counter}{suffix}"
+        candidate = export_dir / f"{stem} ({counter}){suffix}"
         if not candidate.exists():
             return candidate
         counter += 1
@@ -164,7 +203,12 @@ def create_final_export_for_job(
         raise MuxedVideoNotFoundError()
 
     try:
-        ensure_export_storage_capacity(muxed_video_path, active_settings)
+        output_dir = _job_export_config(job).get("output_dir")
+        ensure_export_storage_capacity(
+            muxed_video_path,
+            active_settings,
+            Path(output_dir) if isinstance(output_dir, str) and output_dir.strip() else None,
+        )
     except InsufficientExportStorageError as exc:
         _mark_export_failed(
             db,
@@ -185,7 +229,8 @@ def create_final_export_for_job(
         )
         raise FinalExportFailedError()
 
-    export_dir = ensure_job_export_directory(project.id, job.id, active_settings)
+    export_dir = get_export_directory(project, job, active_settings)
+    export_dir.mkdir(parents=True, exist_ok=True)
     destination_path = _build_unique_export_destination(
         export_dir,
         build_export_file_name(project, job),
@@ -440,6 +485,7 @@ def delete_export(
     if delete_file and file_path.exists() and file_path.is_file():
         file_path.unlink()
         file_deleted = True
+        remove_empty_export_dirs(file_path)
 
     job = job_repository.get_job_by_id(db, export_asset.job_id)
     if job and job.export_id == export_asset.id:

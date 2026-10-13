@@ -14,6 +14,7 @@ from app.core.paths import (
     get_job_enhanced_frames_path,
     get_job_original_frames_path,
     get_job_working_path,
+    remove_empty_export_dirs,
 )
 
 logger = get_logger(__name__)
@@ -54,16 +55,47 @@ def clean_job_workspace(job_id: str, settings: Settings | None = None) -> None:
     delete_job_frames_directories(job_id, active_settings)
 
 
+def collect_export_file_paths(db, job_ids: list[str]) -> dict[str, list[str]]:
+    """Export files per job, read BEFORE deleting (the rows go away with the job)."""
+    from app.db.models import ExportAsset
+
+    paths: dict[str, list[str]] = {job_id: [] for job_id in job_ids}
+    if not job_ids:
+        return paths
+    rows = db.query(ExportAsset.job_id, ExportAsset.file_path).filter(
+        ExportAsset.job_id.in_(job_ids)
+    )
+    for job_id, file_path in rows:
+        paths.setdefault(job_id, []).append(file_path)
+    return paths
+
+
 def delete_job_files(
     job_id: str,
     project_id: str,
     settings: Settings | None = None,
+    export_file_paths: list[str] | None = None,
 ) -> None:
-    """Remove a deleted job's temp workspace and export folder. Call only after the DB commit."""
+    """Remove a deleted job's temp workspace and exports. Call only after the DB commit.
+
+    Exports are removed by their recorded paths only (a folder named after a project can hold
+    another project's videos), then their folders if they end up empty.
+    """
     active_settings = _get_active_settings(settings)
     working = get_job_working_path(job_id, active_settings)
     if working.exists():
         shutil.rmtree(working, ignore_errors=True)
+
+    for raw_path in export_file_paths or []:
+        export_file = Path(raw_path)
+        try:
+            if export_file.is_file():
+                export_file.unlink()
+            remove_empty_export_dirs(export_file, active_settings)
+        except OSError as exc:
+            logger.warning("Could not delete export %s: %s", export_file, exc)
+
+    # Layout anterior a la v0.5 (<project_id>/<job_id>): carpetas con UUID, seguras de borrar.
 
     # Las exportaciones pueden estar en la carpeta actual o en la anterior al cambiarla.
     for root in get_export_roots(active_settings):

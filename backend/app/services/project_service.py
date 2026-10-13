@@ -88,7 +88,16 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "compression_cleanup",
     "face_restore",
 }
-ALLOWED_EXPORT_KEYS = {"format", "codec", "keep_audio", "output_resolution"}
+ALLOWED_EXPORT_KEYS = {
+    "format",
+    "codec",
+    "keep_audio",
+    "output_resolution",
+    # Opcionales: nombre del archivo y carpeta elegidos por el usuario (vacío = por defecto).
+    "file_name",
+    "output_dir",
+}
+EXPORT_FILE_NAME_MAX_LENGTH = 120
 ALLOWED_WORKSPACE_KEYS = {
     "selected_frame",
     "compare_mode",
@@ -171,6 +180,15 @@ def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:
         raise InvalidProjectConfigurationError("Export config keep_audio must be boolean.")
     if config.get("output_resolution") not in ALLOWED_SCALE_VALUES:
         raise InvalidProjectConfigurationError("Export config output_resolution is invalid.")
+    file_name = config.get("file_name")
+    if file_name is not None and (
+        not isinstance(file_name, str) or len(file_name) > EXPORT_FILE_NAME_MAX_LENGTH
+    ):
+        raise InvalidProjectConfigurationError("Export file name is invalid.")
+    output_dir = config.get("output_dir")
+    if output_dir is not None and output_dir != "":
+        if not isinstance(output_dir, str) or not Path(output_dir).expanduser().is_absolute():
+            raise InvalidProjectConfigurationError("The export folder must be an absolute path.")
     return config
 
 
@@ -498,6 +516,7 @@ def delete_project(
     if any(job.status in ACTIVE_JOB_STATUSES for job in project.processing_jobs):
         raise JobInvalidStateError()
     job_ids = [job.id for job in project.processing_jobs]
+    export_paths = job_workspace_service.collect_export_file_paths(db, job_ids)
     try:
         project_repository.delete_project(db, project)
         db.commit()
@@ -507,7 +526,9 @@ def delete_project(
         raise ProjectDeleteFailedError() from exc
 
     for job_id in job_ids:
-        job_workspace_service.delete_job_files(job_id, project_id, settings)
+        job_workspace_service.delete_job_files(
+            job_id, project_id, settings, export_paths.get(job_id)
+        )
 
     logger.info("Project deleted: %s", project_id)
     return ProjectDeleteResponse(deleted=True, project_id=project_id)

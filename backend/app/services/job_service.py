@@ -537,6 +537,7 @@ def delete_processing_job(
         raise JobInvalidStateError()
 
     project_id = job.project_id
+    export_paths = job_workspace_service.collect_export_file_paths(db, [job_id])[job_id]
     try:
         job_repository.delete_job(db, job)
         db.commit()
@@ -544,7 +545,9 @@ def delete_processing_job(
         db.rollback()
         raise JobDeleteFailedError() from exc
 
-    job_workspace_service.delete_job_files(job_id, project_id, _get_active_settings(settings))
+    job_workspace_service.delete_job_files(
+        job_id, project_id, _get_active_settings(settings), export_paths
+    )
 
     logger.info("Job deleted: %s", job_id)
     return {"deleted": True, "job_id": job_id}

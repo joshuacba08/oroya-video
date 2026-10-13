@@ -397,4 +397,8 @@ export const es: Record<TranslationKey, string> = {
   'updates.failed': 'No se pudo instalar la actualización. Inténtalo más tarde.',
   'updates.waitTitle': 'Hay un job en marcha',
   'updates.waitForJobs': 'Instala la actualización cuando termine el procesamiento, para no perder progreso.',
+  'workspace.exportName': 'Nombre del archivo exportado',
+  'workspace.exportFolder': 'Carpeta de exportación',
+  'workspace.exportFolderDefault': 'Por defecto (Ajustes) / nombre del proyecto',
+  'workspace.exportFolderReset': 'Por defecto',
 };

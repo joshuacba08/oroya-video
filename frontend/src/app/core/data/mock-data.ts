@@ -341,6 +341,8 @@ export const MOCK_WORKSPACE: WorkspaceVm = {
   scale: '2x',
   exportResolution: '2x',
   keepAudio: true,
+  exportFileName: '',
+  exportDir: '',
   compareMode: 'slider',
   zoom: 'fit',
   videoFps: 24,

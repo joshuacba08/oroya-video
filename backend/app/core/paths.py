@@ -1,3 +1,4 @@
+import re
 import shutil
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -43,6 +44,66 @@ def get_exports_path(settings: Settings | None = None) -> Path:
     if active_settings.exports_dir:
         return Path(active_settings.exports_dir).expanduser()
     return get_storage_path(active_settings) / "exports"
+
+
+WINDOWS_RESERVED_NAMES = {
+    "CON",
+    "PRN",
+    "AUX",
+    "NUL",
+    *(f"COM{index}" for index in range(1, 10)),
+    *(f"LPT{index}" for index in range(1, 10)),
+}
+VIDEO_EXTENSIONS = (".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v")
+SAFE_NAME_MAX_LENGTH = 80
+
+
+def project_display_name(name: str) -> str:
+    """Project name without the video extension (projects are named after the file)."""
+    stripped = name.strip()
+    lowered = stripped.lower()
+    for extension in VIDEO_EXTENSIONS:
+        if lowered.endswith(extension) and len(stripped) > len(extension):
+            return stripped[: -len(extension)]
+    return stripped
+
+
+def safe_folder_name(name: str, fallback: str = "Oroya Video") -> str:
+    """Name valid as a Windows folder/file stem, readable (keeps spaces and accents)."""
+    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', " ", name)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().rstrip(". ")
+    cleaned = cleaned[:SAFE_NAME_MAX_LENGTH].rstrip(". ")
+    if not cleaned:
+        return fallback
+    if cleaned.split(".")[0].upper() in WINDOWS_RESERVED_NAMES:
+        cleaned = f"{cleaned}_"
+    return cleaned
+
+
+def get_project_export_dir(
+    project_name: str,
+    settings: Settings | None = None,
+    output_dir: str | None = None,
+) -> Path:
+    """`<exportaciones>/<Nombre del proyecto>`; una carpeta elegida a mano se usa tal cual."""
+    if output_dir:
+        return Path(output_dir).expanduser()
+    return get_exports_path(settings) / safe_folder_name(project_display_name(project_name))
+
+
+def remove_empty_export_dirs(file_path: Path, settings: Settings | None = None) -> None:
+    """After deleting an export, drop the folders the app created for it once they are empty.
+
+    Only folders inside an export root are touched (never the root itself, nor a folder the
+    user picked elsewhere).
+    """
+    roots = [root.resolve() for root in get_export_roots(settings)]
+    current = file_path.parent.resolve()
+    while current not in roots and any(current.is_relative_to(root) for root in roots):
+        if not current.is_dir() or any(current.iterdir()):
+            return
+        current.rmdir()
+        current = current.parent
 
 
 def get_export_roots(settings: Settings | None = None) -> list[Path]:
@@ -259,6 +320,16 @@ def is_storage_writable(settings: Settings | None = None) -> bool:
 
     try:
         with NamedTemporaryFile(dir=storage_path, prefix=".oroya-write-test-", delete=True):
+            return True
+    except OSError:
+        return False
+
+
+def is_directory_writable(directory: Path) -> bool:
+    """The folder exists (or can be created) and a file can be written in it."""
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with NamedTemporaryFile(dir=directory, prefix=".oroya-write-test-", delete=True):
             return True
     except OSError:
         return False

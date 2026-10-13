@@ -210,6 +210,8 @@ export interface WorkspaceVm {
   scale: 'original' | '2x' | '4x';
   exportResolution: 'original' | '2x' | '4x';
   keepAudio: boolean;
+  exportFileName: string;
+  exportDir: string;
   compareMode: 'slider' | 'side_by_side';
   zoom: 'fit' | '100%';
   videoFps: number;
