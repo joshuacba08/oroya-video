@@ -21,6 +21,15 @@
           <n-icon name="pause-circle" size="sm" />
           {{ 'queue.pauseAll' | t }}
         </n-button>
+        <n-button
+          variant="secondary"
+          size="sm"
+          [disabled]="!resumableJobs(jobs).length || pausingAll()"
+          (click)="resumeAll(jobs)"
+        >
+          <n-icon name="play" size="sm" />
+          {{ 'queue.resumeAll' | t }}
+        </n-button>
       </div>
     </header>
 
@@ -52,6 +61,9 @@
             [steps]="job.pipeline"
             [showProgress]="false"
           />
+          @if (job.queuePosition) {
+            <p class="queue-page__position">{{ 'queue.position' | t: { position: job.queuePosition } }}</p>
+          }
           @if (job.device || job.avgFrameTimeMs || job.etaLabel || job.failedFrames > 0) {
             <div class="queue-page__telemetry">
               <span class="queue-page__telemetry-item">{{ job.framesLabel }}</span>

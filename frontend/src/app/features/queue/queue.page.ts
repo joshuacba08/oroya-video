@@ -50,6 +50,29 @@ export class QueuePage {
     );
   }
 
+  resumableJobs(jobs: QueueJobVm[]): QueueJobVm[] {
+    return jobs.filter((job) => job.status === 'paused' && job.canStart);
+  }
+
+  /** Reanuda en orden todos los pausados (vuelven al final de la cola). */
+  async resumeAll(jobs: QueueJobVm[]): Promise<void> {
+    const targets = this.resumableJobs(jobs);
+    if (!targets.length || this.pausingAll()) {
+      return;
+    }
+    this.pausingAll.set(true);
+    this.error.set(null);
+    try {
+      for (const job of targets) {
+        await firstValueFrom(this.data.resumeJob(job.id));
+      }
+    } catch (error) {
+      this.error.set(this.data.toErrorVm(error));
+    } finally {
+      this.pausingAll.set(false);
+    }
+  }
+
   pausableJobs(jobs: QueueJobVm[]): QueueJobVm[] {
     return jobs.filter((job) => job.canPause);
   }

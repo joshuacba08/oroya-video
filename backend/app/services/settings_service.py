@@ -34,6 +34,8 @@ DEFAULT_SETTINGS_FILE = {
     "processing": {},
     "cleanup": {},
     "storage": {},
+    # Últimos ajustes de proceso usados (lote): base de los proyectos nuevos.
+    "defaults": {},
 }
 ALLOWED_FRAME_ENHANCERS = {"mock", "realesrgan"}
 ALLOWED_AI_DEVICES = {"auto", "cpu", "cuda"}
@@ -88,7 +90,7 @@ def _load_ui_settings(settings: Settings | None = None) -> dict:
             return json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
 
     merged = json.loads(json.dumps(DEFAULT_SETTINGS_FILE))
-    for section in ("general", "processing", "cleanup", "storage"):
+    for section in ("general", "processing", "cleanup", "storage", "defaults"):
         value = loaded.get(section)
         if isinstance(value, dict):
             merged[section].update(value)
@@ -123,6 +125,38 @@ def set_frame_enhancer_engine(engine: str, settings: Settings | None = None) -> 
         _save_ui_settings(ui_settings, active_settings)
     active_settings.frame_enhancer_engine = engine
     logger.info("Frame enhancer engine set to %s", engine)
+
+
+# Propios de cada proyecto: no tiene sentido heredarlos.
+PROJECT_SPECIFIC_EXPORT_KEYS = ("file_name", "trim")
+
+
+def get_processing_defaults(settings: Settings | None = None) -> dict[str, dict]:
+    defaults = _load_ui_settings(_get_active_settings(settings)).get("defaults", {})
+    return {
+        "enhancement_config": dict(defaults.get("enhancement_config") or {}),
+        "export_config": dict(defaults.get("export_config") or {}),
+    }
+
+
+def save_processing_defaults(
+    enhancement_config: dict | None,
+    export_config: dict | None,
+    settings: Settings | None = None,
+) -> None:
+    active_settings = _get_active_settings(settings)
+    export = {
+        key: value
+        for key, value in (export_config or {}).items()
+        if key not in PROJECT_SPECIFIC_EXPORT_KEYS
+    }
+    with _settings_lock:
+        ui_settings = _load_ui_settings(active_settings)
+        ui_settings["defaults"] = {
+            "enhancement_config": dict(enhancement_config or {}),
+            "export_config": export,
+        }
+        _save_ui_settings(ui_settings, active_settings)
 
 
 def apply_persisted_settings(settings: Settings | None = None) -> Settings:

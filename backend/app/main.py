@@ -18,10 +18,14 @@ from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
 from app.services.ai_runtime_service import ensure_ai_extra_site_dir
 from app.services.cleanup_service import start_startup_temp_cleanup
-from app.services.job_recovery_service import recover_interrupted_jobs_on_startup
+from app.services.job_recovery_service import (
+    get_waiting_job_ids,
+    recover_interrupted_jobs_on_startup,
+)
 from app.services.process_registry_service import clear_registry
 from app.services.settings_service import apply_persisted_settings
 from app.workers.job_runner import start_job_worker, stop_job_worker
+from app.workers.queue import job_queue
 
 logger = get_logger(__name__)
 OPENAPI_TAGS = [
@@ -75,16 +79,23 @@ def create_lifespan(settings: Settings):
         clear_registry()
         database.init_db(active_settings)
         app.state.settings = active_settings
+        waiting_job_ids: list[str] = []
         if database.SessionLocal is not None:
             db = database.SessionLocal()
             try:
                 seed_default_models(db, active_settings)
                 recover_interrupted_jobs_on_startup(db, active_settings)
+                waiting_job_ids = get_waiting_job_ids(db)
             finally:
                 db.close()
             # Tras la recuperación: los jobs que quedaron a medias ya figuran como interrumpidos.
             start_startup_temp_cleanup(active_settings)
         start_job_worker(active_settings)
+        # Un lote en cola sobrevive al cierre de la app: se reanuda en el mismo orden.
+        for job_id in waiting_job_ids:
+            await job_queue.enqueue(job_id)
+        if waiting_job_ids:
+            logger.info("Requeued %s waiting jobs", len(waiting_job_ids))
         start_parent_watchdog()
 
         logger.info("%s started", active_settings.app_name)

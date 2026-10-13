@@ -25,6 +25,7 @@ import type {
   BootstrapResponse,
   CompareFrameResponse,
   DashboardResponse,
+  JobBatchResponse,
   DiagnosticsResponse,
   ExportDeleteResponse,
   ExportListResponse,
@@ -115,21 +116,6 @@ function resilientPoll<T>(
     }),
   );
 }
-
-const DEFAULT_ENHANCEMENT_CONFIG = {
-  model_id: 'realesrgan-x2',
-  scale: '2x',
-  denoise: 0,
-  sharpen: 0,
-  compression_cleanup: false,
-};
-
-const DEFAULT_EXPORT_CONFIG = {
-  format: 'mp4',
-  codec: 'h264',
-  keep_audio: true,
-  output_resolution: '2x',
-};
 
 const CHECKING_STATUS: BackendStatusVm = {
   state: 'checking',
@@ -348,11 +334,10 @@ export class OroyaDataService {
         return this.importVideo(path);
       }),
       switchMap((imported) =>
+        // Sin configuración: el backend aplica los últimos ajustes usados (o los de fábrica).
         this.createProject({
           name: imported.video.file_name,
           video_asset_id: imported.video.id,
-          enhancement_config: DEFAULT_ENHANCEMENT_CONFIG,
-          export_config: DEFAULT_EXPORT_CONFIG,
         }),
       ),
       map(mapProjectDetail),
@@ -375,6 +360,32 @@ export class OroyaDataService {
         '/videos/import',
         { file_path: path, source_mode: 'reference' },
         SLOW_REQUEST_MS,
+      ),
+    );
+  }
+
+  projectDetail(projectId: string): Observable<ProjectDetailResponse> {
+    return this.command(() =>
+      this.api.get<ProjectDetailResponse>(`/projects/${encodeURIComponent(projectId)}`),
+    );
+  }
+
+  /** Crea y encola un job por proyecto, en orden y con los mismos ajustes. */
+  queueBatch(
+    projectIds: string[],
+    enhancementConfig: Record<string, unknown>,
+    exportConfig: Record<string, unknown>,
+  ): Observable<JobBatchResponse> {
+    return this.command(() =>
+      this.api.post<JobBatchResponse>(
+        '/jobs/batch',
+        {
+          project_ids: projectIds,
+          enhancement_config: enhancementConfig,
+          export_config: exportConfig,
+        },
+        // Un preflight por proyecto: con muchos videos tarda.
+        SLOW_REQUEST_MS * 3,
       ),
     );
   }

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.ai_model_schema import AIModelResponse
 from app.schemas.project_schema import ProjectResponse
@@ -15,6 +15,23 @@ class JobCreateRequest(BaseModel):
     model_id: str | None = None
     enhancement_config: dict[str, Any] | None = None
     export_config: dict[str, Any] | None = None
+
+
+class JobBatchRequest(BaseModel):
+    project_ids: list[str] = Field(min_length=1, max_length=200)
+    enhancement_config: dict[str, Any] | None = None
+    export_config: dict[str, Any] | None = None
+
+
+class JobBatchSkipped(BaseModel):
+    project_id: str
+    error_code: str
+    reason: str
+
+
+class JobBatchResponse(BaseModel):
+    queued_job_ids: list[str]
+    skipped: list[JobBatchSkipped]
 
 
 class JobActions(BaseModel):

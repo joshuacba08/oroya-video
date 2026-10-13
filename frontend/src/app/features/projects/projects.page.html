@@ -16,20 +16,39 @@
   }
   @if (manualImportOpen()) {
     <ov-manual-path-import
-      [busy]="importing()"
+      [busy]="imports.importing()"
       (pathSubmitted)="importPath($event)"
       (cancelled)="manualImportOpen.set(false)"
     />
   }
   @if (projects$ | async; as projects) {
+    @if (selectedIds().size) {
+      <div class="projects-page__selection" role="toolbar">
+        <n-button variant="primary" size="sm" (click)="processSelected(projects)">
+          {{ 'projects.processSelected' | t: { count: selectedIds().size } }}
+        </n-button>
+        <n-button variant="secondary" size="sm" (click)="selectedIds.set(emptySelection)">
+          {{ 'projects.clearSelection' | t }}
+        </n-button>
+      </div>
+    }
     <div class="projects-page__grid">
       @for (project of projects; track project.id) {
-        <ov-project-card
-          [project]="project"
-          [actions]="true"
-          (renameRequested)="renameProject($event)"
-          (deleteRequested)="deleteProject($event)"
-        />
+        <div class="projects-page__item" [class.projects-page__item--selected]="selectedIds().has(project.id)">
+          <input
+            type="checkbox"
+            class="projects-page__select"
+            [checked]="selectedIds().has(project.id)"
+            [attr.aria-label]="'projects.select' | t: { name: project.name }"
+            (change)="toggleSelected(project.id)"
+          />
+          <ov-project-card
+            [project]="project"
+            [actions]="true"
+            (renameRequested)="renameProject($event)"
+            (deleteRequested)="deleteProject($event)"
+          />
+        </div>
       }
       @if (!projects.length) {
         <p class="projects-page__empty">{{ 'projects.empty' | t }}</p>

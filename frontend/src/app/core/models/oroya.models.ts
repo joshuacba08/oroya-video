@@ -105,6 +105,8 @@ export interface QueueJobVm {
   previewAvailable: boolean;
   exportAvailable: boolean;
   errorMessage?: string;
+  /** Posición en la cola (1 = el siguiente). */
+  queuePosition?: number;
   device?: string;
   avgFrameTimeMs?: number;
   failedFrames: number;

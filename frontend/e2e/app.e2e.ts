@@ -36,6 +36,30 @@ test('imports a video, processes it with pause and resume, and exports it', asyn
   await expect(page.locator('.exports-page__summary h2')).toHaveText('clip (Oroya 2x).mp4');
 });
 
+test('imports several videos at once and processes them as a batch', async ({ page }) => {
+  const clips = ['lote-a', 'lote-b', 'lote-c'];
+  await page.goto('/projects');
+  await page.getByRole('button', { name: 'New Project' }).first().click();
+  await page
+    .locator('#manual-video-path')
+    .fill(clips.map((name) => path.resolve(__dirname, '.tmp', `${name}.mp4`)).join('\n'));
+  await page.locator('#manual-video-path').press('Enter');
+
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('Process 3 videos');
+  await dialog.getByRole('button', { name: 'Queue 3 videos' }).click();
+  await expect(page).toHaveURL(/\/queue$/);
+
+  // La cola los procesa uno tras otro; al final hay una exportación legible por video.
+  await expect(async () => {
+    await page.goto('/exports');
+    const names = await page.locator('.exports-page__row strong').allInnerTexts();
+    for (const clip of clips) {
+      expect(names).toContain(`${clip} (Oroya 2x).mp4`);
+    }
+  }).toPass({ timeout: 100_000, intervals: [3_000] });
+});
+
 test('switches the interface language without reloading', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');

@@ -403,6 +403,23 @@ export const en = {
   'updates.later': 'Not now',
   'updates.armed': 'It will install when the queue finishes.',
   'updates.lastChecked': 'Last checked: {date}',
+  'import.failedTitle': 'Could not import {count} video(s)',
+  'import.pathHint2': 'One path per line (Shift+Enter for a new line)',
+  'batch.title': 'Process {count} videos',
+  'batch.model': 'AI model',
+  'batch.scale': 'Resolution',
+  'batch.queue': 'Queue {count} videos',
+  'batch.queueing': 'Queueing…',
+  'batch.importOnly': 'Only import',
+  'batch.queuedTitle': '{count} videos queued',
+  'batch.partialTitle': '{queued} queued; some were skipped',
+  'batch.failedTitle': 'The batch could not be queued',
+  'projects.processSelected': 'Process {count} selected',
+  'projects.clearSelection': 'Clear selection',
+  'projects.select': 'Select {name}',
+  'queue.position': '#{position} in queue',
+  'queue.resumeAll': 'Resume all',
+  'batch.notInstalled': 'not installed',
 } as const;
 
 export type TranslationKey = keyof typeof en;

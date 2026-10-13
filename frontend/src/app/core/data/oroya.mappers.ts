@@ -373,6 +373,7 @@ export function mapUnknownQueueJob(value: unknown, index = 0): QueueJobVm {
     exportAvailable: booleanValue(job['export_available'], booleanValue(actions['can_open_export'])),
     // Mensaje traducido por código cuando existe (p. ej. pausa por disco lleno).
     errorMessage: errorMessageFor(job),
+    queuePosition: typeof job['queue_position'] === 'number' ? job['queue_position'] : undefined,
     device: stringValue(job['realesrgan_device']) || undefined,
     avgFrameTimeMs: avgFrameTimeMs > 0 ? Math.round(avgFrameTimeMs) : undefined,
     failedFrames: pickNumber(job, ['realesrgan_failed_frames'], 0),

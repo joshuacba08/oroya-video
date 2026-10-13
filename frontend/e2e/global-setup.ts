@@ -5,9 +5,10 @@ import path from 'node:path';
 const tmp = path.resolve(__dirname, '.tmp');
 export const CLIP_PATH = path.join(tmp, 'clip.mp4');
 
-/** Clip de prueba de 2 s (24 frames, con audio) generado con ffmpeg. */
-export default function globalSetup(): void {
-  mkdirSync(tmp, { recursive: true });
+/** Clips de prueba (con audio) generados con ffmpeg: uno de 2 s y tres de 1 s para el lote. */
+export const BATCH_CLIPS = ['lote-a', 'lote-b', 'lote-c'].map((name) => path.join(tmp, `${name}.mp4`));
+
+function makeClip(output: string, seconds: number): void {
   execFileSync(
     'ffmpeg',
     [
@@ -18,11 +19,11 @@ export default function globalSetup(): void {
       '-f',
       'lavfi',
       '-i',
-      'testsrc=duration=2:size=320x240:rate=12',
+      `testsrc=duration=${seconds}:size=320x240:rate=12`,
       '-f',
       'lavfi',
       '-i',
-      'sine=frequency=440:duration=2',
+      `sine=frequency=440:duration=${seconds}`,
       '-shortest',
       '-c:v',
       'libx264',
@@ -30,8 +31,17 @@ export default function globalSetup(): void {
       'yuv420p',
       '-c:a',
       'aac',
-      CLIP_PATH,
+      output,
     ],
     { stdio: 'inherit' },
   );
+}
+
+export default function globalSetup(): void {
+  mkdirSync(tmp, { recursive: true });
+  makeClip(CLIP_PATH, 2);
+  // Clips de 1 s para el lote: la cola los procesa uno tras otro.
+  for (const clip of BATCH_CLIPS) {
+    makeClip(clip, 1);
+  }
 }

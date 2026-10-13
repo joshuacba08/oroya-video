@@ -24,6 +24,7 @@ from app.core.errors import (
     JobPauseNotSupportedError,
     JobRetryNotAllowedError,
     JobStartFailedError,
+    OroyaVideoError,
     ProcessTerminationFailedError,
 )
 from app.core.logging import get_logger
@@ -54,6 +55,9 @@ from app.schemas.job_schema import (
     FinalExportSummaryResponse,
     FrameEnhancementSummaryResponse,
     FrameExtractionSummaryResponse,
+    JobBatchRequest,
+    JobBatchResponse,
+    JobBatchSkipped,
     JobControlResponse,
     JobCreateRequest,
     JobDetailResponse,
@@ -104,6 +108,7 @@ from app.services.realesrgan_service import (
 from app.services.realesrgan_service import (
     validate_realesrgan_job_requirements,
 )
+from app.services.settings_service import save_processing_defaults
 from app.workers.queue import job_queue
 
 logger = get_logger(__name__)
@@ -373,6 +378,7 @@ async def start_processing_job(
                 "error_code": None,
                 "error_message": None,
                 "worker_id": "local-worker",
+                "queued_at": _utcnow(),
             },
         )
         job_repository.create_job_log(db, job.id, "info", "Job queued.", stage="queued")
@@ -468,6 +474,7 @@ async def resume_processing_job(
                 "pause_requested": False,
                 "cancel_requested": False,
                 "worker_id": "local-worker",
+                "queued_at": _utcnow(),
             },
         )
         job_repository.create_job_log(db, job.id, "info", "Job resumed.", stage="queued")
@@ -1182,3 +1189,50 @@ def delete_muxed_video(
     if job.status == "running":
         raise JobInvalidStateError()
     return audio_mux_service.delete_muxed_video(db, job_id)
+
+
+async def queue_projects_batch(
+    db: Session,
+    request: JobBatchRequest,
+    settings: Settings | None = None,
+) -> JobBatchResponse:
+    """Create and queue one job per project, in order, with the same settings.
+
+    A project that cannot be queued (missing video, failed preflight, job already active...)
+    is skipped with its reason; the rest of the batch goes on.
+    """
+    active_settings = _get_active_settings(settings)
+    queued: list[str] = []
+    skipped: list[JobBatchSkipped] = []
+    for project_id in dict.fromkeys(request.project_ids):
+        job_id: str | None = None
+        try:
+            created = create_processing_job(
+                db,
+                JobCreateRequest(
+                    project_id=project_id,
+                    enhancement_config=request.enhancement_config,
+                    export_config=request.export_config,
+                ),
+                active_settings,
+            )
+            job_id = created.job.id
+            await start_processing_job(db, job_id, active_settings)
+            queued.append(job_id)
+        except OroyaVideoError as exc:
+            db.rollback()
+            if job_id is not None:
+                job = job_repository.get_job_by_id(db, job_id)
+                if job is not None and job.status == "pending":
+                    job_repository.delete_job(db, job)
+                    db.commit()
+            skipped.append(
+                JobBatchSkipped(
+                    project_id=project_id, error_code=exc.error_code, reason=exc.message
+                )
+            )
+    if queued:
+        # "Últimos ajustes usados": base del siguiente lote y de los proyectos nuevos.
+        save_processing_defaults(request.enhancement_config, request.export_config, active_settings)
+    logger.info("Batch queued: %s jobs, %s skipped", len(queued), len(skipped))
+    return JobBatchResponse(queued_job_ids=queued, skipped=skipped)

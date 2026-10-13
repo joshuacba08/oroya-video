@@ -42,6 +42,20 @@ export class DesktopService {
     return typeof selected === 'string' ? selected : null;
   }
 
+  /** Selector de varios videos a la vez (escritorio); vacío si se cancela. */
+  async pickVideos(): Promise<PickedVideo[]> {
+    if (!this.isDesktop()) {
+      return [];
+    }
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const selected = await open({
+      multiple: true,
+      filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'mkv'] }],
+    });
+    const paths = Array.isArray(selected) ? selected : typeof selected === 'string' ? [selected] : [];
+    return paths.map((path) => ({ kind: 'tauri', path }));
+  }
+
   /** Abre una URL http(s) en el navegador del sistema (Tauri) o en una pestaña nueva. */
   async openUrl(url: string): Promise<void> {
     if (!url) {

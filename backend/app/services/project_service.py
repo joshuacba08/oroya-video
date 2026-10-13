@@ -257,22 +257,49 @@ def _serialize_config(data: dict[str, Any]) -> str:
     return json.dumps(data)
 
 
+def _saved_default_configs(
+    db: Session, settings: Settings | None = None
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Last used processing settings, or the built-in defaults if they are no longer valid
+    (e.g. the model was disabled)."""
+    from app.services.settings_service import get_processing_defaults
+
+    saved = get_processing_defaults(settings)
+    try:
+        enhancement = _validate_enhancement_config(
+            _merge_config(DEFAULT_ENHANCEMENT_CONFIG, saved["enhancement_config"])
+        )
+        _validate_model_reference(db, enhancement["model_id"])
+        export = _validate_export_config(
+            _merge_config(DEFAULT_EXPORT_CONFIG, saved["export_config"])
+        )
+    except OroyaVideoError:
+        return DEFAULT_ENHANCEMENT_CONFIG, DEFAULT_EXPORT_CONFIG
+    return enhancement, export
+
+
 def _build_project_configs(
     db: Session,
     enhancement_config: dict[str, Any] | None,
     export_config: dict[str, Any] | None,
     workspace_state: dict[str, Any] | None,
     existing_project: Project | None = None,
+    settings: Settings | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    default_enhancement, default_export = (
+        (DEFAULT_ENHANCEMENT_CONFIG, DEFAULT_EXPORT_CONFIG)
+        if existing_project
+        else _saved_default_configs(db, settings)
+    )
     existing_enhancement = (
         project_repository.to_project_response(existing_project).enhancement_config
         if existing_project
-        else DEFAULT_ENHANCEMENT_CONFIG
+        else default_enhancement
     )
     existing_export = (
         project_repository.to_project_response(existing_project).export_config
         if existing_project
-        else DEFAULT_EXPORT_CONFIG
+        else default_export
     )
     existing_workspace = (
         project_repository.to_project_response(existing_project).workspace_state
@@ -292,7 +319,11 @@ def _build_project_configs(
     return merged_enhancement, merged_export, merged_workspace
 
 
-def create_project(db: Session, request: ProjectCreateRequest) -> ProjectDetailResponse:
+def create_project(
+    db: Session,
+    request: ProjectCreateRequest,
+    settings: Settings | None = None,
+) -> ProjectDetailResponse:
     logger.info("Project create requested")
     video_asset = _get_video_asset_or_raise(db, request.video_asset_id)
     _ensure_video_asset_file_available(video_asset)
@@ -301,6 +332,7 @@ def create_project(db: Session, request: ProjectCreateRequest) -> ProjectDetailR
         enhancement_config=request.enhancement_config,
         export_config=request.export_config,
         workspace_state=request.workspace_state,
+        settings=settings,
     )
 
     project_data = {

@@ -191,6 +191,8 @@ class ProcessingJob(Base):
     extracted_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     enhancer_engine: Mapped[str | None] = mapped_column(String(60), nullable=True, default="mock")
     enhanced_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Momento en que entró en la cola: ordena la cola por orden real de proceso.
+    queued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     extraction_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     extraction_completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     enhancement_started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

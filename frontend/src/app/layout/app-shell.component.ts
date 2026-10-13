@@ -28,6 +28,7 @@ import { environment } from '../../environments/environment';
 import { getApiBaseUrl } from '../core/api/api-base-url';
 import { APP_VERSION } from '../core/app-version';
 import { OroyaDataService } from '../core/data/oroya-data.service';
+import { ImportService, parseManualPaths } from '../core/data/import.service';
 import { mapGpu } from '../core/data/oroya.mappers';
 import { DesktopBackendService } from '../core/desktop/desktop-backend.service';
 import { DesktopService } from '../core/desktop/desktop.service';
@@ -37,6 +38,7 @@ import type { TranslationKey } from '../core/i18n/en';
 import { translate } from '../core/i18n/i18n';
 import { TranslatePipe } from '../core/i18n/translate.pipe';
 import type { ApiErrorVm, PickedVideo, StartupVm } from '../core/models/oroya.models';
+import { OvBatchDialogComponent } from '../shared/ui/ov-batch-dialog.component';
 import { OvDialogHostComponent } from '../shared/ui/ov-dialog-host.component';
 import { OvGpuMeterComponent } from '../shared/ui/ov-gpu-meter.component';
 import { OvManualPathImportComponent } from '../shared/ui/ov-manual-path-import.component';
@@ -63,6 +65,7 @@ type NavItem = {
     NSidebar,
     NSidebarItem,
     NSidebarSection,
+    OvBatchDialogComponent,
     OvDialogHostComponent,
     OvGpuMeterComponent,
     OvManualPathImportComponent,
@@ -77,13 +80,13 @@ export class AppShellComponent {
   private readonly desktop = inject(DesktopService);
   readonly data = inject(OroyaDataService);
   readonly desktopBackend = inject(DesktopBackendService);
+  readonly imports = inject(ImportService);
   readonly updates = inject(UpdateService);
   private readonly notifications = inject(NotificationService);
 
   readonly searchQuery = signal('');
   readonly actionError = signal<ApiErrorVm | null>(null);
   readonly manualImportOpen = signal(false);
-  readonly importing = signal(false);
   readonly currentUrl = signal(this.router.url);
   // El dashboard no trae datos de GPU: se combinan con /system/gpu para el medidor lateral.
   readonly dashboard$ = combineLatest([
@@ -292,30 +295,15 @@ export class AppShellComponent {
       this.manualImportOpen.set(true);
       return;
     }
-
-    const selected = await this.desktop.pickVideo();
-    await this.createProjectFromPicked(selected);
+    this.actionError.set(null);
+    await this.imports.importAndContinue(await this.desktop.pickVideos());
   }
 
-  async importPath(path: string): Promise<void> {
-    await this.createProjectFromPicked({ kind: 'browser-path', path });
-  }
-
-  private async createProjectFromPicked(selected: PickedVideo | null): Promise<void> {
-    if (!selected) {
-      return;
-    }
-
-    try {
-      this.actionError.set(null);
-      this.importing.set(true);
-      const project = await firstValueFrom(this.data.importPickedVideo(selected));
+  async importPath(value: string): Promise<void> {
+    this.actionError.set(null);
+    const result = await this.imports.importAndContinue(parseManualPaths(value));
+    if (result.projects.length) {
       this.manualImportOpen.set(false);
-      await this.router.navigate(['/projects', project.id]);
-    } catch (error) {
-      this.actionError.set(this.data.toErrorVm(error));
-    } finally {
-      this.importing.set(false);
     }
   }
 

@@ -87,3 +87,39 @@ h1 {
   font: inherit;
   text-decoration: underline;
 }
+
+.projects-page__selection {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.projects-page__item {
+  position: relative;
+  min-width: 0;
+}
+
+.projects-page__select {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  left: 12px;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--n-color-primary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.projects-page__item:hover .projects-page__select,
+.projects-page__select:focus-visible,
+.projects-page__select:checked {
+  opacity: 1;
+}
+
+.projects-page__item--selected {
+  outline: 2px solid color-mix(in srgb, var(--n-color-primary), transparent 30%);
+  outline-offset: 2px;
+  border-radius: var(--n-radius-xl);
+}

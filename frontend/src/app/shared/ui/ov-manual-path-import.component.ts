@@ -14,16 +14,17 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
         <span>{{ 'import.pathLabel' | t }}</span>
       </label>
       <div class="manual-path__controls">
-        <input
+        <textarea
           id="manual-video-path"
-          type="text"
+          rows="2"
           autocomplete="off"
           spellcheck="false"
-          placeholder="C:\\Videos\\sample.mp4"
+          placeholder="C:\\Videos\\clip-1.mp4&#10;C:\\Videos\\clip-2.mp4"
           [title]="'import.pathHint' | t"
           [value]="path()"
           (input)="path.set(inputValue($event))"
-        />
+          (keydown.enter)="submitOnEnter($event)"
+        ></textarea>
         <button type="submit" [disabled]="busy() || !path().trim()">{{ 'common.import' | t }}</button>
         <button type="button" class="manual-path__ghost" [disabled]="busy()" (click)="cancelled.emit()">
           {{ 'common.cancel' | t }}
@@ -61,10 +62,11 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
         gap: 10px;
       }
 
-      input {
+      textarea {
         min-width: 0;
-        height: 40px;
-        padding: 0 12px;
+        min-height: 40px;
+        resize: vertical;
+        padding: 9px 12px;
         border: 1px solid var(--n-border-1);
         border-radius: var(--n-radius-md);
         outline: 0;
@@ -73,7 +75,7 @@ import { TranslatePipe } from '../../core/i18n/translate.pipe';
         font: 700 0.86rem var(--n-font-mono);
       }
 
-      input:focus {
+      textarea:focus {
         border-color: color-mix(in srgb, var(--n-color-primary), transparent 35%);
         box-shadow: 0 0 0 2px color-mix(in srgb, var(--n-color-primary), transparent 82%);
       }
@@ -122,7 +124,16 @@ export class OvManualPathImportComponent {
   readonly path = signal('');
 
   inputValue(event: Event): string {
-    return event.target instanceof HTMLInputElement ? event.target.value : '';
+    return event.target instanceof HTMLTextAreaElement ? event.target.value : '';
+  }
+
+  /** Enter importa; Mayús+Enter añade otra línea (otra ruta). */
+  submitOnEnter(event: Event): void {
+    if ((event as KeyboardEvent).shiftKey) {
+      return;
+    }
+    event.preventDefault();
+    (event.target as HTMLElement).closest('form')?.requestSubmit();
   }
 
   submit(event: SubmitEvent): void {

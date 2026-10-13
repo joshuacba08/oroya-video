@@ -167,7 +167,7 @@
       @if (manualImportOpen()) {
         <div class="ov-manual-import">
           <ov-manual-path-import
-            [busy]="importing()"
+            [busy]="imports.importing()"
             (pathSubmitted)="importPath($event)"
             (cancelled)="manualImportOpen.set(false)"
           />
@@ -241,3 +241,4 @@
 </n-shell>
 <ov-notifications />
 <ov-dialog-host />
+<ov-batch-dialog />

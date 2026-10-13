@@ -711,6 +711,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create and queue jobs for several projects with the same settings */
+        post: operations["batch_jobs_route_api_v1_jobs_batch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{job_id}/start": {
         parameters: {
             query?: never;
@@ -2068,6 +2085,23 @@ export interface paths {
         post?: never;
         /** Delete a job */
         delete: operations["delete_job_route_api_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create and queue jobs for several projects with the same settings */
+        post: operations["batch_jobs_route_api_jobs_batch_post"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3664,6 +3698,35 @@ export interface components {
             /** Can Open Export */
             can_open_export: boolean;
         };
+        /** JobBatchRequest */
+        JobBatchRequest: {
+            /** Project Ids */
+            project_ids: string[];
+            /** Enhancement Config */
+            enhancement_config?: {
+                [key: string]: unknown;
+            } | null;
+            /** Export Config */
+            export_config?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** JobBatchResponse */
+        JobBatchResponse: {
+            /** Queued Job Ids */
+            queued_job_ids: string[];
+            /** Skipped */
+            skipped: components["schemas"]["JobBatchSkipped"][];
+        };
+        /** JobBatchSkipped */
+        JobBatchSkipped: {
+            /** Project Id */
+            project_id: string;
+            /** Error Code */
+            error_code: string;
+            /** Reason */
+            reason: string;
+        };
         /** JobControlResponse */
         JobControlResponse: {
             job: components["schemas"]["JobResponse"];
@@ -4595,6 +4658,8 @@ export interface components {
              */
             max_retries: number;
             actions: components["schemas"]["JobActions"];
+            /** Queue Position */
+            queue_position?: number | null;
         };
         /** QueueResponse */
         QueueResponse: {
@@ -6499,6 +6564,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_jobs_route_api_v1_jobs_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobBatchResponse"];
                 };
             };
             /** @description Validation Error */
@@ -9263,6 +9361,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JobDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    batch_jobs_route_api_jobs_batch_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobBatchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobBatchResponse"];
                 };
             };
             /** @description Validation Error */

@@ -33,9 +33,10 @@ DbSession = Annotated[Session, Depends(get_db)]
 )
 def create_project_route(
     payload: ProjectCreateRequest,
+    request: Request,
     db: DbSession,
 ) -> ProjectDetailResponse:
-    return create_project(db, payload)
+    return create_project(db, payload, request.app.state.settings)
 
 
 @router.get("", response_model=ProjectListResponse, summary="List projects")
