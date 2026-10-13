@@ -24,7 +24,7 @@ jobs:
       - name: Version matches the tag
         run: python scripts/check_versions.py
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v5
