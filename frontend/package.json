@@ -23,7 +23,7 @@
     "@angular/router": "^22.2.0",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@fontsource/plus-jakarta-sans": "^5.2.8",
-    "@lucide/angular": "^1.21.0",
+    "@lucide/angular": "^1.54.0",
     "@neuralangular/angular-ui": "^0.1.0",
     "@tauri-apps/api": "^2.12.3",
     "@tauri-apps/plugin-dialog": "^2.7.1",
