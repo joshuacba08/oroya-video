@@ -55,6 +55,7 @@
 }
 
 .ov-sidebar-footer {
+  position: relative;
   display: grid;
   gap: 12px;
   width: 100%;
@@ -347,4 +348,64 @@
 
 .ov-router-page[hidden] {
   display: none;
+}
+
+.ov-update-pill {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border: 1px solid color-mix(in srgb, var(--n-color-primary), transparent 45%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--n-color-primary), transparent 85%);
+  color: var(--n-text-1);
+  font: inherit;
+  font-size: 0.66rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ov-update-pill:hover,
+.ov-update-pill[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--n-color-primary), transparent 65%);
+}
+
+.ov-update-panel {
+  position: absolute;
+  z-index: 50;
+  right: 14px;
+  bottom: calc(100% + 8px);
+  left: 14px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-lg);
+  background: var(--n-bg-elevated, #12141f);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+  color: var(--n-text-2);
+  font-size: 0.78rem;
+}
+
+.ov-update-panel strong {
+  color: var(--n-text-1);
+  font-size: 0.84rem;
+}
+
+.ov-update-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.ov-update-panel__actions button {
+  border: 0;
+  background: transparent;
+  color: var(--n-text-3);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ov-update-panel__actions button:hover {
+  color: var(--n-text-1);
 }

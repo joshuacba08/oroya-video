@@ -135,3 +135,11 @@ input[type='range'] {
   color: var(--n-text-3);
   font-size: 0.8rem;
 }
+
+.settings-page__update {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 22px;
+}

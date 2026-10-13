@@ -393,11 +393,16 @@ export const en = {
   'updates.installing': 'Installing; the app will restart.',
   'updates.failed': 'The update could not be installed. Try again later.',
   'updates.waitTitle': 'A job is running',
-  'updates.waitForJobs': 'Install the update when processing finishes, so no progress is lost.',
+  'updates.waitForJobs': 'The update will install automatically when processing finishes, so no progress is lost.',
   'workspace.exportName': 'Export file name',
   'workspace.exportFolder': 'Export folder',
   'workspace.exportFolderDefault': 'Default (Settings) / project name',
   'workspace.exportFolderReset': 'Default',
+  'updates.pill': 'Update',
+  'updates.pillInstalling': 'Installing…',
+  'updates.later': 'Not now',
+  'updates.armed': 'It will install when the queue finishes.',
+  'updates.lastChecked': 'Last checked: {date}',
 } as const;
 
 export type TranslationKey = keyof typeof en;

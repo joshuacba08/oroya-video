@@ -79,7 +79,6 @@ export class AppShellComponent {
   readonly desktopBackend = inject(DesktopBackendService);
   readonly updates = inject(UpdateService);
   private readonly notifications = inject(NotificationService);
-  private updateChecked = false;
 
   readonly searchQuery = signal('');
   readonly actionError = signal<ApiErrorVm | null>(null);
@@ -98,13 +97,18 @@ export class AppShellComponent {
         : dashboard,
     ),
   );
-  readonly queueBadge$ = this.data.pollQueue().pipe(
-    map((jobs) => {
-      // La cola también lista pausados/fallidos; el badge cuenta solo trabajo en curso.
-      const active = jobs.filter((job) => ['running', 'queued', 'retrying'].includes(job.status));
-      return active.length > 0 ? String(active.length) : undefined;
-    }),
+  // La cola también lista pausados/fallidos: aquí cuenta solo el trabajo en curso.
+  private readonly activeJobCount$ = this.data.pollQueue().pipe(
+    map(
+      (jobs) =>
+        jobs.filter((job) => ['running', 'queued', 'retrying'].includes(job.status)).length,
+    ),
   );
+  readonly activeJobCount = toSignal(this.activeJobCount$, { initialValue: 0 });
+  readonly queueBadge$ = this.activeJobCount$.pipe(
+    map((count) => (count > 0 ? String(count) : undefined)),
+  );
+  readonly updatePanelOpen = signal(false);
   private readonly retry$ = new BehaviorSubject(0);
   get apiBaseUrl(): string {
     return getApiBaseUrl();
@@ -182,10 +186,14 @@ export class AppShellComponent {
     );
   }
 
-  /** No se reinicia la app con un job en marcha: se perdería el progreso de la etapa. */
+  /**
+   * No se reinicia la app con trabajo en marcha (se perdería el progreso de la etapa): en ese
+   * caso la instalación queda armada y se lanza sola cuando la cola se vacía.
+   */
   async installUpdate(): Promise<void> {
     const jobs = await firstValueFrom(this.data.queue()).catch(() => []);
     if (jobs.some((job) => ['running', 'queued', 'retrying'].includes(job.status))) {
+      this.updates.armInstallWhenIdle();
       this.notifications.show(
         'info',
         translate('updates.waitTitle'),
@@ -194,6 +202,11 @@ export class AppShellComponent {
       return;
     }
     await this.updates.install();
+  }
+
+  dismissUpdate(): void {
+    this.updates.dismiss();
+    this.updatePanelOpen.set(false);
   }
 
   async restartDesktopBackend(): Promise<void> {
@@ -244,15 +257,19 @@ export class AppShellComponent {
   constructor() {
     // Cada vez que el backend de escritorio queda listo (también tras reiniciarse) se
     // vuelve a cargar el estado de arranque.
+    // Instalación pedida con trabajo en marcha: se lanza en cuanto la cola queda vacía.
+    effect(() => {
+      if (this.updates.installArmed() && this.activeJobCount() === 0) {
+        untracked(() => void this.updates.install());
+      }
+    });
     effect(() => {
       if (this.desktopBackend.readyCount() > 0) {
         untracked(() => {
           this.retryBackend();
           // Una comprobación por sesión, cuando el backend ya está listo.
-          if (!this.updateChecked) {
-            this.updateChecked = true;
-            void this.updates.check();
-          }
+          // Al arrancar y luego cada 6 h (idempotente si el backend se reinicia).
+          this.updates.startPeriodicChecks();
         });
       }
     });

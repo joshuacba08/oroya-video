@@ -128,7 +128,20 @@
         }
       }
       @if (updates.available(); as update) {
-        <p class="settings-page__note" role="status">{{ 'updates.available' | t: { version: update.version } }}</p>
+        <div class="settings-page__update">
+          <p class="settings-page__note" role="status">{{ 'updates.available' | t: { version: update.version } }}</p>
+          <n-button
+            variant="primary"
+            size="sm"
+            [disabled]="updates.state() === 'downloading' || updates.state() === 'installing' || updates.installArmed()"
+            (click)="installUpdate()"
+          >
+            {{ 'updates.install' | t }}
+          </n-button>
+        </div>
+      }
+      @if (updates.lastCheckedAt(); as checkedAt) {
+        <p class="settings-page__note settings-page__note--muted">{{ 'updates.lastChecked' | t: { date: formatDate(checkedAt) } }}</p>
       }
       <ov-settings-row [label]="'settings.diagnostics' | t" [description]="'settings.diagnosticsDescription' | t">
         <n-button variant="secondary" size="sm" [disabled]="diagnosticsBusy()" (click)="exportDiagnostics()">

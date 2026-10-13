@@ -13,7 +13,7 @@ import { DesktopService } from '../../core/desktop/desktop.service';
 import { DialogService } from '../../core/dialogs/dialog.service';
 import { UpdateService } from '../../core/desktop/update.service';
 import { APP_VERSION } from '../../core/app-version';
-import { translate } from '../../core/i18n/i18n';
+import { getLocale, translate } from '../../core/i18n/i18n';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm } from '../../core/models/oroya.models';
 import { OvSettingsRowComponent } from '../../shared/ui/ov-settings-row.component';
@@ -148,6 +148,20 @@ export class SettingsPage {
       return;
     }
     await this.patch({ storage: { exports_dir: folder } });
+  }
+
+  formatDate(timestamp: number): string {
+    return new Date(timestamp).toLocaleString(getLocale(), { dateStyle: 'medium', timeStyle: 'short' });
+  }
+
+  /** Igual que el aviso de la barra lateral: con trabajo en cola, se instala al terminar. */
+  async installUpdate(): Promise<void> {
+    const jobs = await firstValueFrom(this.data.queue()).catch(() => []);
+    if (jobs.some((job) => ['running', 'queued', 'retrying'].includes(job.status))) {
+      this.updates.armInstallWhenIdle();
+      return;
+    }
+    await this.updates.install();
   }
 
   readonly diagnosticsBusy = signal(false);
