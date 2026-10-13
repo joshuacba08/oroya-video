@@ -197,6 +197,150 @@ DEFAULT_MODELS = [
         ),
         "metadata_json": json.dumps({"quality_tier": "high", "speed_tier": "fast"}),
     },
+    {
+        "name": "RealPLKSR Real 2x",
+        "slug": "realplksr-real-2x",
+        "description": "Natural 2x for real-life video. Phhofm, Apache-2.0.",
+        "provider": "Phhofm (spandrel)",
+        "category": "upscaling",
+        "model_type": "spandrel",
+        "scale_factor": 2,
+        "version": "1",
+        "status": "missing",
+        "is_enabled": True,
+        "is_installed": False,
+        "is_default": True,
+        "file_name": "2xPublic_realplksr_dysample_layernorm_real.safetensors",
+        "relative_path": "spandrel/2xPublic_realplksr_dysample_layernorm_real.safetensors",
+        "estimated_vram_mb": 2048,
+        "supports_gpu": True,
+        "supports_cpu": True,
+        "capabilities_json": json.dumps(
+            {
+                "upscale": True,
+                "restore": False,
+                "frame_interpolation": False,
+                "face_enhancement": False,
+            }
+        ),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "high",
+                "speed_tier": "medium",
+                "author": "Phhofm",
+                "license": "Apache-2.0",
+                "source_url": "https://github.com/Phhofm/models/releases/tag/2xPublic_realplksr_dysample_layernorm_real",
+            }
+        ),
+    },
+    {
+        "name": "RealPLKSR 4x",
+        "slug": "realplksr-4x",
+        "description": "Maximum detail 4x for good-quality sources. Phhofm, CC-BY-4.0.",
+        "provider": "Phhofm (spandrel)",
+        "category": "upscaling",
+        "model_type": "spandrel",
+        "scale_factor": 4,
+        "version": "1",
+        "status": "missing",
+        "is_enabled": True,
+        "is_installed": False,
+        "is_default": True,
+        "file_name": "4xBHI_realplksr_dysample_real.safetensors",
+        "relative_path": "spandrel/4xBHI_realplksr_dysample_real.safetensors",
+        "estimated_vram_mb": 3072,
+        "supports_gpu": True,
+        "supports_cpu": True,
+        "capabilities_json": json.dumps(
+            {
+                "upscale": True,
+                "restore": False,
+                "frame_interpolation": False,
+                "face_enhancement": False,
+            }
+        ),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "very_high",
+                "speed_tier": "slow",
+                "author": "Phhofm",
+                "license": "CC-BY-4.0",
+                "source_url": "https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr",
+            }
+        ),
+    },
+    {
+        "name": "SPAN Anime 2x",
+        "slug": "span-anime-2x",
+        "description": "Fast 2x for anime and animation. Phhofm, CC-BY-4.0.",
+        "provider": "Phhofm (spandrel)",
+        "category": "upscaling",
+        "model_type": "spandrel",
+        "scale_factor": 2,
+        "version": "1",
+        "status": "missing",
+        "is_enabled": True,
+        "is_installed": False,
+        "is_default": True,
+        "file_name": "2xHFA2k_LUDVAE_SPAN.safetensors",
+        "relative_path": "spandrel/2xHFA2k_LUDVAE_SPAN.safetensors",
+        "estimated_vram_mb": 1024,
+        "supports_gpu": True,
+        "supports_cpu": True,
+        "capabilities_json": json.dumps(
+            {
+                "upscale": True,
+                "restore": False,
+                "frame_interpolation": False,
+                "face_enhancement": False,
+            }
+        ),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "high",
+                "speed_tier": "fast",
+                "author": "Phhofm",
+                "license": "CC-BY-4.0",
+                "source_url": "https://github.com/Phhofm/models/releases/tag/2xHFA2k_LUDVAE_SPAN",
+            }
+        ),
+    },
+    {
+        "name": "AI compression cleanup (H.264)",
+        "slug": "deh264-1x",
+        "description": "Removes H.264 artifacts before upscaling (optional). Phhofm, CC-BY-4.0.",
+        "provider": "Phhofm (spandrel)",
+        "category": "compression_cleanup",
+        "model_type": "spandrel",
+        "scale_factor": 1,
+        "version": "1",
+        "status": "missing",
+        "is_enabled": True,
+        "is_installed": False,
+        "is_default": True,
+        "file_name": "1xDeH264_realplksr.safetensors",
+        "relative_path": "spandrel/1xDeH264_realplksr.safetensors",
+        "estimated_vram_mb": 1024,
+        "supports_gpu": True,
+        "supports_cpu": True,
+        "capabilities_json": json.dumps(
+            {
+                "upscale": False,
+                "restore": True,
+                "frame_interpolation": False,
+                "face_enhancement": False,
+            }
+        ),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "high",
+                "speed_tier": "medium",
+                "author": "Phhofm",
+                "license": "CC-BY-4.0",
+                "source_url": "https://github.com/Phhofm/models/releases/tag/1xDeH264_realplksr",
+            }
+        ),
+    },
 ]
 
 

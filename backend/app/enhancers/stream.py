@@ -100,9 +100,12 @@ class ImageProcessor:
         enhancer: Any | None = None,
         face_restorer: Any | None = None,
         ai_strength: float = 1.0,
+        cleanup: Any | None = None,
     ) -> None:
         self.enhancer = enhancer
         self.face_restorer = face_restorer
+        # Limpieza de compresión con IA (1x) antes de escalar (REQ-039).
+        self.cleanup = cleanup
         # < 1: la salida de la IA se mezcla con un escalado normal (Lanczos) para conservar la
         # textura real y evitar el aspecto "pintado" en video real de baja resolución.
         self.ai_strength = min(max(ai_strength, 0.0), 1.0)
@@ -113,6 +116,8 @@ class ImageProcessor:
         return getattr(self.enhancer, "failed_frames", 0)
 
     def load(self) -> None:
+        if self.cleanup is not None:
+            self.cleanup.load_model()
         if self.enhancer is not None:
             self.enhancer.load_model()
         if self.face_restorer is not None:
@@ -123,6 +128,8 @@ class ImageProcessor:
 
         rgb = np.frombuffer(frame.data, dtype=np.uint8).reshape(frame.height, frame.width, 3)
         image = np.ascontiguousarray(rgb[:, :, ::-1])
+        if self.cleanup is not None:
+            image = self.cleanup.enhance_image(image)
         if self.enhancer is not None:
             source = image
             image = self.enhancer.enhance_image(image)

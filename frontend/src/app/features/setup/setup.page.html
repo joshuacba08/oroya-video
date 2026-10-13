@@ -102,6 +102,15 @@
         <div>
           <strong>{{ 'setup.ai' | t }}</strong>
           <span>{{ (startup.aiRuntimeAvailable ? 'setup.aiOk' : 'setup.aiMissing') | t }}</span>
+          @if (startup.aiRuntimeAvailable && (aiRuntime()?.missing_components?.length || aiInstalling())) {
+            <div class="setup-page__ai-actions">
+              <small>{{ 'setup.aiUpdate' | t: { components: aiRuntime()?.missing_components?.join(', ') ?? '' } }}</small>
+              <n-button variant="primary" size="sm" [disabled]="aiInstalling()" (click)="startAiInstall()">
+                <n-icon name="download" size="sm" />
+                {{ (aiInstalling() ? 'setup.aiInstalling' : 'setup.aiUpdateAction') | t }}
+              </n-button>
+            </div>
+          }
           @if (!startup.aiRuntimeAvailable) {
             @if (aiInstall(); as install) {
               @if (install.status === 'installing') {

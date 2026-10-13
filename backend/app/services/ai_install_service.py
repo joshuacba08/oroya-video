@@ -37,7 +37,13 @@ TORCH_INDEX_CPU = "https://download.pytorch.org/whl/cpu"
 # usuario recibía lo último publicado y una versión nueva podía romper instalaciones de
 # versiones ya distribuidas de la app. Existen ruedas cp312 win_amd64 en cu132 y cpu.
 TORCH_PACKAGES = ("torch==2.12.1", "torchvision==0.27.1")
-AI_PACKAGES = ("realesrgan==0.3.0", "gfpgan==1.3.8", "facexlib==0.3.0")
+AI_PACKAGES = (
+    "realesrgan==0.3.0",
+    "gfpgan==1.3.8",
+    "facexlib==0.3.0",
+    # Modelos modernos (RealPLKSR, SPAN…), REQ-039. Sus dependencias van en AI_DEPENDENCIES.
+    "spandrel==0.4.2",
+)
 # Dependencias de basicsr/realesrgan (sin torch ni tb-nightly).
 AI_DEPENDENCIES = (
     "addict==2.4.0",
@@ -56,6 +62,9 @@ AI_DEPENDENCIES = (
     # facexlib (detección de caras para GFPGAN)
     "filterpy==1.4.5",
     "numba==0.65.1",
+    # spandrel
+    "einops==0.8.2",
+    "safetensors==0.8.0",
 )
 # Wheels empaquetados por scripts/build_installer.ps1 (resources/backend/wheels).
 BUNDLED_WHEELS_DIR = BACKEND_ROOT / "wheels"
@@ -104,6 +113,9 @@ def is_ai_stack_installed() -> bool:
         ai_runtime_service.is_torch_available()
         and not ai_runtime_service.get_missing_realesrgan_modules()
         and not ai_runtime_service.get_missing_face_restore_modules()
+        # Componentes añadidos en versiones nuevas (spandrel, 0.6): si faltan, se reinstala,
+        # y pip solo baja lo que falta (PYTHONPATH apunta a lo ya instalado).
+        and not ai_runtime_service.get_missing_spandrel_modules()
     )
 
 

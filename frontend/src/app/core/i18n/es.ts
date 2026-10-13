@@ -215,6 +215,8 @@ export const es: Record<TranslationKey, string> = {
   'setup.modelsOk': '{count} modelo(s) instalados.',
   'setup.modelsMissing': 'Descarga al menos un modelo Real-ESRGAN para mejorar video.',
   'setup.ai': 'Runtime de IA (opcional)',
+  'setup.aiUpdate': 'Esta versión usa componentes de IA nuevos ({components}). Actualízalos para usar los modelos nuevos.',
+  'setup.aiUpdateAction': 'Actualizar componentes de IA',
   'setup.aiOk': 'PyTorch detectado. La mejora con IA en GPU está lista.',
   'setup.aiMissing':
     'Para usar Real-ESRGAN se instala PyTorch y Real-ESRGAN en la carpeta de la app (2–3 GB con GPU NVIDIA, unos minutos).',
@@ -263,6 +265,9 @@ export const es: Record<TranslationKey, string> = {
   'workspace.presetAnimation': 'Animación',
   'workspace.presetMaxDetail': 'Detalle máximo',
   'workspace.aiStrength': 'Intensidad de IA',
+  'workspace.aiCleanup': 'Limpieza de compresión con IA',
+  'workspace.aiCleanupHint': 'Elimina con IA los artefactos de compresión H.264 antes de escalar: más limpio y natural.',
+  'workspace.aiCleanupUnavailable': 'Descarga el modelo de limpieza de compresión con IA para usarlo:',
   'workspace.aiStrengthHint': 'Por debajo de 100 se mezcla la IA con un escalado normal: conserva la textura real y evita el aspecto pintado.',
   'workspace.modelDenoise': 'Reducción de ruido del modelo',
   'workspace.modelDenoiseHint': 'Real-ESRGAN General: más alto quita más ruido; más bajo conserva el grano y el detalle fino.',

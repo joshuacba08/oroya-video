@@ -3076,6 +3076,11 @@ export interface components {
             python_version: string;
             /** Ai Extra Site Dir */
             ai_extra_site_dir?: string | null;
+            /**
+             * Missing Components
+             * @default []
+             */
+            missing_components: string[];
         };
         /** AppStateBackendResponse */
         AppStateBackendResponse: {

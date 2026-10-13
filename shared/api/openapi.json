@@ -8983,6 +8983,14 @@
               }
             ],
             "title": "Ai Extra Site Dir"
+          },
+          "missing_components": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Components",
+            "default": []
           }
         },
         "type": "object",

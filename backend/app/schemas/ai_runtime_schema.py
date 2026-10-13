@@ -24,6 +24,8 @@ class AIRuntimeStatusResponse(BaseModel):
     python_executable: str = ""
     python_version: str = ""
     ai_extra_site_dir: str | None = None
+    # Instalación de IA anterior a esta versión de la app: "Actualizar componentes de IA".
+    missing_components: list[str] = []
 
 
 class AIModelValidationResponse(BaseModel):

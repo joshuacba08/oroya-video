@@ -213,6 +213,8 @@ export const en = {
   'setup.modelsOk': '{count} model(s) installed.',
   'setup.modelsMissing': 'Download at least one Real-ESRGAN model to enhance video.',
   'setup.ai': 'AI runtime (optional)',
+  'setup.aiUpdate': 'This version uses new AI components ({components}). Update them to use the new models.',
+  'setup.aiUpdateAction': 'Update AI components',
   'setup.aiOk': 'PyTorch detected. GPU AI enhancement is ready.',
   'setup.aiMissing':
     'Real-ESRGAN needs PyTorch and Real-ESRGAN installed in the app folder (2–3 GB with an NVIDIA GPU, a few minutes).',
@@ -261,6 +263,9 @@ export const en = {
   'workspace.presetAnimation': 'Animation',
   'workspace.presetMaxDetail': 'Maximum detail',
   'workspace.aiStrength': 'AI strength',
+  'workspace.aiCleanup': 'AI compression cleanup',
+  'workspace.aiCleanupHint': 'Removes H.264 compression artifacts with AI before upscaling: cleaner and more natural.',
+  'workspace.aiCleanupUnavailable': 'Download the AI compression cleanup model to use it:',
   'workspace.aiStrengthHint': 'Below 100 the AI result is blended with a plain upscale: keeps real texture and avoids a painted look.',
   'workspace.modelDenoise': 'Model noise reduction',
   'workspace.modelDenoiseHint': 'Real-ESRGAN General: higher removes more noise; lower keeps grain and fine detail.',

@@ -61,6 +61,21 @@ def _has_active_process(job) -> bool:
     return job.process_id is not None and job.process_ended_at is None
 
 
+def _cleanup_requested(job) -> bool:
+    config = parse_enhancement_config_json(job.enhancement_config_json).get("ai_cleanup")
+    return isinstance(config, dict) and config.get("enabled") is True
+
+
+def _model_installed(db: Session, slug: str) -> bool:
+    model = ai_model_repository.get_ai_model_by_slug(db, slug)
+    return bool(model and model.is_enabled and model.is_installed)
+
+
+def _uses_spandrel(db: Session, job) -> bool:
+    model = ai_model_repository.get_ai_model_by_slug(db, job.ai_model_slug)
+    return bool(model and model.model_type == "spandrel") or _cleanup_requested(job)
+
+
 def run_job_preflight(
     db: Session,
     job_id: str,
@@ -177,6 +192,18 @@ def run_job_preflight(
                 + ", ".join(missing_modules)
                 + ". Install the AI runtime from Setup."
             )
+
+    uses_spandrel = _uses_spandrel(db, job)
+    if uses_spandrel:
+        checks["spandrel_ready"] = False
+        if resolve_pipeline_mode(job, active_settings) != "streaming":
+            errors.append("This AI model needs the streaming pipeline (processing.pipeline_mode).")
+        elif ai_runtime_service.get_missing_spandrel_modules():
+            errors.append("This AI model needs updated AI components: update them from Setup.")
+        elif _cleanup_requested(job) and not _model_installed(db, "deh264-1x"):
+            errors.append("AI compression cleanup needs its model: download it in Models.")
+        else:
+            checks["spandrel_ready"] = True
 
     if get_job_interpolation(job) is not None:
         checks["interpolation_ready"] = False

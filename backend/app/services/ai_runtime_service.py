@@ -87,6 +87,13 @@ def _missing_modules(module_names: tuple[str, ...]) -> list[str]:
     return missing
 
 
+SPANDREL_RUNTIME_MODULES = ("spandrel", "safetensors", "einops")
+
+
+def get_missing_spandrel_modules() -> list[str]:
+    return _missing_modules(SPANDREL_RUNTIME_MODULES)
+
+
 def get_missing_face_restore_modules() -> list[str]:
     return _missing_modules(FACE_RESTORE_RUNTIME_MODULES)
 
@@ -238,6 +245,8 @@ def get_ai_runtime_status(
         python_executable=sys.executable,
         python_version=platform.python_version(),
         ai_extra_site_dir=active_settings.ai_extra_site_dir,
+        # Con torch ya instalado: paquetes nuevos que la versión de la app necesita (spandrel…).
+        missing_components=get_missing_spandrel_modules() if torch_available else [],
     )
 
 

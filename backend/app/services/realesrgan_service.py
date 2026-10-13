@@ -40,6 +40,7 @@ from app.db.database import commit_progress
 from app.db.models import AIModel, ProcessingJob
 from app.db.repositories import ai_model_repository, job_repository
 from app.enhancers.realesrgan_enhancer import RealESRGANFrameEnhancer
+from app.enhancers.spandrel_enhancer import SpandrelFrameEnhancer
 from app.schemas.ai_runtime_schema import (
     AIModelValidationResponse,
     RealESRGANDryRunRequest,
@@ -54,6 +55,7 @@ from app.services.ai_runtime_service import (
     clear_cuda_cache_if_available,
     get_ai_runtime_status,
     get_missing_realesrgan_modules,
+    get_missing_spandrel_modules,
     resolve_ai_device,
 )
 from app.services.frame_extraction_service import time_to_datetime
@@ -211,12 +213,15 @@ def validate_realesrgan_model(
     )
     warnings.extend(runtime_warnings)
     if runtime_available:
-        missing_modules = get_missing_realesrgan_modules()
+        if model.model_type == "spandrel":
+            missing_modules = get_missing_spandrel_modules()
+            label = "AI model packages (spandrel)"
+        else:
+            missing_modules = get_missing_realesrgan_modules()
+            label = "Real-ESRGAN Python packages"
         if missing_modules:
             runtime_available = False
-            warnings.append(
-                "Real-ESRGAN Python packages are missing or broken: " + ", ".join(missing_modules)
-            )
+            warnings.append(f"{label} are missing or broken: " + ", ".join(missing_modules))
 
     if not model.is_enabled:
         warnings.append("Selected Real-ESRGAN model is disabled.")
@@ -432,6 +437,13 @@ def get_streaming_enhancer(
     active_settings = _get_active_settings(settings)
     model = _get_model_or_raise(db, _resolve_job_model_slug(job))
     model_path = resolve_realesrgan_model_path(db, model.slug, active_settings)
+    if model.model_type == "spandrel":
+        return get_spandrel_enhancer(
+            model_path,
+            model.slug,
+            resolve_enhancement_outscale(_deserialize_job_enhancement_config(job), model),
+            active_settings,
+        )
     device, _, _ = _resolve_runtime_device(active_settings, raise_on_unavailable=True)
     if device is None:
         raise AIRuntimeNotAvailableError()
@@ -463,6 +475,35 @@ def get_streaming_enhancer(
 
 # Reducción de ruido por defecto del modelo General (la del -dn oficial).
 DEFAULT_MODEL_DENOISE = 0.5
+
+
+_spandrel_cache: dict[str, tuple[tuple, SpandrelFrameEnhancer]] = {}
+
+
+def get_spandrel_enhancer(
+    model_path: Path, model_slug: str, scale: int | None, settings: Settings
+) -> SpandrelFrameEnhancer:
+    """spandrel model (REQ-039), kept loaded between jobs like Real-ESRGAN (one per slug)."""
+    device, _, _ = _resolve_runtime_device(settings, raise_on_unavailable=True)
+    if device is None:
+        raise AIRuntimeNotAvailableError()
+    key = (str(model_path), device, scale, settings.ai_half_precision)
+    cached = _spandrel_cache.get(model_slug)
+    if cached is not None and cached[0] == key:
+        cached[1].reset_counters()
+        return cached[1]
+    enhancer = SpandrelFrameEnhancer(
+        model_path=model_path,
+        model_slug=model_slug,
+        device=device,
+        scale=scale,
+        half_precision=settings.ai_half_precision,
+        tile_size=settings.realesrgan_tile_size,
+        max_failed_frames=settings.realesrgan_max_failed_frames,
+        clear_cuda_cache=settings.realesrgan_clear_cuda_cache,
+    )
+    _spandrel_cache[model_slug] = (key, enhancer)
+    return enhancer
 
 
 def validate_realesrgan_job_requirements(
@@ -596,8 +637,9 @@ def _enhancer_cache_key(context: RealESRGANContext, settings: Settings) -> tuple
 
 
 def release_cached_enhancer() -> None:
-    if _enhancer_cache:
+    if _enhancer_cache or _spandrel_cache:
         _enhancer_cache.clear()
+        _spandrel_cache.clear()
         clear_cuda_cache_if_available()
 
 

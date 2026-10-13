@@ -196,7 +196,8 @@ export class OvBatchDialogComponent {
     // Habilitados aunque no estén instalados: con el motor de IA, el preflight lo indica por video.
     this.models().filter(
       (model) =>
-        model.enabled && model.category !== 'face_restoration' && model.category !== 'frame_interpolation',
+        model.enabled &&
+        !['face_restoration', 'frame_interpolation', 'compression_cleanup'].includes(model.category),
     ),
   );
   readonly interpolationAvailable = computed(() =>

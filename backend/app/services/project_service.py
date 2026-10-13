@@ -97,6 +97,8 @@ ALLOWED_ENHANCEMENT_KEYS = {
     # cuánto ruido elimina el modelo.
     "ai_strength",
     "model_denoise",
+    # Opcional (REQ-039): {"enabled": bool}, limpieza de compresión con IA antes de escalar.
+    "ai_cleanup",
 }
 ALLOWED_EXPORT_KEYS = {
     "format",
@@ -168,6 +170,13 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
     interpolation = config.get("interpolation")
     if interpolation is not None:
         _validate_interpolation(interpolation)
+    ai_cleanup = config.get("ai_cleanup")
+    if ai_cleanup is not None and (
+        not isinstance(ai_cleanup, dict)
+        or set(ai_cleanup) - {"enabled"}
+        or not isinstance(ai_cleanup.get("enabled"), bool)
+    ):
+        raise InvalidProjectConfigurationError("Enhancement config ai_cleanup is invalid.")
     for key in ("ai_strength", "model_denoise"):
         value = config.get(key)
         if value is not None and (not _is_non_negative_int(value) or value > 100):

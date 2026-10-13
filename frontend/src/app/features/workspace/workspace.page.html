@@ -215,6 +215,25 @@
             <button type="button" [class.on]="current.scale === '4x'" (click)="setScale(workspace, '4x')">4x</button>
           </div>
         </div>
+        <div class="enhance-row" [class.enhance-row--disabled]="!workspace.aiCleanupAvailable" [title]="'workspace.aiCleanupHint' | t">
+          <span>{{ 'workspace.aiCleanup' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.aiCleanup' | t"
+              [checked]="current.aiCleanup && workspace.aiCleanupAvailable"
+              [disabled]="!workspace.aiCleanupAvailable"
+              (change)="setAiCleanup(workspace, $any($event.target).checked)"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (!workspace.aiCleanupAvailable) {
+          <p class="enhance-hint">
+            {{ 'workspace.aiCleanupUnavailable' | t }}
+            <a routerLink="/models">{{ 'nav.models' | t }}</a>
+          </p>
+        }
         <label class="slider-row" [title]="'workspace.aiStrengthHint' | t">
           <span>{{ 'workspace.aiStrength' | t }}</span>
           <input

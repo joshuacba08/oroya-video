@@ -225,6 +225,9 @@ export interface WorkspaceVm {
   aiStrength: number;
   /** 0-100: reducción de ruido del modelo Real-ESRGAN General. */
   modelDenoise: number;
+  /** Limpieza de compresión con IA (modelo 1x) antes de escalar. */
+  aiCleanup: boolean;
+  aiCleanupAvailable: boolean;
   /** Codificación de la exportación (REQ-040). */
   encoding: { codec: VideoCodec; quality: EncodingQuality; hardware: boolean; tenBit: boolean };
   videoWidth: number;

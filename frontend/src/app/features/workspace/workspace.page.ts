@@ -52,6 +52,7 @@ type WorkspaceControls = {
   interpolationTarget: InterpolationTarget;
   aiStrength: number;
   modelDenoise: number;
+  aiCleanup: boolean;
   keepAudio: boolean;
   codec: VideoCodec;
   quality: EncodingQuality;
@@ -74,43 +75,56 @@ const H264_LEVEL_51_PIXEL_RATE = 983_040 * 256;
 /** H.265 nivel 5.1: 534 773 760 muestras de luma por segundo. */
 const H265_LEVEL_51_PIXEL_RATE = 534_773_760;
 
+type PresetModel = {
+  slug: string;
+  aiStrength: number;
+  modelDenoise: number;
+};
+
 type QualityPreset = {
   id: string;
   labelKey: string;
-  modelSlug: string;
+  /** Por orden de preferencia: el primero instalado (o habilitado) que haya. */
+  models: PresetModel[];
   scale: WorkspaceVm['scale'];
-  aiStrength: number;
-  modelDenoise: number;
+  /** Limpieza de compresión con IA (DeH264) antes de escalar, si está instalada. */
+  aiCleanup: boolean;
   compressionCleanup: boolean;
 };
 
-/** Valores elegidos comparando en video real de DVD (piano, caras) y animación. */
+/** Valores elegidos comparando recortes reales de video de DVD (piano, caras) y animación. */
 const QUALITY_PRESETS: QualityPreset[] = [
   {
     id: 'old-video',
     labelKey: 'workspace.presetOldVideo',
-    modelSlug: 'realesrgan-general',
+    models: [
+      { slug: 'realplksr-real-2x', aiStrength: 100, modelDenoise: 50 },
+      { slug: 'realesrgan-general', aiStrength: 85, modelDenoise: 30 },
+    ],
     scale: '2x',
-    aiStrength: 85,
-    modelDenoise: 30,
+    aiCleanup: true,
     compressionCleanup: true,
   },
   {
     id: 'animation',
     labelKey: 'workspace.presetAnimation',
-    modelSlug: 'realesrgan-x4',
+    models: [
+      { slug: 'span-anime-2x', aiStrength: 100, modelDenoise: 50 },
+      { slug: 'realesrgan-x4', aiStrength: 100, modelDenoise: 50 },
+    ],
     scale: '2x',
-    aiStrength: 100,
-    modelDenoise: 50,
+    aiCleanup: false,
     compressionCleanup: true,
   },
   {
     id: 'max-detail',
     labelKey: 'workspace.presetMaxDetail',
-    modelSlug: 'realesrgan-x4',
+    models: [
+      { slug: 'realplksr-4x', aiStrength: 100, modelDenoise: 50 },
+      { slug: 'realesrgan-x4', aiStrength: 100, modelDenoise: 50 },
+    ],
     scale: '4x',
-    aiStrength: 100,
-    modelDenoise: 50,
+    aiCleanup: false,
     compressionCleanup: false,
   },
 ];
@@ -212,6 +226,7 @@ export class WorkspacePage {
             interpolation: this.interpolationConfig(workspace, controls),
             ai_strength: controls.aiStrength,
             model_denoise: controls.modelDenoise,
+            ai_cleanup: { enabled: controls.aiCleanup && workspace.aiCleanupAvailable },
           },
           export_config: this.exportConfig(controls),
         }),
@@ -476,17 +491,32 @@ export class WorkspacePage {
     if (!preset) {
       return;
     }
-    const model = workspace.alternateModels.find((item) => item.slug === preset.modelSlug);
+    const candidates = preset.models
+      .map((choice) => ({
+        choice,
+        model: workspace.alternateModels.find((item) => item.slug === choice.slug),
+      }))
+      .filter((item) => item.model?.enabled);
+    // El primer modelo instalado; si ninguno lo está, el preferido (Modelos lo descargará).
+    const picked = candidates.find((item) => item.model?.installed) ?? candidates[0];
+    const uses = picked?.choice ?? preset.models[preset.models.length - 1];
+    // Con la limpieza de IA, el desbloqueo de ffmpeg sobra.
+    const aiCleanup = preset.aiCleanup && workspace.aiCleanupAvailable;
     this.updateControls(workspace, {
-      ...(model?.enabled ? { modelId: model.id } : {}),
+      ...(picked?.model ? { modelId: picked.model.id } : {}),
       scale: preset.scale,
       exportResolution: preset.scale,
-      aiStrength: preset.aiStrength,
-      modelDenoise: preset.modelDenoise,
+      aiStrength: uses.aiStrength,
+      modelDenoise: uses.modelDenoise,
+      aiCleanup,
       denoise: 0,
       sharpen: 0,
-      compressionCleanup: preset.compressionCleanup,
+      compressionCleanup: preset.compressionCleanup && !aiCleanup,
     });
+  }
+
+  setAiCleanup(workspace: WorkspaceVm, checked: boolean): void {
+    this.updateControls(workspace, { aiCleanup: checked });
   }
 
   /** Salida que muchos reproductores (los de Windows, navegadores) no decodifican con fluidez:
@@ -751,6 +781,7 @@ export class WorkspacePage {
             interpolation: this.interpolationConfig(workspace, controls),
             ai_strength: controls.aiStrength,
             model_denoise: controls.modelDenoise,
+            ai_cleanup: { enabled: controls.aiCleanup && workspace.aiCleanupAvailable },
           },
           export_config: this.exportConfig(controls),
           workspace_state: {
@@ -889,6 +920,7 @@ export class WorkspacePage {
       interpolationTarget: workspace.interpolation.targetFps,
       aiStrength: workspace.aiStrength,
       modelDenoise: workspace.modelDenoise,
+      aiCleanup: workspace.aiCleanup,
       codec: workspace.encoding.codec,
       quality: workspace.encoding.quality,
       gpuEncoding: workspace.encoding.hardware,

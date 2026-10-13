@@ -103,7 +103,9 @@ from app.services.process_registry_service import (
 from app.services.realesrgan_service import (
     LOW_DISK_PAUSE_BYTES,
     free_disk_bytes,
+    get_spandrel_enhancer,
     get_streaming_enhancer,
+    resolve_realesrgan_model_path,
 )
 from app.services.tool_detection_service import resolve_tool_path
 from app.services.video_encoding_service import (
@@ -485,12 +487,28 @@ def build_frame_processor(
         )
         if isinstance(ai_strength, bool) or not isinstance(ai_strength, int):
             ai_strength = 100
-        return ImageProcessor(enhancer, face_restorer, ai_strength / 100), enhancer.scale or 1
+        cleanup = build_ai_cleanup(db, job, settings)
+        return (
+            ImageProcessor(enhancer, face_restorer, ai_strength / 100, cleanup),
+            enhancer.scale or 1,
+        )
     if engine != "mock":
         raise FrameEnhancerNotFoundError()
     if face_restorer is not None:
         return ImageProcessor(None, face_restorer), 1
     return PassthroughProcessor(settings.mock_enhancer_frame_delay_ms / 1000), 1
+
+
+AI_CLEANUP_MODEL_SLUG = "deh264-1x"
+
+
+def build_ai_cleanup(db: Session, job: ProcessingJob, settings: Settings):
+    """1x compression clean-up model before upscaling, when enabled for the job."""
+    config = parse_enhancement_config_json(job.enhancement_config_json).get("ai_cleanup")
+    if not isinstance(config, dict) or config.get("enabled") is not True:
+        return None
+    model_path = resolve_realesrgan_model_path(db, AI_CLEANUP_MODEL_SLUG, settings)
+    return get_spandrel_enhancer(model_path, AI_CLEANUP_MODEL_SLUG, 1, settings)
 
 
 def _mark_failed(db: Session, job: ProcessingJob, code: str, message: str) -> None:
