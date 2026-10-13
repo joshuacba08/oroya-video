@@ -116,6 +116,33 @@ def _validated(field_name: str, value: Any) -> Any:
         return None
 
 
+def activate_installed_ai_runtime(settings: Settings | None = None) -> bool:
+    """Switch from the mock engine to Real-ESRGAN when the AI runtime is installed and works.
+
+    Repairs installs whose final check failed (the engine stayed on "mock" although every
+    package was in place). Only in the desktop app and only if the user never chose an engine.
+    """
+    from app.services.ai_runtime_service import (
+        ensure_ai_extra_site_dir,
+        get_missing_realesrgan_modules,
+    )
+
+    active_settings = _get_active_settings(settings)
+    if not active_settings.oroya_data_dir or active_settings.frame_enhancer_engine != "mock":
+        return False
+    if "frame_enhancer_engine" in _load_ui_settings(active_settings).get("processing", {}):
+        return False
+    site_dir = active_settings.ai_extra_site_dir
+    if not site_dir or not Path(site_dir).is_dir():
+        return False
+    ensure_ai_extra_site_dir(active_settings)
+    if get_missing_realesrgan_modules():
+        return False
+    set_frame_enhancer_engine("realesrgan", active_settings)
+    logger.info("AI runtime found: enhancer engine switched to Real-ESRGAN")
+    return True
+
+
 def set_frame_enhancer_engine(engine: str, settings: Settings | None = None) -> None:
     """Change and persist the enhancer engine (used after installing the AI runtime)."""
     active_settings = _get_active_settings(settings)
