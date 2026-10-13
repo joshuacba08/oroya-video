@@ -1,7 +1,30 @@
 import { expect, test } from '@playwright/test';
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 
 const CLIP_PATH = path.resolve(__dirname, '.tmp', 'clip.mp4');
+const TRIM_CLIP_PATH = path.resolve(__dirname, '.tmp', 'corte.mp4');
+// Exportaciones de esta ejecución (STORAGE_PATH de playwright.config.ts).
+const EXPORTS_DIR = path.resolve(
+  __dirname,
+  '.tmp',
+  `storage-${process.env['E2E_RUN_ID']}`,
+  'exports',
+);
+
+function probeDuration(file: string): number {
+  const output = execFileSync('ffprobe', [
+    '-v',
+    'error',
+    '-show_entries',
+    'format=duration',
+    '-of',
+    'default=noprint_wrappers=1:nokey=1',
+    file,
+  ]);
+  return Number(output.toString().trim());
+}
 
 // Los flujos comparten datos (el proyecto importado en el primero se usa después).
 test.describe.configure({ mode: 'serial' });
@@ -58,6 +81,31 @@ test('imports several videos at once and processes them as a batch', async ({ pa
       expect(names).toContain(`${clip} (Oroya 2x).mp4`);
     }
   }).toPass({ timeout: 100_000, intervals: [3_000] });
+});
+
+test('trims a 2 s clip and exports only the chosen second', async ({ page }) => {
+  await page.goto('/projects');
+  await page.getByRole('button', { name: 'New Project' }).first().click();
+  await page.locator('#manual-video-path').fill(TRIM_CLIP_PATH);
+  await page.locator('#manual-video-path').press('Enter');
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/);
+
+  await page.getByRole('checkbox', { name: 'Trim video' }).check({ force: true });
+  await page.locator('#trim-start').fill('0:00.5');
+  await page.locator('#trim-start').press('Tab');
+  await page.locator('#trim-end').fill('0:01.5');
+  await page.locator('#trim-end').press('Tab');
+  await expect(page.getByText('Processes 0:01.0 of 0:02.0.')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Start Processing' }).click();
+  await expect(page.getByText('Processing completed. Your export is ready.')).toBeVisible({
+    timeout: 90_000,
+  });
+
+  const exported = path.join(EXPORTS_DIR, 'corte', 'corte (Oroya 2x).mp4');
+  expect(existsSync(exported)).toBe(true);
+  // Video y audio cortados igual: dura ~1 s (no los 2 s del original).
+  expect(Math.abs(probeDuration(exported) - 1)).toBeLessThan(0.15);
 });
 
 test('switches the interface language without reloading', async ({ page }) => {

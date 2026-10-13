@@ -151,6 +151,7 @@ def _build_job_configs(
     model_id: str | None,
     enhancement_override: dict[str, Any] | None,
     export_override: dict[str, Any] | None,
+    video: VideoAsset | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], AIModel]:
     enhancement_input = dict(enhancement_override or {})
     if model_id:
@@ -162,6 +163,7 @@ def _build_job_configs(
         export_config=export_override,
         workspace_state=None,
         existing_project=project,
+        video_asset=video,
     )
     model = _resolve_model_for_job(db, enhancement_config["model_id"])
     return enhancement_config, export_config, model
@@ -206,6 +208,7 @@ def create_processing_job(
         model_id=request.model_id,
         enhancement_override=request.enhancement_config,
         export_override=request.export_config,
+        video=video,
     )
 
     job_data = {

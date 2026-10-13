@@ -497,6 +497,29 @@ input[type='range'] {
   font: inherit;
 }
 
+.trim-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.trim-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.trim-actions button {
+  flex: 1;
+  border: 1px solid var(--n-border-1);
+  border-radius: var(--n-radius-md);
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--n-text-2);
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
 .export-field__folder {
   display: flex;
   align-items: center;

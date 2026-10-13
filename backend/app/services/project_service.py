@@ -44,6 +44,7 @@ from app.schemas.project_schema import (
 from app.services import job_workspace_service
 from app.services.job_contract_service import build_job_actions, is_preview_available
 from app.services.preview_service import get_compare_frame_info, get_recommended_preview_frame_index
+from app.utils.trim import MIN_TRIM_SECONDS
 
 logger = get_logger(__name__)
 
@@ -96,6 +97,8 @@ ALLOWED_EXPORT_KEYS = {
     # Opcionales: nombre del archivo y carpeta elegidos por el usuario (vacío = por defecto).
     "file_name",
     "output_dir",
+    # Opcional: {start_seconds, end_seconds} para procesar solo un fragmento.
+    "trim",
 }
 EXPORT_FILE_NAME_MAX_LENGTH = 120
 ALLOWED_WORKSPACE_KEYS = {
@@ -185,11 +188,41 @@ def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:
         not isinstance(file_name, str) or len(file_name) > EXPORT_FILE_NAME_MAX_LENGTH
     ):
         raise InvalidProjectConfigurationError("Export file name is invalid.")
+    trim = config.get("trim")
+    if trim is not None:
+        _validate_trim_shape(trim)
     output_dir = config.get("output_dir")
     if output_dir is not None and output_dir != "":
         if not isinstance(output_dir, str) or not Path(output_dir).expanduser().is_absolute():
             raise InvalidProjectConfigurationError("The export folder must be an absolute path.")
     return config
+
+
+def _validate_trim_shape(trim: object) -> None:
+    if not isinstance(trim, dict) or set(trim) - {"start_seconds", "end_seconds"}:
+        raise InvalidProjectConfigurationError("Trim must be {start_seconds, end_seconds}.")
+    values = [trim.get("start_seconds"), trim.get("end_seconds")]
+    for value in values:
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0
+        ):
+            raise InvalidProjectConfigurationError("Trim times must be positive numbers.")
+    start, end = values
+    if start is not None and end is not None and end - start < MIN_TRIM_SECONDS:
+        raise InvalidProjectConfigurationError(
+            f"The trimmed fragment must last at least {MIN_TRIM_SECONDS} s."
+        )
+
+
+def validate_trim_against_video(export_config: dict[str, Any], video_asset) -> None:
+    """The fragment must start inside the video (the end is clamped to its duration)."""
+    trim = export_config.get("trim")
+    duration = getattr(video_asset, "duration_seconds", None)
+    if not isinstance(trim, dict) or not duration:
+        return
+    start = trim.get("start_seconds") or 0
+    if start >= duration - MIN_TRIM_SECONDS:
+        raise InvalidProjectConfigurationError("The trim starts after the end of the video.")
 
 
 def _validate_workspace_state(config: dict[str, Any]) -> dict[str, Any]:
@@ -285,6 +318,7 @@ def _build_project_configs(
     workspace_state: dict[str, Any] | None,
     existing_project: Project | None = None,
     settings: Settings | None = None,
+    video_asset: VideoAsset | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     default_enhancement, default_export = (
         (DEFAULT_ENHANCEMENT_CONFIG, DEFAULT_EXPORT_CONFIG)
@@ -311,6 +345,8 @@ def _build_project_configs(
         _merge_config(existing_enhancement, enhancement_config)
     )
     merged_export = _validate_export_config(_merge_config(existing_export, export_config))
+    if export_config is not None:
+        validate_trim_against_video(merged_export, video_asset)
     merged_workspace = _validate_workspace_state(_merge_config(existing_workspace, workspace_state))
     merged_enhancement["model_id"] = _validate_model_reference(
         db,
@@ -333,6 +369,7 @@ def create_project(
         export_config=request.export_config,
         workspace_state=request.workspace_state,
         settings=settings,
+        video_asset=video_asset,
     )
 
     project_data = {
@@ -515,6 +552,7 @@ def update_project(
         export_config=update_data.get("export_config"),
         workspace_state=update_data.get("workspace_state"),
         existing_project=project,
+        video_asset=video_asset,
     )
     if "enhancement_config" in update_data:
         patch_data["enhancement_config_json"] = _serialize_config(enhancement_config)

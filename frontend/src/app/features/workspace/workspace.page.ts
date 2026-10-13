@@ -33,6 +33,7 @@ import type {
   WorkspaceVm,
 } from '../../core/models/oroya.models';
 import { OvVideoPreviewComponent } from '../../shared/ui/ov-video-preview.component';
+import { clampTrim, formatTrimTime, MIN_TRIM_SECONDS, parseTrimTime } from './trim-time';
 
 type WorkspaceControls = {
   modelId: string;
@@ -49,6 +50,10 @@ type WorkspaceControls = {
   exportFileName: string;
   /** Vacío: la carpeta de exportación de Ajustes (con una subcarpeta por proyecto). */
   exportDir: string;
+  /** Procesar solo [trimStart, trimEnd] (segundos del original). */
+  trimEnabled: boolean;
+  trimStart: number;
+  trimEnd: number;
   compareMode: WorkspaceVm['compareMode'];
   zoom: WorkspaceVm['zoom'];
 };
@@ -621,7 +626,55 @@ export class WorkspacePage {
       output_resolution: controls.exportResolution,
       file_name: controls.exportFileName.trim(),
       output_dir: controls.exportDir,
+      trim: controls.trimEnabled
+        ? { start_seconds: controls.trimStart, end_seconds: controls.trimEnd }
+        : null,
     };
+  }
+
+  readonly formatTrimTime = formatTrimTime;
+
+  setTrimEnabled(workspace: WorkspaceVm, enabled: boolean): void {
+    const current = this.ensureControls(workspace);
+    const range =
+      current.trimEnd > current.trimStart
+        ? clampTrim(current.trimStart, current.trimEnd, workspace.videoDurationSeconds)
+        : { start: 0, end: workspace.videoDurationSeconds };
+    this.updateControls(workspace, { trimEnabled: enabled, trimStart: range.start, trimEnd: range.end });
+  }
+
+  setTrimTime(workspace: WorkspaceVm, edge: 'start' | 'end', input: HTMLInputElement): void {
+    const current = this.ensureControls(workspace);
+    const seconds = parseTrimTime(input.value);
+    if (seconds === null) {
+      input.value = formatTrimTime(edge === 'start' ? current.trimStart : current.trimEnd);
+      return;
+    }
+    this.applyTrimEdge(workspace, edge, seconds);
+  }
+
+  /** Segundos del original del fotograma seleccionado en la vista previa, si hay uno. */
+  currentFrameSeconds(workspace: WorkspaceVm): number | null {
+    const index = this.selectedFrameIndex();
+    if (index === null || index < 0 || !workspace.videoFps) {
+      return null;
+    }
+    return workspace.previewTimeOffset + index / workspace.videoFps;
+  }
+
+  setTrimFromFrame(workspace: WorkspaceVm, edge: 'start' | 'end', seconds: number): void {
+    this.applyTrimEdge(workspace, edge, seconds);
+  }
+
+  private applyTrimEdge(workspace: WorkspaceVm, edge: 'start' | 'end', seconds: number): void {
+    const current = this.ensureControls(workspace);
+    const duration = workspace.videoDurationSeconds;
+    // Al mover un extremo, el otro se aparta lo justo para mantener la longitud mínima.
+    const range =
+      edge === 'start'
+        ? clampTrim(seconds, Math.max(current.trimEnd, seconds + MIN_TRIM_SECONDS), duration)
+        : clampTrim(Math.min(current.trimStart, seconds - MIN_TRIM_SECONDS), seconds, duration);
+    this.updateControls(workspace, { trimStart: range.start, trimEnd: range.end });
   }
 
   /** Nombre que tendrá el archivo si no se elige otro (mismo criterio que el backend). */
@@ -666,6 +719,9 @@ export class WorkspacePage {
       keepAudio: workspace.keepAudio,
       exportFileName: workspace.exportFileName,
       exportDir: workspace.exportDir,
+      trimEnabled: workspace.trim !== null,
+      trimStart: workspace.trim?.start ?? 0,
+      trimEnd: workspace.trim?.end ?? workspace.videoDurationSeconds,
       compareMode: workspace.compareMode,
       zoom: workspace.zoom,
     };

@@ -44,6 +44,7 @@ from app.services.process_registry_service import (
 )
 from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.process_output import StderrDrain, stop_process_quietly, watch_process_output
+from app.utils.trim import TrimRange, get_job_trim, trim_input_args
 
 logger = get_logger(__name__)
 MUXED_VIDEO_FILE_NAME = "video_with_audio.mp4"
@@ -77,6 +78,7 @@ def build_audio_copy_mux_command(
     silent_video_path: Path,
     original_video_path: Path,
     output_path: Path,
+    trim: TrimRange | None = None,
 ) -> list[str]:
     return [
         "ffmpeg",
@@ -84,6 +86,8 @@ def build_audio_copy_mux_command(
         "-y",
         "-i",
         str(silent_video_path),
+        # El audio del mismo fragmento que el video recortado.
+        *trim_input_args(trim),
         "-i",
         str(original_video_path),
         "-map",
@@ -108,6 +112,7 @@ def build_audio_aac_mux_command(
     silent_video_path: Path,
     original_video_path: Path,
     output_path: Path,
+    trim: TrimRange | None = None,
 ) -> list[str]:
     return [
         "ffmpeg",
@@ -115,6 +120,8 @@ def build_audio_aac_mux_command(
         "-y",
         "-i",
         str(silent_video_path),
+        # El audio del mismo fragmento que el video recortado.
+        *trim_input_args(trim),
         "-i",
         str(original_video_path),
         "-map",
@@ -376,7 +383,9 @@ def mux_audio_for_job(
             stage="muxing_audio",
         )
         db.commit()
-        command = build_audio_copy_mux_command(silent_video_path, original_video_path, output_path)
+        command = build_audio_copy_mux_command(
+            silent_video_path, original_video_path, output_path, get_job_trim(job)
+        )
         command[0] = ffmpeg_path
         status, stderr_output = _run_mux_command(db, job, command, started_at)
         if status in {"cancelled", "stopped"}:
@@ -403,6 +412,7 @@ def mux_audio_for_job(
                 silent_video_path,
                 original_video_path,
                 output_path,
+                get_job_trim(job),
             )
             fallback_command[0] = ffmpeg_path
             status, stderr_output = _run_mux_command(db, job, fallback_command, started_at)

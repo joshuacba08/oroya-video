@@ -592,6 +592,9 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
     keepAudio: booleanValue(exportConfig['keep_audio'], true),
     exportFileName: stringValue(exportConfig['file_name']),
     exportDir: stringValue(exportConfig['output_dir']),
+    trim: mapTrim(exportConfig['trim']),
+    videoDurationSeconds: numberValue(record(response.video)['duration_seconds'], 0),
+    previewTimeOffset: mapTrim(record(latestJob['export_config'])['trim'])?.start ?? 0,
     compareMode:
       stringValue(workspaceState['compare_mode']) === 'side_by_side' ? 'side_by_side' : 'slider',
     zoom: stringValue(workspaceState['zoom']) === '100%' ? '100%' : 'fit',
@@ -615,6 +618,16 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
       : idlePipeline(),
     actions: response.actions,
   };
+}
+
+function mapTrim(value: unknown): WorkspaceVm['trim'] {
+  const trim = record(value);
+  if (!Object.keys(trim).length) {
+    return null;
+  }
+  const start = numberValue(trim['start_seconds'], 0);
+  const end = numberValue(trim['end_seconds'], 0);
+  return end > start ? { start, end } : null;
 }
 
 function idlePipeline(): PipelineStepVm[] {

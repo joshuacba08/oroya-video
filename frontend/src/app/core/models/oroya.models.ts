@@ -214,6 +214,11 @@ export interface WorkspaceVm {
   keepAudio: boolean;
   exportFileName: string;
   exportDir: string;
+  /** Fragmento a procesar (segundos del original); null = el video entero. */
+  trim: { start: number; end: number } | null;
+  videoDurationSeconds: number;
+  /** Inicio del recorte del último job: los fotogramas de la vista previa empiezan ahí. */
+  previewTimeOffset: number;
   compareMode: 'slider' | 'side_by_side';
   zoom: 'fit' | '100%';
   videoFps: number;

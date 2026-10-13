@@ -4,6 +4,8 @@ import path from 'node:path';
 
 const tmp = path.resolve(__dirname, '.tmp');
 export const CLIP_PATH = path.join(tmp, 'clip.mp4');
+/** Clip de 2 s que el test de recorte deja en 1 s. */
+export const TRIM_CLIP_PATH = path.join(tmp, 'corte.mp4');
 
 /** Clips de prueba (con audio) generados con ffmpeg: uno de 2 s y tres de 1 s para el lote. */
 export const BATCH_CLIPS = ['lote-a', 'lote-b', 'lote-c'].map((name) => path.join(tmp, `${name}.mp4`));
@@ -40,6 +42,7 @@ function makeClip(output: string, seconds: number): void {
 export default function globalSetup(): void {
   mkdirSync(tmp, { recursive: true });
   makeClip(CLIP_PATH, 2);
+  makeClip(TRIM_CLIP_PATH, 2);
   // Clips de 1 s para el lote: la cola los procesa uno tras otro.
   for (const clip of BATCH_CLIPS) {
     makeClip(clip, 1);

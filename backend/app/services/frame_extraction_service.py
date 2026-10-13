@@ -39,6 +39,7 @@ from app.utils.process_output import (
     stop_process_quietly,
     watch_process_output,
 )
+from app.utils.trim import TrimRange, effective_duration, get_job_trim, trim_input_args
 
 logger = get_logger(__name__)
 FRAME_FILE_PATTERN = "frame_%08d.png"
@@ -78,10 +79,11 @@ def resolve_job_input_video(job) -> Path:
 
 def estimate_total_frames(job) -> int | None:
     video = job.video_asset or getattr(job, "video_asset", None)
-    if video is None or video.duration_seconds is None or video.fps is None:
+    duration = effective_duration(job)
+    if video is None or duration is None or video.fps is None:
         return None
 
-    estimated = round(video.duration_seconds * video.fps)
+    estimated = round(duration * video.fps)
     return estimated if estimated > 0 else None
 
 
@@ -89,11 +91,13 @@ def build_frame_extraction_command(
     input_path: Path,
     output_dir: Path,
     frame_pattern: str = FRAME_FILE_PATTERN,
+    trim: TrimRange | None = None,
 ) -> list[str]:
     command = [
         "ffmpeg",
         "-hide_banner",
         "-y",
+        *trim_input_args(trim),
         "-i",
         str(input_path),
         "-map",
@@ -131,12 +135,18 @@ def validate_ffmpeg_available() -> str:
     return ffmpeg_path
 
 
-def ensure_temp_storage_capacity(video_asset, settings: Settings | None = None) -> None:
+def ensure_temp_storage_capacity(
+    video_asset,
+    settings: Settings | None = None,
+    duration_seconds: float | None = None,
+) -> None:
     active_settings = _get_active_settings(settings)
     temp_path = get_temp_path(active_settings)
     _, _, free_bytes = shutil.disk_usage(temp_path)
-    # Los PNG extraídos ocupan decenas de veces el MP4: se estima por resolución y frames.
-    frames = int((video_asset.duration_seconds or 0) * (video_asset.fps or 0))
+    # Los PNG extraídos ocupan decenas de veces el MP4: se estima por resolución y frames
+    # (de la parte recortada, si la hay).
+    duration = duration_seconds if duration_seconds is not None else video_asset.duration_seconds
+    frames = int((duration or 0) * (video_asset.fps or 0))
     estimated_bytes = estimate_png_frames_bytes(
         frames, video_asset.width or 0, video_asset.height or 0
     )
@@ -234,7 +244,7 @@ def extract_frames_for_job(
 
     try:
         input_path = resolve_job_input_video(job)
-        ensure_temp_storage_capacity(job.video_asset, active_settings)
+        ensure_temp_storage_capacity(job.video_asset, active_settings, effective_duration(job))
         ffmpeg_path = validate_ffmpeg_available()
     except (
         VideoAssetFileMissingError,
@@ -255,7 +265,9 @@ def extract_frames_for_job(
     working_dir = workspace["working_dir"]
     enhanced_frames_dir = workspace["enhanced_frames_dir"]
     estimated_frames = estimate_total_frames(job)
-    command = build_frame_extraction_command(input_path, original_frames_dir)
+    command = build_frame_extraction_command(
+        input_path, original_frames_dir, trim=get_job_trim(job)
+    )
     command[0] = ffmpeg_path
 
     started_at = time.monotonic()
