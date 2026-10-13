@@ -5175,6 +5175,10 @@ export interface components {
             profile?: string | null;
             /** Bit Rate */
             bit_rate?: number | null;
+            /** Color Space */
+            color_space?: string | null;
+            /** Color Range */
+            color_range?: string | null;
         };
     };
     responses: never;

@@ -98,6 +98,7 @@ from app.services.realesrgan_service import (
     free_disk_bytes,
     get_streaming_enhancer,
 )
+from app.services.tool_detection_service import resolve_tool_path
 from app.services.video_encoding_service import (
     ENCODED_VIDEO_FILE_NAME,
     ENCODING_CODEC,
@@ -107,8 +108,16 @@ from app.services.video_encoding_service import (
     FFMPEG_ENCODING_CODEC,
     build_enhancement_video_filters,
     build_output_scale_filter,
+    build_post_ai_filters,
+    build_pre_ai_filters,
     combine_video_filters,
     resolve_encoding_fps,
+)
+from app.utils.color import (
+    OUTPUT_COLOR_ARGS,
+    decode_color_filter,
+    encode_color_filter,
+    source_color_for_video,
 )
 from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.png import encode_png_rgb, read_png_size
@@ -223,6 +232,7 @@ def build_decoder_command(
     duration_seconds: float | None = None,
     *,
     probe: bool = False,
+    video_filters: str | None = None,
 ) -> list[str]:
     """Decode to raw `rgb24` frames on stdout at a constant frame rate (audio stays in sync
     with VFR sources too). With `probe`, a single PNG frame to learn the decoded size."""
@@ -244,7 +254,7 @@ def build_decoder_command(
         "-map",
         "0:v:0",
         "-vf",
-        f"fps={_fps_arg(fps)}",
+        ",".join(item for item in (f"fps={_fps_arg(fps)}", video_filters) if item),
         *output,
     ]
 
@@ -281,6 +291,7 @@ def build_segment_encoder_command(
         SEGMENT_CRF,
         "-pix_fmt",
         ENCODING_PIXEL_FORMAT,
+        *OUTPUT_COLOR_ARGS,
         "-f",
         "mp4",
         str(output_path),
@@ -590,7 +601,13 @@ class _StreamingRun:
             unregister_process(self.job.id, "ffmpeg_decode")
 
     def _start_decoder(self, start_seconds: float, duration: float | None) -> None:
-        command = build_decoder_command(self.input_path, self.fps_exact, start_seconds, duration)
+        command = build_decoder_command(
+            self.input_path,
+            self.fps_exact,
+            start_seconds,
+            duration,
+            video_filters=self.decode_filters,
+        )
         command[0] = self.ffmpeg_path
         self.decoder = subprocess.Popen(
             command,
@@ -639,11 +656,23 @@ class _StreamingRun:
 
         enhancement_config = parse_enhancement_config_json(job.enhancement_config_json)
         export_config = parse_enhancement_config_json(job.export_config_json)
+        # Limpieza y ruido antes de la IA (decodificador); nitidez y escala, después.
+        source_color = source_color_for_video(
+            job.video_asset, self.input_path, resolve_tool_path("ffprobe")
+        )
+        self.decode_filters = combine_video_filters(
+            build_pre_ai_filters(enhancement_config), decode_color_filter(source_color)
+        )
         user_filters = combine_video_filters(
             build_enhancement_video_filters(enhancement_config),
             build_output_scale_filter(export_config, job.video_asset, processor_scale),
         )
-        self.video_filters = combine_video_filters(user_filters, EVEN_DIMENSIONS_FILTER)
+        self.video_filters = combine_video_filters(
+            build_post_ai_filters(enhancement_config),
+            build_output_scale_filter(export_config, job.video_asset, processor_scale),
+            EVEN_DIMENSIONS_FILTER,
+            encode_color_filter(),
+        )
 
         trim_start = trim.start_seconds if trim else 0.0
         seek = trim_start + self.start_frame / self.fps

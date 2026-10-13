@@ -34,6 +34,9 @@ class VideoAsset(Base):
     resolution_label: Mapped[str | None] = mapped_column(String(50), nullable=True)
     fps: Mapped[float | None] = mapped_column(Float, nullable=True)
     pix_fmt: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Matriz y rango de color de la fuente (REQ-038); None en videos importados antes.
+    color_space: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    color_range: Mapped[str | None] = mapped_column(String(10), nullable=True)
     video_profile: Mapped[str | None] = mapped_column(String(100), nullable=True)
     video_bit_rate: Mapped[int | None] = mapped_column(Integer, nullable=True)
     has_audio: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)

@@ -48,6 +48,7 @@ from app.services.process_registry_service import (
     register_process,
     unregister_process,
 )
+from app.utils.color import OUTPUT_COLOR_ARGS, encode_color_filter
 from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.process_output import (
     StderrDrain,
@@ -76,7 +77,9 @@ def resolve_encoding_fps(job) -> float:
     return 30.0
 
 
-def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
+def build_pre_ai_filters(enhancement_config: dict) -> str | None:
+    """Clean-up applied to the source, before the AI (REQ-038): compression artefacts and
+    noise removed after upscaling would also blur the detail the AI just created."""
     filters: list[str] = []
 
     if enhancement_config.get("compression_cleanup") is True:
@@ -86,13 +89,22 @@ def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
     if isinstance(denoise, int) and not isinstance(denoise, bool) and 0 < denoise <= 100:
         filters.append(f"hqdn3d={denoise * 0.08:.2f}")
 
+    return ",".join(filters) or None
+
+
+def build_post_ai_filters(enhancement_config: dict) -> str | None:
+    """Applied to the enhanced frames when encoding."""
     sharpen = enhancement_config.get("sharpen")
     if isinstance(sharpen, int) and not isinstance(sharpen, bool) and 0 < sharpen <= 100:
-        filters.append(f"unsharp=5:5:{sharpen / 100 * 1.5:.2f}")
+        return f"unsharp=5:5:{sharpen / 100 * 1.5:.2f}"
+    return None
 
-    if not filters:
-        return None
-    return ",".join(filters)
+
+def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
+    """All user filters, in processing order (used to describe them in the job logs)."""
+    return combine_video_filters(
+        build_pre_ai_filters(enhancement_config), build_post_ai_filters(enhancement_config)
+    )
 
 
 OUTPUT_RESOLUTION_FACTORS = {"original": 1, "2x": 2, "4x": 4}
@@ -139,6 +151,7 @@ def build_video_encoding_command(
     codec: str = FFMPEG_ENCODING_CODEC,
     pix_fmt: str = ENCODING_PIXEL_FORMAT,
     video_filters: str | None = None,
+    color_args: list[str] | None = None,
 ) -> list[str]:
     command = [
         "ffmpeg",
@@ -155,6 +168,7 @@ def build_video_encoding_command(
         codec,
         "-pix_fmt",
         pix_fmt,
+        *(color_args or []),
         "-movflags",
         "+faststart",
         "-progress",
@@ -289,11 +303,14 @@ def encode_video_for_job(
     enhancement_config = parse_enhancement_config_json(job.enhancement_config_json)
     export_config = parse_enhancement_config_json(job.export_config_json)
     enhanced_scale = job.realesrgan_scale if job.enhancer_engine == "realesrgan" else 1
+    # Los filtros previos ya se aplicaron al extraer los fotogramas (antes de la IA).
     user_filters = combine_video_filters(
-        build_enhancement_video_filters(enhancement_config),
+        build_post_ai_filters(enhancement_config),
         build_output_scale_filter(export_config, job.video_asset, enhanced_scale),
     )
-    video_filters = combine_video_filters(user_filters, EVEN_DIMENSIONS_FILTER)
+    video_filters = combine_video_filters(
+        user_filters, EVEN_DIMENSIONS_FILTER, encode_color_filter()
+    )
     encoded_dir = ensure_job_encoded_directory(job.id, active_settings)
     output_path = get_job_silent_video_path(job.id, active_settings)
     command = build_video_encoding_command(
@@ -301,6 +318,7 @@ def encode_video_for_job(
         output_path,
         fps,
         video_filters=video_filters,
+        color_args=OUTPUT_COLOR_ARGS,
     )
     command[0] = ffmpeg_path
     started_at = time.monotonic()

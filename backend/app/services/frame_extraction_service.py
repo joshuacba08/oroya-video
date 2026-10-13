@@ -33,6 +33,8 @@ from app.services.process_registry_service import (
     register_process,
     unregister_process,
 )
+from app.utils.color import decode_color_filter, source_color_for_video
+from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.process_output import (
     StderrDrain,
     is_disk_full,
@@ -92,6 +94,7 @@ def build_frame_extraction_command(
     output_dir: Path,
     frame_pattern: str = FRAME_FILE_PATTERN,
     trim: TrimRange | None = None,
+    video_filters: str | None = None,
 ) -> list[str]:
     command = [
         "ffmpeg",
@@ -102,6 +105,7 @@ def build_frame_extraction_command(
         str(input_path),
         "-map",
         "0:v:0",
+        *(["-vf", video_filters] if video_filters else []),
         # Un PNG por fotograma decodificado, sin duplicar ni descartar (antes `-vsync 0`,
         # opción obsoleta que las versiones nuevas de ffmpeg ya no aceptan).
         "-fps_mode",
@@ -212,6 +216,17 @@ def get_reusable_extracted_frames(job) -> int | None:
     return None
 
 
+def _pre_ai_decode_filters(job, input_path: Path) -> str:
+    from app.services.video_encoding_service import build_pre_ai_filters, combine_video_filters
+
+    # Pipeline clásico (respaldo): sin sondeo extra; etiquetas del import o valores SD/HD.
+    source = source_color_for_video(getattr(job, "video_asset", None), input_path, probe=False)
+    enhancement_config = parse_enhancement_config_json(job.enhancement_config_json)
+    return combine_video_filters(
+        build_pre_ai_filters(enhancement_config), decode_color_filter(source)
+    )
+
+
 def extract_frames_for_job(
     db: Session,
     job_id: str,
@@ -268,7 +283,10 @@ def extract_frames_for_job(
     enhanced_frames_dir = workspace["enhanced_frames_dir"]
     estimated_frames = estimate_total_frames(job)
     command = build_frame_extraction_command(
-        input_path, original_frames_dir, trim=get_job_trim(job)
+        input_path,
+        original_frames_dir,
+        trim=get_job_trim(job),
+        video_filters=_pre_ai_decode_filters(job, input_path),
     )
     command[0] = ffmpeg_path
 

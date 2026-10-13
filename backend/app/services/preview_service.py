@@ -32,7 +32,7 @@ from app.schemas.preview_schema import (
     PreviewInfoResponse,
 )
 from app.services.frame_extraction_service import validate_ffmpeg_available
-from app.services.video_encoding_service import build_enhancement_video_filters
+from app.services.video_encoding_service import build_post_ai_filters
 from app.utils.enhancement_config import parse_enhancement_config_json
 
 logger = get_logger(__name__)
@@ -221,7 +221,8 @@ def get_filtered_frame_path(
         sharpen=sharpen,
         compression_cleanup=compression_cleanup,
     )
-    video_filters = build_enhancement_video_filters(config)
+    # Los filtros previos (limpieza, ruido) se aplican antes de la IA: aquí solo los posteriores.
+    video_filters = build_post_ai_filters(config)
     if not video_filters:
         return enhanced_path
 

@@ -364,7 +364,8 @@ def test_filtered_preview_renders_and_caches_filtered_frame(preview_client) -> N
     assert len(run_calls) == 1
     command = run_calls[0]
     assert "-vf" in command
-    assert command[command.index("-vf") + 1] == "hqdn3d=3.20,unsharp=5:5:0.45"
+    # Solo los filtros posteriores a la IA: el ruido y la limpieza van antes (REQ-038).
+    assert command[command.index("-vf") + 1] == "unsharp=5:5:0.45"
 
 
 def test_filtered_preview_accepts_query_overrides(preview_client) -> None:
@@ -395,11 +396,11 @@ def test_filtered_preview_accepts_query_overrides(preview_client) -> None:
         patch("app.services.preview_service.subprocess.run", side_effect=fake_run),
     ):
         response = client.get(
-            f"/api/jobs/{job['id']}/preview/filtered/0?denoise=0&sharpen=0&compression_cleanup=true"
+            f"/api/jobs/{job['id']}/preview/filtered/0?denoise=0&sharpen=50&compression_cleanup=true"
         )
 
     assert response.status_code == 200
-    assert run_calls[0][run_calls[0].index("-vf") + 1] == "deblock=filter=strong:block=8"
+    assert run_calls[0][run_calls[0].index("-vf") + 1] == "unsharp=5:5:0.75"
 
 
 def test_filtered_preview_returns_500_when_render_fails(preview_client) -> None:

@@ -135,6 +135,8 @@ def import_video_asset(
         "resolution_label": probe_response.video.resolution_label,
         "fps": probe_response.video.fps,
         "pix_fmt": probe_response.video.pix_fmt,
+        "color_space": probe_response.video.color_space,
+        "color_range": probe_response.video.color_range,
         "video_profile": probe_response.video.profile,
         "video_bit_rate": probe_response.video.bit_rate,
         "has_audio": probe_response.audio.available,
