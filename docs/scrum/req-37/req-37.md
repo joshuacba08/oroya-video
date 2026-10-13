@@ -52,4 +52,9 @@ para un movimiento más fluido, dentro del pipeline por streaming.
   de exportación, fallo claro sin modelo. Con ffmpeg real: 10→20 fps produce exactamente
   60 fotogramas en 3 s, también tras pausar y reanudar. Con torch y los pesos (variable
   `OROYA_RIFE_WEIGHTS`): un cuadro que se desplaza 16 px queda a mitad de camino en t = 0,5.
-- GPU real (RTX 5060 Ti): ver abajo.
+- GPU real (RTX 5060 Ti): un clip de 720p a 24 fps durante 8 s, con Real-ESRGAN x2, GFPGAN y
+  RIFE a 60 fps.
+  - Tarda 204 s, frente a 172 s sin interpolar, con un pico de 74 MB de temporales.
+  - La salida, `… (Oroya 2x 60fps).mp4`, tiene 2560×1440, 60/1 fps, exactamente 480
+    fotogramas, 8,000 s y audio.
+  - A la vista, los fotogramas intermedios no tienen artefactos.
