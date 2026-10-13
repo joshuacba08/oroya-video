@@ -46,6 +46,16 @@ MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, Any]] = {
             "v0.2.5.0/realesr-general-x4v3.pth"
         ),
         "sha256": "8dc7edb9ac80ccdc30c3a5dca6616509367f05fbc184ad95b731f05bece96292",
+        "extra_files": [
+            {
+                "path": "realesrgan/realesr-general-wdn-x4v3.pth",
+                "url": (
+                    "https://github.com/xinntao/Real-ESRGAN/releases/download/"
+                    "v0.2.5.0/realesr-general-wdn-x4v3.pth"
+                ),
+                "sha256": "1641f8c4464b9f097c9fdda5589273713f67cf59f3d909e0bd688f0cee269dca",
+            },
+        ],
     },
     "gfpgan-v1.4": {
         "url": "https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth",

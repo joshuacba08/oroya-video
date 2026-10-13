@@ -44,8 +44,14 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         half_precision: bool,
         max_failed_frames: int = 0,
         clear_cuda_cache: bool = True,
+        denoise_model_path: Path | None = None,
+        denoise_strength: float | None = None,
     ) -> None:
         self.model_path = model_path
+        # Real-ESRGAN General: mezcla (DNI) con su variante "wdn", como el -dn oficial.
+        # 1 = reducción de ruido completa (modelo base); 0 = conserva el grano (wdn).
+        self.denoise_model_path = denoise_model_path
+        self.denoise_strength = denoise_strength
         self.model_slug = model_slug
         self.device = device
         self.scale = scale
@@ -367,9 +373,21 @@ class RealESRGANFrameEnhancer(FrameEnhancer):
         else:
             raise RealESRGANUnsupportedModelError()
 
+        model_path: Any = str(self.model_path)
+        dni_weight = None
+        if (
+            self.model_slug == "realesrgan-general"
+            and self.denoise_model_path is not None
+            and self.denoise_model_path.is_file()
+            and self.denoise_strength is not None
+            and self.denoise_strength < 1
+        ):
+            model_path = [str(self.model_path), str(self.denoise_model_path)]
+            dni_weight = [self.denoise_strength, 1 - self.denoise_strength]
         init_kwargs: dict[str, Any] = {
             "scale": netscale,
-            "model_path": str(self.model_path),
+            "model_path": model_path,
+            "dni_weight": dni_weight,
             "model": model,
             "tile": self.tile_size,
             "tile_pad": self.tile_pad,

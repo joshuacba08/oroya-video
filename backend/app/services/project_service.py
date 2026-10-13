@@ -92,6 +92,10 @@ ALLOWED_ENHANCEMENT_KEYS = {
     "face_restore",
     # Opcional: {"enabled": bool, "target_fps": "2x" | 48 | 50 | 60} (RIFE, REQ-037).
     "interpolation",
+    # Opcionales (0-100): mezcla de la IA con un escalado normal y, en Real-ESRGAN General,
+    # cuánto ruido elimina el modelo.
+    "ai_strength",
+    "model_denoise",
 }
 ALLOWED_EXPORT_KEYS = {
     "format",
@@ -161,6 +165,10 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
     interpolation = config.get("interpolation")
     if interpolation is not None:
         _validate_interpolation(interpolation)
+    for key in ("ai_strength", "model_denoise"):
+        value = config.get(key)
+        if value is not None and (not _is_non_negative_int(value) or value > 100):
+            raise InvalidProjectConfigurationError(f"Enhancement config {key} must be 0-100.")
     return config
 
 

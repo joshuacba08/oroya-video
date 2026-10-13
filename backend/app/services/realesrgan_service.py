@@ -49,6 +49,7 @@ from app.schemas.realesrgan_schema import (
     RealESRGANJobSummaryResponse,
     RealESRGANJobValidationResponse,
 )
+from app.services.ai_model_service import GENERAL_WDN_RELATIVE_PATH
 from app.services.ai_runtime_service import (
     clear_cuda_cache_if_available,
     get_ai_runtime_status,
@@ -110,6 +111,8 @@ class RealESRGANContext:
     input_dir: Path
     output_dir: Path
     total_frames: int
+    denoise_model_path: Path | None = None
+    denoise_strength: float | None = None
 
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
@@ -433,6 +436,9 @@ def get_streaming_enhancer(
     if device is None:
         raise AIRuntimeNotAvailableError()
     working_dir = Path(job.working_dir or ".")
+    enhancement_config = _deserialize_job_enhancement_config(job)
+    denoise_model_path = get_model_path(GENERAL_WDN_RELATIVE_PATH, active_settings)
+    model_denoise = enhancement_config.get("model_denoise")
     context = RealESRGANContext(
         model_slug=model.slug,
         model_path=model_path,
@@ -445,8 +451,18 @@ def get_streaming_enhancer(
         input_dir=working_dir,
         output_dir=working_dir,
         total_frames=0,
+        denoise_model_path=denoise_model_path if denoise_model_path.is_file() else None,
+        denoise_strength=(
+            model_denoise / 100
+            if isinstance(model_denoise, int) and not isinstance(model_denoise, bool)
+            else DEFAULT_MODEL_DENOISE
+        ),
     )
     return _get_enhancer(context, active_settings)
+
+
+# Reducción de ruido por defecto del modelo General (la del -dn oficial).
+DEFAULT_MODEL_DENOISE = 0.5
 
 
 def validate_realesrgan_job_requirements(
@@ -574,6 +590,8 @@ def _enhancer_cache_key(context: RealESRGANContext, settings: Settings) -> tuple
         context.half_precision,
         settings.realesrgan_max_failed_frames,
         settings.realesrgan_clear_cuda_cache,
+        str(context.denoise_model_path),
+        context.denoise_strength,
     )
 
 
@@ -601,6 +619,8 @@ def _get_enhancer(context: RealESRGANContext, settings: Settings) -> RealESRGANF
         half_precision=context.half_precision,
         max_failed_frames=settings.realesrgan_max_failed_frames,
         clear_cuda_cache=settings.realesrgan_clear_cuda_cache,
+        denoise_model_path=context.denoise_model_path,
+        denoise_strength=context.denoise_strength,
     )
     _enhancer_cache[key] = enhancer
     return enhancer

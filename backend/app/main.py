@@ -1,3 +1,4 @@
+import threading
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -23,7 +24,10 @@ from app.services.job_recovery_service import (
     recover_interrupted_jobs_on_startup,
 )
 from app.services.process_registry_service import clear_registry
-from app.services.settings_service import apply_persisted_settings
+from app.services.settings_service import (
+    activate_installed_ai_runtime,
+    apply_persisted_settings,
+)
 from app.workers.job_runner import start_job_worker, stop_job_worker
 from app.workers.queue import job_queue
 
@@ -69,6 +73,13 @@ def _build_error_payload(
     }
 
 
+def _activate_ai_runtime_quietly(settings: Settings) -> None:
+    try:
+        activate_installed_ai_runtime(settings)
+    except Exception:  # noqa: BLE001 - una comprobación opcional nunca tumba el arranque
+        logger.warning("AI runtime check at startup failed", exc_info=True)
+
+
 def create_lifespan(settings: Settings):
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -90,6 +101,13 @@ def create_lifespan(settings: Settings):
                 db.close()
             # Tras la recuperación: los jobs que quedaron a medias ya figuran como interrumpidos.
             start_startup_temp_cleanup(active_settings)
+        # Importar torch tarda segundos: en segundo plano, sin retrasar el arranque.
+        threading.Thread(
+            target=_activate_ai_runtime_quietly,
+            args=(active_settings,),
+            daemon=True,
+            name="ai-runtime-check",
+        ).start()
         start_job_worker(active_settings)
         # Un lote en cola sobrevive al cierre de la app: se reanuda en el mismo orden.
         for job_id in waiting_job_ids:

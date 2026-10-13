@@ -30,11 +30,16 @@ def ensure_ai_extra_site_dir(settings: Settings | None = None) -> None:
     if not site_dir_value:
         return
     site_dir = Path(site_dir_value)
-    if not site_dir.is_dir() or str(site_dir) in sys.path:
+    if not site_dir.is_dir():
         return
+    already_registered = str(site_dir) in sys.path
+    # Siempre: addsitedir procesa también los .pth nuevos. La instalación añade, por ejemplo,
+    # el de setuptools que provee `distutils` (Python 3.12 ya no lo trae y basicsr lo importa);
+    # si la carpeta ya estaba registrada de un intento anterior, sin esto basicsr no carga.
     site.addsitedir(str(site_dir))
     importlib.invalidate_caches()
-    logger.info("AI extra site dir registered: %s", site_dir)
+    if not already_registered:
+        logger.info("AI extra site dir registered: %s", site_dir)
 
 
 def get_torch_module() -> Any | None:

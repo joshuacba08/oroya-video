@@ -608,6 +608,10 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
       enabled: booleanValue(record(enhancement['interpolation'])['enabled']),
       targetFps: interpolationTarget(record(enhancement['interpolation'])['target_fps']),
     },
+    aiStrength: numberValue(enhancement['ai_strength'], 100),
+    modelDenoise: numberValue(enhancement['model_denoise'], 50),
+    videoWidth: numberValue(record(response.video)['width'], 0),
+    videoHeight: numberValue(record(response.video)['height'], 0),
     interpolationAvailable: allModels.some(
       (model) => model.category === INTERPOLATION_CATEGORY && model.installed && model.enabled,
     ),

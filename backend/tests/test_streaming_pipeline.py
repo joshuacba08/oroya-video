@@ -113,6 +113,16 @@ def _make_clip(path: Path, seconds: int = CLIP_SECONDS) -> Path:
     return path
 
 
+def _frame_count(path: Path) -> int:
+    output = subprocess.run(
+        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0",
+         "-show_entries", "stream=nb_read_frames", "-of", "default=nokey=1:noprint_wrappers=1",
+         str(path)],
+        capture_output=True, check=True, text=True,
+    ).stdout  # fmt: skip
+    return int(output.strip())
+
+
 def _duration(path: Path) -> float:
     output = subprocess.run(
         ["ffprobe", "-v", "error", "-show_entries", "format=duration",
@@ -199,6 +209,8 @@ def test_streaming_processes_in_segments_and_keeps_audio_in_sync(stream_client) 
     ]
     export = Path(job.final_export_path)
     assert abs(_duration(export) - CLIP_SECONDS) < 0.15
+    # Ni un fotograma perdido al unir los tramos (si no, el audio se desfasa).
+    assert _frame_count(export) == CLIP_SECONDS * CLIP_FPS
 
     # Pares de muestra con su índice real, iguales en original y mejorado.
     originals = {item.name for item in Path(job.original_frames_dir).glob("*.png")}
@@ -287,3 +299,65 @@ def test_a_preview_frame_locked_by_the_viewer_does_not_stop_the_job(stream_clien
 
     job = _job(job_id)
     assert job.status == "completed", job.error_message
+
+
+def _make_sync_clip(path: Path, seconds: int = 12) -> Path:
+    """A one-frame white flash and a 30 ms beep at the start of every second, 29.97 fps."""
+    subprocess.run(
+        ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
+         "-f", "lavfi", "-i", f"color=c=black:s=160x120:r=30000/1001:d={seconds}",
+         "-f", "lavfi", "-i",
+         f"aevalsrc='if(lt(mod(t,1),0.03),sin(2*PI*1000*t),0)':s=44100:d={seconds}",
+         "-vf", "drawbox=c=white:t=fill:enable='lt(mod(t,1),0.033)'",
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path)],
+        check=True,
+    )  # fmt: skip
+    return path
+
+
+def _flash_times(path: Path) -> list[float]:
+    output = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-map", "0:v:0",
+         "-vf", "signalstats,metadata=mode=print:key=lavfi.signalstats.YAVG",
+         "-f", "null", "-"],
+        capture_output=True, text=True,
+    ).stderr  # fmt: skip
+    times: list[float] = []
+    pts = 0.0
+    for line in output.splitlines():
+        if "pts_time:" in line:
+            pts = float(line.split("pts_time:")[1].split()[0])
+        elif "YAVG=" in line and float(line.split("YAVG=")[1]) > 128:
+            if not times or pts - times[-1] > 0.5:
+                times.append(pts)
+    return times
+
+
+def _beep_times(path: Path) -> list[float]:
+    output = subprocess.run(
+        ["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-map", "0:a:0",
+         "-af", "silencedetect=n=-30dB:d=0.2", "-f", "null", "-"],
+        capture_output=True, text=True,
+    ).stderr  # fmt: skip
+    return [float(line.split("silence_end: ")[1].split()[0])
+            for line in output.splitlines() if "silence_end" in line]  # fmt: skip
+
+
+@needs_ffmpeg
+@pytest.mark.parametrize("trim", [None, {"start_seconds": 2.5, "end_seconds": 10.5}])
+def test_audio_stays_in_sync_with_the_video(stream_client, tmp_path, trim) -> None:
+    client, _, settings = stream_client
+    clip = _make_sync_clip(tmp_path / "sync.mp4")
+    job_id = _queued_job(client, clip, {"trim": trim} if trim else None)
+
+    process_job_skeleton_sync(job_id, settings)
+
+    job = _job(job_id)
+    assert job.status == "completed", job.error_message
+    export = Path(job.final_export_path)
+    flashes, beeps = _flash_times(export), _beep_times(export)
+    assert len(flashes) >= 6
+    # El pitido del segundo 0 no tiene silencio delante: no se detecta su inicio.
+    for flash in [flash for flash in flashes if flash > 0.2]:
+        nearest = min(beeps, key=lambda beep: abs(beep - flash))
+        assert abs(nearest - flash) < 0.05, (flash, nearest)
