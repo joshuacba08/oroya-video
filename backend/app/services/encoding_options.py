@@ -6,6 +6,7 @@ for every streaming segment (so `concat -c copy` keeps working) and by the class
 
 from __future__ import annotations
 
+import os
 import subprocess
 import threading
 from dataclasses import dataclass
@@ -77,12 +78,22 @@ def build_video_codec_args(choice: EncodingChoice, hardware_available: bool) -> 
         encoder = SOFTWARE_ENCODERS[choice.codec]
         pix_fmt = "yuv420p10le" if ten_bit else "yuv420p"
         args = ["-c:v", encoder, "-preset", "medium", "-crf", str(SOFTWARE_CRF[choice.quality])]
+        # Hilos limitados (REQ-042): con todos los núcleos, x264/x265 dejaba sin CPU al lanzador
+        # de kernels de la IA (433 → 303 ms por fotograma con RealPLKSR) y el codificador sigue
+        # yendo muy por delante de la IA.
+        threads = encoder_threads()
         if choice.codec == "h265":
-            args += ["-x265-params", "log-level=error"]
+            args += ["-x265-params", f"log-level=error:pools={threads}"]
+        else:
+            args += ["-threads", str(threads)]
     if choice.codec == "h265":
         # "hvc1": la etiqueta que esperan Windows y Apple para HEVC en MP4.
         args += ["-tag:v", "hvc1"]
     return EncoderArgs([*args, "-pix_fmt", pix_fmt], pix_fmt, encoder, use_hardware)
+
+
+def encoder_threads() -> int:
+    return max(2, (os.cpu_count() or 8) // 4)
 
 
 _hardware_cache: dict[str, dict[str, bool]] = {}

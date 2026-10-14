@@ -56,6 +56,8 @@ class SpandrelFrameEnhancer:
         self._torch: Any | None = None
         self._cv2: Any | None = None
         self._dtype: Any | None = None
+        # None: aún sin medir; se decide con el primer fotograma (solo en CUDA).
+        self._channels_last: bool | None = None
         self.reset_counters()
 
     def reset_counters(self) -> None:
@@ -123,9 +125,41 @@ class SpandrelFrameEnhancer:
         return rgb[:, :, ::-1].copy()
 
     def _infer(self, tensor: Any) -> Any:
+        if self.device == "cuda" and self._channels_last is None:
+            self._choose_memory_format(tensor)
+        if self._channels_last:
+            tensor = tensor.contiguous(memory_format=self._torch.channels_last)
         if not self.tile_size:
             return self._model(tensor)
         return self._infer_tiled(tensor, self.tile_size)
+
+    def _choose_memory_format(self, tensor: Any) -> None:
+        """channels_last is faster for some networks and slower for others (measured: RealPLKSR
+        fp16 −13 %, SPAN −23 %, DeH264 fp32 +11 %): time both on the first real frame."""
+        torch = self._torch
+
+        def timed(channels_last: bool) -> float:
+            model = self._model.model.to(
+                memory_format=torch.channels_last if channels_last else torch.contiguous_format
+            )
+            sample = tensor.contiguous(
+                memory_format=torch.channels_last if channels_last else torch.contiguous_format
+            )
+            model(sample)
+            torch.cuda.synchronize()
+            started = time.perf_counter()
+            model(sample)
+            torch.cuda.synchronize()
+            return time.perf_counter() - started
+
+        try:
+            standard, channels_last = timed(False), timed(True)
+        except RuntimeError:
+            standard, channels_last = 0.0, 1.0
+        self._channels_last = channels_last < standard * 0.95
+        self._model.model.to(
+            memory_format=torch.channels_last if self._channels_last else torch.contiguous_format
+        )
 
     def _infer_tiled(self, tensor: Any, tile: int) -> Any:
         _, channels, height, width = tensor.shape

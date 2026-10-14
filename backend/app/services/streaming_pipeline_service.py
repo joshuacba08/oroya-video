@@ -462,9 +462,24 @@ def probe_decoded_size(
         raise _StreamError(FrameExtractionFailedError()) from exc
 
 
+def _encode_png(frame: Frame) -> bytes:
+    """PNG of a rgb24 frame: OpenCV when the AI runtime is installed (much faster),
+    otherwise the standard-library encoder."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return encode_png_rgb(frame.data, frame.width, frame.height)
+    rgb = np.frombuffer(frame.data, dtype=np.uint8).reshape(frame.height, frame.width, 3)
+    ok, encoded = cv2.imencode(".png", rgb[:, :, ::-1], [cv2.IMWRITE_PNG_COMPRESSION, 1])
+    if not ok:
+        return encode_png_rgb(frame.data, frame.width, frame.height)
+    return encoded.tobytes()
+
+
 def _write_png(path: Path, frame: Frame) -> None:
     temp_path = path.with_name(f"{path.name}.tmp")
-    temp_path.write_bytes(encode_png_rgb(frame.data, frame.width, frame.height))
+    temp_path.write_bytes(_encode_png(frame))
     os.replace(temp_path, path)
 
 
@@ -677,6 +692,9 @@ class _StreamingRun:
         self.encoder = None
         self.segment_done = 0
         self.segment_start = 0
+        # Tiempo acumulado por parte del bucle (REQ-042): dónde se va cada fotograma.
+        self.timing = dict.fromkeys(("decode", "ai", "encode", "previews"), 0.0)
+        self.timed_frames_run = 0
         trim = get_job_trim(job)
         self.estimated_total = estimate_total_frames(job) or 0
         self.segment_frames = job.segment_frames or max(settings.streaming_segment_frames, 1)
@@ -908,6 +926,7 @@ class _StreamingRun:
             sync()
             if (reason := stop_requested()) is not None:
                 return self._interrupt(reason)
+            waited = time.perf_counter()
             try:
                 data = self.reader.get(timeout=1.0)
             except queue.Empty:
@@ -917,16 +936,22 @@ class _StreamingRun:
             last_output = time.monotonic()
             if data is None:
                 break
+            self.timing["decode"] += time.perf_counter() - waited
 
             original = Frame(data, self.width, self.height)
+            step_started = time.perf_counter()
             processed = processor.process(original)
+            self.timing["ai"] += time.perf_counter() - step_started
+            step_started = time.perf_counter()
             try:
                 self._emit(*self._outputs(frame_index, processed))
+                self.timing["encode"] += time.perf_counter() - step_started
             except _StreamError:
                 if (reason := stop_reason_after_failure()) is not None:
                     return self._interrupt(reason)
                 raise
 
+            step_started = time.perf_counter()
             if frame_index in self.samples:
                 self._save_pair(frame_index, original, processed)
             if time.monotonic() >= next_live_at:
@@ -940,9 +965,11 @@ class _StreamingRun:
                 next_live_at = time.monotonic() + max(
                     LIVE_PREVIEW_INTERVAL_SECONDS, spent * LIVE_PREVIEW_MAX_OVERHEAD
                 )
+            self.timing["previews"] += time.perf_counter() - step_started
 
             frame_index += 1
             processed_this_run += 1
+            self.timed_frames_run = processed_this_run
             if self.segment_done >= self.segment_frames:
                 try:
                     self._close_segment()
@@ -1197,6 +1224,14 @@ class _StreamingRun:
             f"Streaming pipeline completed: {total} frames in {len(segments)} segments.",
             stage=STAGE,
         )
+        if self.timed_frames_run:
+            per_frame = ", ".join(
+                f"{name} {seconds * 1000 / self.timed_frames_run:.0f}"
+                for name, seconds in self.timing.items()
+            )
+            job_repository.create_job_log(
+                db, job.id, "info", f"Time per frame (ms): {per_frame}.", stage=STAGE
+            )
         if self.interpolation is not None and self.interpolation.scene_changes:
             job_repository.create_job_log(
                 db,
