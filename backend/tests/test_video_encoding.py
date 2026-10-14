@@ -530,16 +530,16 @@ def test_encode_video_for_job_applies_enhancement_filters(encoding_client) -> No
     assert len(captured_commands) == 1
     command = captured_commands[0]
     assert "-vf" in command
+    # Limpieza y ruido se aplican al extraer (antes de la IA); aquí nitidez, escala y color.
     assert command[command.index("-vf") + 1] == (
-        "deblock=filter=strong:block=8,hqdn3d=3.20,unsharp=5:5:0.45,"
-        "scale=3840:2160:flags=lanczos,crop=trunc(iw/2)*2:trunc(ih/2)*2"
+        "unsharp=5:5:0.45,scale=3840:2160:flags=lanczos,crop=trunc(iw/2)*2:trunc(ih/2)*2,"
+        "scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+        "setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv"
     )
+    assert command[command.index("-colorspace") + 1] == "bt709"
     logs_response = client.get(f"/api/jobs/{job['id']}/logs")
     messages = [item["message"] for item in logs_response.json()["items"]]
-    assert (
-        "Encoding filters: deblock=filter=strong:block=8,hqdn3d=3.20,unsharp=5:5:0.45,"
-        "scale=3840:2160:flags=lanczos" in messages
-    )
+    assert "Encoding filters: unsharp=5:5:0.45,scale=3840:2160:flags=lanczos" in messages
     assert "Filters apply to the final video, not to preview frames." in messages
 
 

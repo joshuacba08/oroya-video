@@ -73,6 +73,13 @@ from app.enhancers.stream import (
     PassthroughProcessor,
 )
 from app.services import job_workspace_service
+from app.services.encoding_options import (
+    EncodingChoice,
+    build_video_codec_args,
+    detect_hardware_encoders,
+    hardware_fits,
+    resolve_encoding,
+)
 from app.services.face_restore_service import build_face_restorer
 from app.services.frame_extraction_service import (
     FRAME_FILE_PATTERN,
@@ -96,19 +103,28 @@ from app.services.process_registry_service import (
 from app.services.realesrgan_service import (
     LOW_DISK_PAUSE_BYTES,
     free_disk_bytes,
+    get_spandrel_enhancer,
     get_streaming_enhancer,
+    resolve_realesrgan_model_path,
 )
+from app.services.tool_detection_service import resolve_tool_path
 from app.services.video_encoding_service import (
     ENCODED_VIDEO_FILE_NAME,
-    ENCODING_CODEC,
     ENCODING_FORMAT,
-    ENCODING_PIXEL_FORMAT,
     EVEN_DIMENSIONS_FILTER,
-    FFMPEG_ENCODING_CODEC,
+    OUTPUT_RESOLUTION_FACTORS,
     build_enhancement_video_filters,
     build_output_scale_filter,
+    build_post_ai_filters,
+    build_pre_ai_filters,
     combine_video_filters,
     resolve_encoding_fps,
+)
+from app.utils.color import (
+    OUTPUT_COLOR_ARGS,
+    decode_color_filter,
+    encode_color_filter,
+    source_color_for_video,
 )
 from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.png import encode_png_rgb, read_png_size
@@ -128,9 +144,8 @@ DB_SYNC_INTERVAL_SECONDS = 0.5
 LIVE_PREVIEW_INTERVAL_SECONDS = 2.0
 LIVE_PREVIEW_MAX_OVERHEAD = 10
 FRAME_QUEUE_SIZE = 4
-# Calidad de los tramos: los parámetros deben ser idénticos en todos para unirlos sin recodificar.
-SEGMENT_PRESET = "medium"
-SEGMENT_CRF = "18"
+# Los parámetros del codificador (encoding_options) son idénticos en todos los tramos para
+# unirlos sin recodificar.
 
 PROCESSOR_ERRORS = (
     AIModelFileNotFoundError,
@@ -223,6 +238,7 @@ def build_decoder_command(
     duration_seconds: float | None = None,
     *,
     probe: bool = False,
+    video_filters: str | None = None,
 ) -> list[str]:
     """Decode to raw `rgb24` frames on stdout at a constant frame rate (audio stays in sync
     with VFR sources too). With `probe`, a single PNG frame to learn the decoded size."""
@@ -244,7 +260,7 @@ def build_decoder_command(
         "-map",
         "0:v:0",
         "-vf",
-        f"fps={_fps_arg(fps)}",
+        ",".join(item for item in (f"fps={_fps_arg(fps)}", video_filters) if item),
         *output,
     ]
 
@@ -255,7 +271,10 @@ def build_segment_encoder_command(
     height: int,
     fps: float | Fraction,
     video_filters: str | None = None,
+    codec_args: list[str] | None = None,
 ) -> list[str]:
+    if codec_args is None:
+        codec_args = build_video_codec_args(EncodingChoice(), hardware_available=False).args
     return [
         "ffmpeg",
         "-hide_banner",
@@ -273,14 +292,8 @@ def build_segment_encoder_command(
         "-i",
         "pipe:0",
         *(["-vf", video_filters] if video_filters else []),
-        "-c:v",
-        FFMPEG_ENCODING_CODEC,
-        "-preset",
-        SEGMENT_PRESET,
-        "-crf",
-        SEGMENT_CRF,
-        "-pix_fmt",
-        ENCODING_PIXEL_FORMAT,
+        *codec_args,
+        *OUTPUT_COLOR_ARGS,
         "-f",
         "mp4",
         str(output_path),
@@ -377,11 +390,14 @@ class SegmentEncoder:
         height: int,
         fps: float | Fraction,
         video_filters: str | None,
+        codec_args: list[str] | None = None,
     ) -> None:
         self.job_id = job_id
         self.temp_path = temp_path
         self.frames = 0
-        command = build_segment_encoder_command(self.temp_path, width, height, fps, video_filters)
+        command = build_segment_encoder_command(
+            self.temp_path, width, height, fps, video_filters, codec_args
+        )
         command[0] = ffmpeg_path
         self.process = subprocess.Popen(
             command,
@@ -446,9 +462,24 @@ def probe_decoded_size(
         raise _StreamError(FrameExtractionFailedError()) from exc
 
 
+def _encode_png(frame: Frame) -> bytes:
+    """PNG of a rgb24 frame: OpenCV when the AI runtime is installed (much faster),
+    otherwise the standard-library encoder."""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return encode_png_rgb(frame.data, frame.width, frame.height)
+    rgb = np.frombuffer(frame.data, dtype=np.uint8).reshape(frame.height, frame.width, 3)
+    ok, encoded = cv2.imencode(".png", rgb[:, :, ::-1], [cv2.IMWRITE_PNG_COMPRESSION, 1])
+    if not ok:
+        return encode_png_rgb(frame.data, frame.width, frame.height)
+    return encoded.tobytes()
+
+
 def _write_png(path: Path, frame: Frame) -> None:
     temp_path = path.with_name(f"{path.name}.tmp")
-    temp_path.write_bytes(encode_png_rgb(frame.data, frame.width, frame.height))
+    temp_path.write_bytes(_encode_png(frame))
     os.replace(temp_path, path)
 
 
@@ -471,12 +502,40 @@ def build_frame_processor(
         )
         if isinstance(ai_strength, bool) or not isinstance(ai_strength, int):
             ai_strength = 100
-        return ImageProcessor(enhancer, face_restorer, ai_strength / 100), enhancer.scale or 1
+        cleanup = build_ai_cleanup(db, job, settings)
+        return (
+            ImageProcessor(
+                enhancer, face_restorer, ai_strength / 100, cleanup, build_stabilizer(job)
+            ),
+            enhancer.scale or 1,
+        )
     if engine != "mock":
         raise FrameEnhancerNotFoundError()
     if face_restorer is not None:
-        return ImageProcessor(None, face_restorer), 1
+        return ImageProcessor(None, face_restorer, stabilizer=build_stabilizer(job)), 1
     return PassthroughProcessor(settings.mock_enhancer_frame_delay_ms / 1000), 1
+
+
+def build_stabilizer(job: ProcessingJob):
+    """Temporal stabilizer (REQ-041) when `temporal_stability` > 0."""
+    value = parse_enhancement_config_json(job.enhancement_config_json).get("temporal_stability")
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        return None
+    from app.enhancers.temporal import TemporalStabilizer
+
+    return TemporalStabilizer(value / 100)
+
+
+AI_CLEANUP_MODEL_SLUG = "deh264-1x"
+
+
+def build_ai_cleanup(db: Session, job: ProcessingJob, settings: Settings):
+    """1x compression clean-up model before upscaling, when enabled for the job."""
+    config = parse_enhancement_config_json(job.enhancement_config_json).get("ai_cleanup")
+    if not isinstance(config, dict) or config.get("enabled") is not True:
+        return None
+    model_path = resolve_realesrgan_model_path(db, AI_CLEANUP_MODEL_SLUG, settings)
+    return get_spandrel_enhancer(model_path, AI_CLEANUP_MODEL_SLUG, 1, settings)
 
 
 def _mark_failed(db: Session, job: ProcessingJob, code: str, message: str) -> None:
@@ -590,7 +649,13 @@ class _StreamingRun:
             unregister_process(self.job.id, "ffmpeg_decode")
 
     def _start_decoder(self, start_seconds: float, duration: float | None) -> None:
-        command = build_decoder_command(self.input_path, self.fps_exact, start_seconds, duration)
+        command = build_decoder_command(
+            self.input_path,
+            self.fps_exact,
+            start_seconds,
+            duration,
+            video_filters=self.decode_filters,
+        )
         command[0] = self.ffmpeg_path
         self.decoder = subprocess.Popen(
             command,
@@ -627,6 +692,9 @@ class _StreamingRun:
         self.encoder = None
         self.segment_done = 0
         self.segment_start = 0
+        # Tiempo acumulado por parte del bucle (REQ-042): dónde se va cada fotograma.
+        self.timing = dict.fromkeys(("decode", "ai", "encode", "previews"), 0.0)
+        self.timed_frames_run = 0
         trim = get_job_trim(job)
         self.estimated_total = estimate_total_frames(job) or 0
         self.segment_frames = job.segment_frames or max(settings.streaming_segment_frames, 1)
@@ -639,11 +707,46 @@ class _StreamingRun:
 
         enhancement_config = parse_enhancement_config_json(job.enhancement_config_json)
         export_config = parse_enhancement_config_json(job.export_config_json)
+        # Limpieza y ruido antes de la IA (decodificador); nitidez y escala, después.
+        source_color = source_color_for_video(
+            job.video_asset, self.input_path, resolve_tool_path("ffprobe")
+        )
+        self.decode_filters = combine_video_filters(
+            build_pre_ai_filters(enhancement_config), decode_color_filter(source_color)
+        )
         user_filters = combine_video_filters(
             build_enhancement_video_filters(enhancement_config),
             build_output_scale_filter(export_config, job.video_asset, processor_scale),
         )
-        self.video_filters = combine_video_filters(user_filters, EVEN_DIMENSIONS_FILTER)
+        # Códec, calidad, GPU y 10 bits (REQ-040): iguales en todos los tramos.
+        self.encoding = resolve_encoding(export_config)
+        output_factor = OUTPUT_RESOLUTION_FACTORS.get(
+            str(export_config.get("output_resolution", "")).lower(), 1
+        )
+        video = job.video_asset
+        hardware = (
+            self.encoding.hardware
+            and hardware_fits(
+                (getattr(video, "width", 0) or 0) * output_factor,
+                (getattr(video, "height", 0) or 0) * output_factor,
+            )
+            and detect_hardware_encoders(self.ffmpeg_path).get(self.encoding.codec, False)
+        )
+        self.encoder_args = build_video_codec_args(self.encoding, hardware)
+        if self.encoding.hardware and not hardware:
+            job_repository.create_job_log(
+                db,
+                job.id,
+                "warning",
+                "GPU encoding is not available here; encoding on the CPU.",
+                stage=STAGE,
+            )
+        self.video_filters = combine_video_filters(
+            build_post_ai_filters(enhancement_config),
+            build_output_scale_filter(export_config, job.video_asset, processor_scale),
+            EVEN_DIMENSIONS_FILTER,
+            encode_color_filter(self.encoder_args.pix_fmt),
+        )
 
         trim_start = trim.start_seconds if trim else 0.0
         seek = trim_start + self.start_frame / self.fps
@@ -823,6 +926,7 @@ class _StreamingRun:
             sync()
             if (reason := stop_requested()) is not None:
                 return self._interrupt(reason)
+            waited = time.perf_counter()
             try:
                 data = self.reader.get(timeout=1.0)
             except queue.Empty:
@@ -832,16 +936,22 @@ class _StreamingRun:
             last_output = time.monotonic()
             if data is None:
                 break
+            self.timing["decode"] += time.perf_counter() - waited
 
             original = Frame(data, self.width, self.height)
+            step_started = time.perf_counter()
             processed = processor.process(original)
+            self.timing["ai"] += time.perf_counter() - step_started
+            step_started = time.perf_counter()
             try:
                 self._emit(*self._outputs(frame_index, processed))
+                self.timing["encode"] += time.perf_counter() - step_started
             except _StreamError:
                 if (reason := stop_reason_after_failure()) is not None:
                     return self._interrupt(reason)
                 raise
 
+            step_started = time.perf_counter()
             if frame_index in self.samples:
                 self._save_pair(frame_index, original, processed)
             if time.monotonic() >= next_live_at:
@@ -855,9 +965,11 @@ class _StreamingRun:
                 next_live_at = time.monotonic() + max(
                     LIVE_PREVIEW_INTERVAL_SECONDS, spent * LIVE_PREVIEW_MAX_OVERHEAD
                 )
+            self.timing["previews"] += time.perf_counter() - step_started
 
             frame_index += 1
             processed_this_run += 1
+            self.timed_frames_run = processed_this_run
             if self.segment_done >= self.segment_frames:
                 try:
                     self._close_segment()
@@ -905,6 +1017,7 @@ class _StreamingRun:
                     frame.height,
                     self.output_fps,
                     self.video_filters,
+                    self.encoder_args.args,
                 )
             self.encoder.write(frame.data)
         # Un tramo cuenta fotogramas de origen completos: reanudar empieza en el siguiente.
@@ -1088,7 +1201,7 @@ class _StreamingRun:
             "encoded_video_size_bytes": output_size,
             "encoded_size_bytes": output_size,
             "encoding_fps": float(self.output_fps),
-            "encoding_codec": ENCODING_CODEC,
+            "encoding_codec": self.encoding.codec,
             "encoding_format": ENCODING_FORMAT,
             "process_id": None,
             "process_kind": None,
@@ -1111,6 +1224,14 @@ class _StreamingRun:
             f"Streaming pipeline completed: {total} frames in {len(segments)} segments.",
             stage=STAGE,
         )
+        if self.timed_frames_run:
+            per_frame = ", ".join(
+                f"{name} {seconds * 1000 / self.timed_frames_run:.0f}"
+                for name, seconds in self.timing.items()
+            )
+            job_repository.create_job_log(
+                db, job.id, "info", f"Time per frame (ms): {per_frame}.", stage=STAGE
+            )
         if self.interpolation is not None and self.interpolation.scene_changes:
             job_repository.create_job_log(
                 db,

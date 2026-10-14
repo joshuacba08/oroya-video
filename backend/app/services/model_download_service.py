@@ -24,6 +24,35 @@ logger = get_logger(__name__)
 # publicados (vs-rife no publica digest: se calculó al descargarlo y queda fijado aquí).
 # `extra_files`: pesos auxiliares que se bajan tras el principal (rutas relativas a models/).
 MODEL_DOWNLOAD_SOURCES: dict[str, dict[str, Any]] = {
+    # Modelos de Phhofm (github.com/Phhofm/models), cargados con spandrel (REQ-039).
+    "realplksr-real-2x": {
+        "url": (
+            "https://github.com/Phhofm/models/releases/download/"
+            "2xPublic_realplksr_dysample_layernorm_real/2xPublic_realplksr_dysample_layernorm_real.safetensors"
+        ),
+        "sha256": "5eb81e8c3e21d57b0ea2aa7931910c97c263c1f23ef9b35fabbd46e98471cd44",
+    },
+    "realplksr-4x": {
+        "url": (
+            "https://github.com/Phhofm/models/releases/download/"
+            "4xbhi_realplksr/4xBHI_realplksr_dysample_real.safetensors"
+        ),
+        "sha256": "e4cbccc2e3c1890c4f5268f575ad1aee2e224cf3f37e2fc74451eb5bfa6a75c2",
+    },
+    "span-anime-2x": {
+        "url": (
+            "https://github.com/Phhofm/models/releases/download/"
+            "2xHFA2k_LUDVAE_SPAN/2xHFA2k_LUDVAE_SPAN.safetensors"
+        ),
+        "sha256": "457bca87dd84de0726e8f7a2e04a976c73530c23be0f63ad859b4cff48e9c298",
+    },
+    "deh264-1x": {
+        "url": (
+            "https://github.com/Phhofm/models/releases/download/"
+            "1xDeH264_realplksr/1xDeH264_realplksr.safetensors"
+        ),
+        "sha256": "91f054af6308e37b81c261ecf775a58be5fa1d37a816709db5d0fea6fceb24b8",
+    },
     "rife-4.25": {
         "url": "https://github.com/HolyWu/vs-rife/releases/download/model/flownet_v4.25.pkl",
         "sha256": "6615790efd627772917205db291f51cd392528a157ecbb2ecaeec3bff8eb6de2",

@@ -199,6 +199,8 @@ export interface SettingsVm {
 }
 
 export type InterpolationTarget = '2x' | 48 | 50 | 60;
+export type VideoCodec = 'h264' | 'h265';
+export type EncodingQuality = 'high' | 'balanced' | 'small';
 
 export interface WorkspaceVm {
   project: ProjectCardVm;
@@ -223,6 +225,13 @@ export interface WorkspaceVm {
   aiStrength: number;
   /** 0-100: reducción de ruido del modelo Real-ESRGAN General. */
   modelDenoise: number;
+  /** Limpieza de compresión con IA (modelo 1x) antes de escalar. */
+  aiCleanup: boolean;
+  /** 0-100: estabilidad temporal (menos parpadeo de la textura de la IA). */
+  temporalStability: number;
+  aiCleanupAvailable: boolean;
+  /** Codificación de la exportación (REQ-040). */
+  encoding: { codec: VideoCodec; quality: EncodingQuality; hardware: boolean; tenBit: boolean };
   videoWidth: number;
   videoHeight: number;
   scale: 'original' | '2x' | '4x';

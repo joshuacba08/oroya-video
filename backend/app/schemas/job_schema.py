@@ -74,6 +74,7 @@ class JobResponse(BaseModel):
     segments_completed: int | None = None
     segments_total: int | None = None
     preview_frame_index: int | None = None
+    job_kind: str | None = None
     extraction_started_at: datetime | None
     extraction_completed_at: datetime | None
     enhancement_started_at: datetime | None

@@ -108,6 +108,25 @@ test('trims a 2 s clip and exports only the chosen second', async ({ page }) => 
   expect(Math.abs(probeDuration(exported) - 1)).toBeLessThan(0.15);
 });
 
+test('plays a motion preview before processing the whole video', async ({ page }) => {
+  await page.goto('/projects');
+  await page.locator('ov-project-card').filter({ hasText: 'lote-a' }).first().click();
+  await expect(page).toHaveURL(/\/projects\/[0-9a-f-]+$/);
+
+  await page.getByRole('button', { name: 'Motion preview' }).click();
+  const enhanced = page.locator('video.motion-preview__enhanced');
+  await expect(enhanced).toBeVisible({ timeout: 60_000 });
+  await expect
+    .poll(() => enhanced.evaluate((video: HTMLVideoElement) => video.readyState), { timeout: 15_000 })
+    .toBeGreaterThanOrEqual(2);
+  // Desde el fotograma seleccionado (el central de un clip de 1 s) hasta el final.
+  expect(await enhanced.evaluate((video: HTMLVideoElement) => video.duration)).toBeGreaterThan(0.3);
+  // La vista previa no aparece en la cola.
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.goto('/queue');
+  await expect(page.getByText('lote-a', { exact: false })).toHaveCount(0);
+});
+
 test('switches the interface language without reloading', async ({ page }) => {
   await page.goto('/settings');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');

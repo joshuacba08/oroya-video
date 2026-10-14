@@ -64,6 +64,15 @@
           <n-icon name="image" size="sm" />
           {{ 'workspace.snapshot' | t }}
         </n-button>
+        <n-button
+          variant="secondary"
+          size="sm"
+          [disabled]="processing() || motionPreview()?.status === 'running' || motionPreview()?.status === 'queued'"
+          (click)="startMotionPreview(workspace)"
+        >
+          <n-icon name="film" size="sm" />
+          {{ 'workspace.motionPreview' | t }}
+        </n-button>
         @if (liveJob(); as job) {
           @if (hasActiveLiveJob()) {
             <span class="workspace-page__live-status" [class.workspace-page__live-status--paused]="job.status === 'paused'">
@@ -215,6 +224,36 @@
             <button type="button" [class.on]="current.scale === '4x'" (click)="setScale(workspace, '4x')">4x</button>
           </div>
         </div>
+        <div class="enhance-row" [class.enhance-row--disabled]="!workspace.aiCleanupAvailable" [title]="'workspace.aiCleanupHint' | t">
+          <span>{{ 'workspace.aiCleanup' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.aiCleanup' | t"
+              [checked]="current.aiCleanup && workspace.aiCleanupAvailable"
+              [disabled]="!workspace.aiCleanupAvailable"
+              (change)="setAiCleanup(workspace, $any($event.target).checked)"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (!workspace.aiCleanupAvailable) {
+          <p class="enhance-hint">
+            {{ 'workspace.aiCleanupUnavailable' | t }}
+            <a routerLink="/models">{{ 'nav.models' | t }}</a>
+          </p>
+        }
+        <label class="slider-row" [title]="'workspace.temporalStabilityHint' | t">
+          <span>{{ 'workspace.temporalStability' | t }}</span>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            [value]="current.temporalStability"
+            (input)="setTemporalStability(workspace, $any($event.target).value)"
+          />
+          <strong>{{ current.temporalStability }}</strong>
+        </label>
         <label class="slider-row" [title]="'workspace.aiStrengthHint' | t">
           <span>{{ 'workspace.aiStrength' | t }}</span>
           <input
@@ -403,6 +442,51 @@
             } }}
           </p>
         }
+        <label class="enhance-row">
+          <span>{{ 'workspace.codec' | t }}</span>
+          <select class="enhance-select" (change)="setEncoding(workspace, { codec: $any($event.target).value })">
+            <option value="h264" [selected]="current.codec === 'h264'">H.264 ({{ 'workspace.codecCompatible' | t }})</option>
+            <option value="h265" [selected]="current.codec === 'h265'">H.265 ({{ 'workspace.codecSmaller' | t }})</option>
+          </select>
+        </label>
+        <label class="enhance-row">
+          <span>{{ 'workspace.quality' | t }}</span>
+          <select class="enhance-select" (change)="setEncoding(workspace, { quality: $any($event.target).value })">
+            <option value="high" [selected]="current.quality === 'high'">{{ 'workspace.qualityHigh' | t }}</option>
+            <option value="balanced" [selected]="current.quality === 'balanced'">{{ 'workspace.qualityBalanced' | t }}</option>
+            <option value="small" [selected]="current.quality === 'small'">{{ 'workspace.qualitySmall' | t }}</option>
+          </select>
+        </label>
+        <div class="enhance-row" [class.enhance-row--disabled]="!gpuEncodingAvailable(current.codec)">
+          <span>{{ 'workspace.gpuEncoding' | t }}</span>
+          <label class="switch">
+            <input
+              type="checkbox"
+              [attr.aria-label]="'workspace.gpuEncoding' | t"
+              [checked]="current.gpuEncoding && gpuEncodingAvailable(current.codec)"
+              [disabled]="!gpuEncodingAvailable(current.codec)"
+              (change)="setEncoding(workspace, { gpuEncoding: $any($event.target).checked })"
+            />
+            <i></i>
+          </label>
+        </div>
+        @if (gpuEncoders() && !gpuEncodingAvailable(current.codec)) {
+          <p class="enhance-hint">{{ 'workspace.gpuEncodingUnavailable' | t }}</p>
+        }
+        @if (current.codec === 'h265') {
+          <div class="enhance-row">
+            <span>{{ 'workspace.tenBit' | t }}</span>
+            <label class="switch">
+              <input
+                type="checkbox"
+                [attr.aria-label]="'workspace.tenBit' | t"
+                [checked]="current.tenBit"
+                (change)="setEncoding(workspace, { tenBit: $any($event.target).checked })"
+              />
+              <i></i>
+            </label>
+          </div>
+        }
         <label class="export-field">
           <span>{{ 'workspace.exportName' | t }}</span>
           <input
@@ -524,3 +608,53 @@
     </main>
   }
 </section>
+
+@if (motionPreview(); as clip) {
+  <div class="motion-preview__backdrop" (click)="closeMotionPreview()"></div>
+  <section class="motion-preview" role="dialog" aria-modal="true" [attr.aria-label]="'workspace.motionPreview' | t">
+    <header>
+      <strong>{{ 'workspace.motionPreview' | t }}</strong>
+      <button type="button" (click)="closeMotionPreview()" [attr.aria-label]="'common.close' | t">
+        <n-icon name="x" size="sm" />
+      </button>
+    </header>
+    @switch (clip.status) {
+      @case ('completed') {
+        <div class="motion-preview__videos">
+          <figure>
+            <figcaption>{{ 'workspace.original' | t }}</figcaption>
+            <video #originalClip [src]="motionPreviewUrl('original')" muted playsinline preload="auto"></video>
+          </figure>
+          <figure>
+            <figcaption>{{ 'workspace.enhanced' | t }}</figcaption>
+            <video
+              #enhancedClip
+              class="motion-preview__enhanced"
+              [src]="motionPreviewUrl('enhanced')"
+              controls
+              loop
+              playsinline
+              preload="auto"
+              (play)="syncMotionPreview(enhancedClip, originalClip, $event)"
+              (pause)="syncMotionPreview(enhancedClip, originalClip, $event)"
+              (timeupdate)="syncMotionPreview(enhancedClip, originalClip, $event)"
+            ></video>
+          </figure>
+        </div>
+        <p class="motion-preview__hint">{{ 'workspace.motionPreviewHint' | t }}</p>
+      }
+      @case ('failed') {
+        <p class="motion-preview__error">{{ clip.error || ('workspace.motionPreviewFailed' | t) }}</p>
+      }
+      @default {
+        <div class="motion-preview__progress">
+          <span>
+            {{ (clip.status === 'queued' ? 'workspace.motionPreviewQueued' : 'workspace.motionPreviewWorking') | t }}
+          </span>
+          <n-progress [value]="clip.progress" />
+        </div>
+      }
+    }
+  </section>
+}
+

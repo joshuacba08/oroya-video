@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oroya Video Backend",
-    "version": "0.5.3"
+    "version": "0.6.0"
   },
   "paths": {
     "/api/v1/health": {
@@ -347,6 +347,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GPUResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/system/encoders": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Available GPU encoders",
+        "operationId": "system_encoders_api_v1_system_encoders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncodersResponse"
                 }
               }
             }
@@ -3632,6 +3653,107 @@
         }
       }
     },
+    "/api/v1/projects/{project_id}/preview-clip": {
+      "post": {
+        "tags": [
+          "Preview"
+        ],
+        "summary": "Process a few seconds as a motion preview",
+        "operationId": "create_preview_clip_route_api_v1_projects__project_id__preview_clip_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewClipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{job_id}/preview-clip/{variant}": {
+      "get": {
+        "tags": [
+          "Preview"
+        ],
+        "summary": "Get the motion preview video (enhanced or original)",
+        "operationId": "get_preview_clip_route_api_v1_jobs__job_id__preview_clip__variant__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/exports": {
       "get": {
         "tags": [
@@ -4382,6 +4504,27 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GPUResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/encoders": {
+      "get": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Available GPU encoders",
+        "operationId": "system_encoders_api_system_encoders_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EncodersResponse"
                 }
               }
             }
@@ -7667,6 +7810,107 @@
         }
       }
     },
+    "/api/projects/{project_id}/preview-clip": {
+      "post": {
+        "tags": [
+          "Preview"
+        ],
+        "summary": "Process a few seconds as a motion preview",
+        "operationId": "create_preview_clip_route_api_projects__project_id__preview_clip_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewClipRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobControlResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{job_id}/preview-clip/{variant}": {
+      "get": {
+        "tags": [
+          "Preview"
+        ],
+        "summary": "Get the motion preview video (enhanced or original)",
+        "operationId": "get_preview_clip_route_api_jobs__job_id__preview_clip__variant__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "variant",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Variant"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/exports": {
       "get": {
         "tags": [
@@ -8941,6 +9185,14 @@
               }
             ],
             "title": "Ai Extra Site Dir"
+          },
+          "missing_components": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Components",
+            "default": []
           }
         },
         "type": "object",
@@ -10020,6 +10272,23 @@
           "has_audio"
         ],
         "title": "EncodedVideoResponse"
+      },
+      "EncodersResponse": {
+        "properties": {
+          "hardware": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object",
+            "title": "Hardware"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hardware"
+        ],
+        "title": "EncodersResponse",
+        "description": "GPU (NVENC) encoders that really work here, per codec (REQ-040)."
       },
       "ExportAssetResponse": {
         "properties": {
@@ -12698,6 +12967,17 @@
             ],
             "title": "Preview Frame Index"
           },
+          "job_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Kind"
+          },
           "extraction_started_at": {
             "anyOf": [
               {
@@ -13863,6 +14143,28 @@
           "machine"
         ],
         "title": "OSInfo"
+      },
+      "PreviewClipRequest": {
+        "properties": {
+          "start_seconds": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Start Seconds"
+          },
+          "duration_seconds": {
+            "type": "number",
+            "maximum": 5.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Seconds",
+            "default": 3.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "start_seconds"
+        ],
+        "title": "PreviewClipRequest",
+        "description": "Motion preview (REQ-043): a few seconds processed with the project's settings."
       },
       "PreviewFrameListItem": {
         "properties": {
@@ -16617,6 +16919,28 @@
               }
             ],
             "title": "Bit Rate"
+          },
+          "color_space": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Space"
+          },
+          "color_range": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Color Range"
           }
         },
         "type": "object",

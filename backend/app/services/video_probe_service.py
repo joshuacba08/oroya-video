@@ -191,6 +191,8 @@ def _build_video_info(video_stream: dict) -> VideoStreamInfo:
         resolution_label=f"{width}x{height}" if width and height else None,
         fps=parse_fps(video_stream.get("avg_frame_rate") or video_stream.get("r_frame_rate")),
         pix_fmt=video_stream.get("pix_fmt"),
+        color_space=video_stream.get("color_space"),
+        color_range=video_stream.get("color_range"),
         profile=video_stream.get("profile"),
         bit_rate=parse_int(video_stream.get("bit_rate")),
     )

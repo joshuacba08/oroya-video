@@ -32,6 +32,7 @@ import type {
   ExportOpenResponse,
   FFmpegDownloadProgressResponse,
   FFmpegDownloadStartResponse,
+  EncodersResponse,
   GPUResponse,
   HealthResponse,
   JobControlResponse,
@@ -171,6 +172,16 @@ export class OroyaDataService {
     );
   }
 
+  /** Codificadores de GPU (NVENC) que funcionan aquí, por códec. */
+  encoders(): Observable<EncodersResponse | null> {
+    if (environment.dataMode === 'mock' || !this.backendStatus().isApi) {
+      return of(null);
+    }
+    return defer(() => this.api.get<EncodersResponse>('/system/encoders')).pipe(
+      catchError(() => of(null)),
+    );
+  }
+
   pollGpu(intervalMs = 5000): Observable<GPUResponse | null> {
     return timer(0, intervalMs).pipe(switchMap(() => this.gpu()));
   }
@@ -224,6 +235,21 @@ export class OroyaDataService {
   /** La instalación tarda minutos (PyTorch pesa >2 GB con CUDA): sondeo resistente a errores. */
   pollAiInstall(intervalMs = 1500): Observable<AIInstallProgressResponse> {
     return resilientPoll(intervalMs, () => this.aiInstallProgress());
+  }
+
+  /** Vista previa en movimiento (REQ-043): procesa unos segundos con los ajustes del proyecto. */
+  createPreviewClip(projectId: string, startSeconds: number, durationSeconds = 3): Observable<string> {
+    return this.command(() =>
+      this.api.post<{ job: { id: string } }>(
+        `/projects/${encodeURIComponent(projectId)}/preview-clip`,
+        { start_seconds: startSeconds, duration_seconds: durationSeconds },
+        SLOW_REQUEST_MS,
+      ),
+    ).pipe(map((response) => response.job.id));
+  }
+
+  previewClipUrl(jobId: string, variant: 'enhanced' | 'original'): string {
+    return this.api.resolveUrl(`/jobs/${encodeURIComponent(jobId)}/preview-clip/${variant}`);
   }
 
   filteredPreviewUrl(

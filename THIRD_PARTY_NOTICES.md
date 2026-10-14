@@ -49,6 +49,18 @@ page and checked against a pinned SHA-256 (`backend/app/services/model_download_
 | GFPGAN v1.4 | [TencentARC/GFPGAN](https://github.com/TencentARC/GFPGAN) | See the project's LICENSE (Apache-2.0 with third-party terms) |
 | facexlib detection/parsing | [xinntao/facexlib](https://github.com/xinntao/facexlib) | MIT |
 | RIFE 4.25 (`flownet_v4.25.pkl`) | [HolyWu/vs-rife](https://github.com/HolyWu/vs-rife/releases/tag/model), trained by [hzwer/Practical-RIFE](https://github.com/hzwer/Practical-RIFE) | MIT |
+| RealPLKSR Real 2x (`2xPublic_realplksr_dysample_layernorm_real`) | [Phhofm/models](https://github.com/Phhofm/models/releases/tag/2xPublic_realplksr_dysample_layernorm_real) | Apache-2.0 |
+| RealPLKSR 4x (`4xBHI_realplksr_dysample_real`) | [Phhofm/models](https://github.com/Phhofm/models/releases/tag/4xbhi_realplksr) | CC-BY-4.0 |
+| SPAN Anime 2x (`2xHFA2k_LUDVAE_SPAN`) | [Phhofm/models](https://github.com/Phhofm/models/releases/tag/2xHFA2k_LUDVAE_SPAN) | CC-BY-4.0 |
+| AI compression cleanup (`1xDeH264_realplksr`) | [Phhofm/models](https://github.com/Phhofm/models/releases/tag/1xDeH264_realplksr) | CC-BY-4.0 |
+| Real-ESRGAN General denoise (`realesr-general-wdn-x4v3`) | [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) | BSD-3-Clause |
+
+## Python packages installed with the AI runtime
+
+Installed on demand from PyPI by Setup, under their own licenses. Notably
+[spandrel](https://github.com/chaiNNer-org/spandrel) (MIT; only its permissively licensed
+architectures are used), PyTorch (BSD-style), Real-ESRGAN/basicsr (BSD-3-Clause / Apache-2.0),
+GFPGAN and facexlib.
 
 ## Tools
 

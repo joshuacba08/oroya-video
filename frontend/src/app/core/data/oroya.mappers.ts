@@ -37,7 +37,8 @@ const pipelineIcons = ['upload', 'film', 'sparkles', 'box', 'download'];
 const FACE_RESTORE_CATEGORY = 'face_restoration';
 const INTERPOLATION_CATEGORY = 'frame_interpolation';
 // GFPGAN y RIFE son pasos aparte, no modelos de escalado seleccionables.
-const OPTIONAL_STEP_CATEGORIES = [FACE_RESTORE_CATEGORY, INTERPOLATION_CATEGORY];
+const CLEANUP_CATEGORY = 'compression_cleanup';
+const OPTIONAL_STEP_CATEGORIES = [FACE_RESTORE_CATEGORY, INTERPOLATION_CATEGORY, CLEANUP_CATEGORY];
 
 function interpolationTarget(value: unknown): InterpolationTarget {
   return value === 48 || value === 50 || value === 60 ? value : '2x';
@@ -216,6 +217,10 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'realesrgan-x4': 'Real-ESRGAN x4',
   'gfpgan-v1.4': 'GFPGAN v1.4',
   'rife-4.25': 'RIFE 4.25',
+  'realplksr-real-2x': 'RealPLKSR Real 2x',
+  'realplksr-4x': 'RealPLKSR 4x',
+  'span-anime-2x': 'SPAN Anime 2x',
+  'deh264-1x': 'AI compression cleanup',
 };
 
 function modelDisplayName(slug: string): string {
@@ -609,6 +614,12 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
       targetFps: interpolationTarget(record(enhancement['interpolation'])['target_fps']),
     },
     aiStrength: numberValue(enhancement['ai_strength'], 100),
+    aiCleanup: booleanValue(record(enhancement['ai_cleanup'])['enabled']),
+    temporalStability: numberValue(enhancement['temporal_stability'], 0),
+    aiCleanupAvailable: allModels.some(
+      (model) => model.category === CLEANUP_CATEGORY && model.installed && model.enabled,
+    ),
+    encoding: mapEncoding(exportConfig),
     modelDenoise: numberValue(enhancement['model_denoise'], 50),
     videoWidth: numberValue(record(response.video)['width'], 0),
     videoHeight: numberValue(record(response.video)['height'], 0),
@@ -646,6 +657,18 @@ export function mapWorkspace(response: ProjectWorkspaceResponse): WorkspaceVm {
         )
       : idlePipeline(),
     actions: response.actions,
+  };
+}
+
+function mapEncoding(exportConfig: UnknownRecord): WorkspaceVm['encoding'] {
+  const encoding = record(exportConfig['encoding']);
+  const codec = stringValue(encoding['codec'], stringValue(exportConfig['codec'], 'h264'));
+  const quality = stringValue(encoding['quality'], 'high');
+  return {
+    codec: codec === 'h265' ? 'h265' : 'h264',
+    quality: quality === 'balanced' || quality === 'small' ? quality : 'high',
+    hardware: booleanValue(encoding['hardware']),
+    tenBit: booleanValue(encoding['ten_bit']),
   };
 }
 

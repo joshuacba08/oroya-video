@@ -5,11 +5,14 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.db.database import get_db
+from app.schemas.job_schema import JobControlResponse
 from app.schemas.preview_schema import (
     CompareFrameResponse,
+    PreviewClipRequest,
     PreviewFrameListResponse,
     PreviewInfoResponse,
 )
+from app.services.preview_clip_service import create_preview_clip, get_preview_clip_path
 from app.services.preview_service import (
     get_compare_frame_info,
     get_enhanced_frame_path,
@@ -138,3 +141,33 @@ def list_preview_frames_route(
     offset: int = Query(default=0, ge=0),
 ) -> PreviewFrameListResponse:
     return list_preview_frames(db=db, job_id=job_id, limit=limit, offset=offset)
+
+
+@router.post(
+    "/projects/{project_id}/preview-clip",
+    response_model=JobControlResponse,
+    status_code=202,
+    summary="Process a few seconds as a motion preview",
+)
+async def create_preview_clip_route(
+    project_id: str,
+    payload: PreviewClipRequest,
+    request: Request,
+    db: DbSession,
+) -> JobControlResponse:
+    return await create_preview_clip(
+        db,
+        project_id,
+        payload.start_seconds,
+        payload.duration_seconds,
+        request.app.state.settings,
+    )
+
+
+@router.get(
+    "/jobs/{job_id}/preview-clip/{variant}",
+    summary="Get the motion preview video (enhanced or original)",
+)
+def get_preview_clip_route(job_id: str, variant: str, db: DbSession) -> FileResponse:
+    path = get_preview_clip_path(db, job_id, variant)
+    return FileResponse(path, media_type="video/mp4")

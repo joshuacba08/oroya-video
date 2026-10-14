@@ -1,6 +1,7 @@
 import json
 import uuid
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.db.models import JobLog, ProcessingJob
@@ -20,6 +21,16 @@ def get_job_by_id(db: Session, job_id: str) -> ProcessingJob | None:
     return db.query(ProcessingJob).filter(ProcessingJob.id == job_id).first()
 
 
+PREVIEW_JOB_KIND = "preview"
+
+
+def export_jobs_query(db: Session):
+    """Jobs the user sees (queue, history, dashboard): everything but motion previews."""
+    return db.query(ProcessingJob).filter(
+        or_(ProcessingJob.job_kind.is_(None), ProcessingJob.job_kind != PREVIEW_JOB_KIND)
+    )
+
+
 def list_jobs(
     db: Session,
     limit: int = 50,
@@ -27,7 +38,7 @@ def list_jobs(
     status: str | None = None,
     project_id: str | None = None,
 ) -> list[ProcessingJob]:
-    query = db.query(ProcessingJob)
+    query = export_jobs_query(db)
     if status:
         query = query.filter(ProcessingJob.status == status)
     if project_id:
@@ -41,7 +52,7 @@ def count_jobs(
     status: str | None = None,
     project_id: str | None = None,
 ) -> int:
-    query = db.query(ProcessingJob)
+    query = export_jobs_query(db)
     if status:
         query = query.filter(ProcessingJob.status == status)
     if project_id:
@@ -134,6 +145,7 @@ def to_job_response(job: ProcessingJob) -> JobResponse:
         segments_completed=job.segments_completed,
         segments_total=job.segments_total,
         preview_frame_index=job.preview_frame_index,
+        job_kind=job.job_kind,
         extraction_started_at=job.extraction_started_at,
         extraction_completed_at=job.extraction_completed_at,
         enhancement_started_at=job.enhancement_started_at,

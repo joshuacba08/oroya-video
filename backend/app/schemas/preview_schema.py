@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class PreviewFrameResponse(BaseModel):
@@ -56,3 +56,10 @@ class PreviewFrameListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class PreviewClipRequest(BaseModel):
+    """Motion preview (REQ-043): a few seconds processed with the project's settings."""
+
+    start_seconds: float = Field(ge=0)
+    duration_seconds: float = Field(default=3.0, gt=0, le=5)

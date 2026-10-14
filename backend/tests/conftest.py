@@ -1,4 +1,6 @@
+import atexit
 import os
+import shutil
 import tempfile
 
 import pytest
@@ -6,6 +8,8 @@ import pytest
 # Antes de importar la app: ningún test puede tocar el almacenamiento real del desarrollador
 # (backend/storage). Los tests que necesitan rutas propias pasan Settings(storage_path=...).
 _TEST_STORAGE = tempfile.mkdtemp(prefix="oroya-tests-")
+# Se borra al terminar la sesión: si no, cada ejecución dejaba una carpeta en %TEMP%.
+atexit.register(shutil.rmtree, _TEST_STORAGE, ignore_errors=True)
 os.environ["STORAGE_PATH"] = _TEST_STORAGE
 os.environ.pop("DATABASE_URL", None)
 
@@ -51,6 +55,8 @@ def _assume_realesrgan_packages_installed(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setattr(
         "app.services.realesrgan_service.get_missing_realesrgan_modules", lambda: []
     )
+    monkeypatch.setattr("app.services.realesrgan_service.get_missing_spandrel_modules", lambda: [])
+    monkeypatch.setattr("app.services.ai_runtime_service.get_missing_spandrel_modules", lambda: [])
 
 
 @pytest.fixture(autouse=True)
@@ -59,8 +65,10 @@ def _clear_enhancer_cache():
     from app.services import realesrgan_service
 
     realesrgan_service._enhancer_cache.clear()
+    realesrgan_service._spandrel_cache.clear()
     yield
     realesrgan_service._enhancer_cache.clear()
+    realesrgan_service._spandrel_cache.clear()
 
 
 @pytest.fixture(autouse=True)

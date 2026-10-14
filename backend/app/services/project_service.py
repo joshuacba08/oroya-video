@@ -43,6 +43,7 @@ from app.schemas.project_schema import (
     ProjectWorkspaceResponse,
 )
 from app.services import job_workspace_service
+from app.services.encoding_options import CODECS, QUALITIES
 from app.services.interpolation_service import get_interpolation_config
 from app.services.job_contract_service import build_job_actions, is_preview_available
 from app.services.preview_service import get_compare_frame_info, get_recommended_preview_frame_index
@@ -96,6 +97,10 @@ ALLOWED_ENHANCEMENT_KEYS = {
     # cuánto ruido elimina el modelo.
     "ai_strength",
     "model_denoise",
+    # Opcional (REQ-039): {"enabled": bool}, limpieza de compresión con IA antes de escalar.
+    "ai_cleanup",
+    # Opcional (REQ-041): 0-100, estabilidad temporal tras la IA.
+    "temporal_stability",
 }
 ALLOWED_EXPORT_KEYS = {
     "format",
@@ -107,6 +112,8 @@ ALLOWED_EXPORT_KEYS = {
     "output_dir",
     # Opcional: {start_seconds, end_seconds} para procesar solo un fragmento.
     "trim",
+    # Opcional (REQ-040): {codec, quality, hardware, ten_bit}.
+    "encoding",
 }
 EXPORT_FILE_NAME_MAX_LENGTH = 120
 ALLOWED_WORKSPACE_KEYS = {
@@ -165,7 +172,14 @@ def _validate_enhancement_config(config: dict[str, Any]) -> dict[str, Any]:
     interpolation = config.get("interpolation")
     if interpolation is not None:
         _validate_interpolation(interpolation)
-    for key in ("ai_strength", "model_denoise"):
+    ai_cleanup = config.get("ai_cleanup")
+    if ai_cleanup is not None and (
+        not isinstance(ai_cleanup, dict)
+        or set(ai_cleanup) - {"enabled"}
+        or not isinstance(ai_cleanup.get("enabled"), bool)
+    ):
+        raise InvalidProjectConfigurationError("Enhancement config ai_cleanup is invalid.")
+    for key in ("ai_strength", "model_denoise", "temporal_stability"):
         value = config.get(key)
         if value is not None and (not _is_non_negative_int(value) or value > 100):
             raise InvalidProjectConfigurationError(f"Enhancement config {key} must be 0-100.")
@@ -215,8 +229,11 @@ def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:
         raise InvalidProjectConfigurationError("Export config contains unsupported fields.")
     if config.get("format") != "mp4":
         raise InvalidProjectConfigurationError("Export config format must be mp4.")
-    if config.get("codec") != "h264":
-        raise InvalidProjectConfigurationError("Export config codec must be h264.")
+    if config.get("codec") not in CODECS:
+        raise InvalidProjectConfigurationError("Export config codec must be h264 or h265.")
+    encoding = config.get("encoding")
+    if encoding is not None:
+        _validate_encoding(encoding)
     if not isinstance(config.get("keep_audio"), bool):
         raise InvalidProjectConfigurationError("Export config keep_audio must be boolean.")
     if config.get("output_resolution") not in ALLOWED_SCALE_VALUES:
@@ -234,6 +251,23 @@ def _validate_export_config(config: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(output_dir, str) or not Path(output_dir).expanduser().is_absolute():
             raise InvalidProjectConfigurationError("The export folder must be an absolute path.")
     return config
+
+
+def _validate_encoding(encoding: object) -> None:
+    if not isinstance(encoding, dict) or set(encoding) - {
+        "codec",
+        "quality",
+        "hardware",
+        "ten_bit",
+    }:
+        raise InvalidProjectConfigurationError("Export config encoding is invalid.")
+    if encoding.get("codec", "h264") not in CODECS:
+        raise InvalidProjectConfigurationError("encoding.codec must be h264 or h265.")
+    if encoding.get("quality", "high") not in QUALITIES:
+        raise InvalidProjectConfigurationError("encoding.quality must be high, balanced or small.")
+    for key in ("hardware", "ten_bit"):
+        if not isinstance(encoding.get(key, False), bool):
+            raise InvalidProjectConfigurationError(f"encoding.{key} must be boolean.")
 
 
 def _validate_trim_shape(trim: object) -> None:

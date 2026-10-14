@@ -38,6 +38,8 @@ class VideoStreamInfo(BaseModel):
     pix_fmt: str | None = None
     profile: str | None = None
     bit_rate: int | None = None
+    color_space: str | None = None
+    color_range: str | None = None
 
 
 class AudioStreamInfo(BaseModel):

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 
 const tmp = path.resolve(__dirname, '.tmp');
@@ -41,6 +41,14 @@ function makeClip(output: string, seconds: number): void {
 
 export default function globalSetup(): void {
   mkdirSync(tmp, { recursive: true });
+  // Cada ejecución usa su propio almacenamiento: se borran los de ejecuciones anteriores
+  // (se conserva solo el actual, útil para revisar un fallo).
+  const current = `storage-${process.env['E2E_RUN_ID']}`;
+  for (const entry of readdirSync(tmp)) {
+    if (entry.startsWith('storage-') && entry !== current) {
+      rmSync(path.join(tmp, entry), { recursive: true, force: true });
+    }
+  }
   makeClip(CLIP_PATH, 2);
   makeClip(TRIM_CLIP_PATH, 2);
   // Clips de 1 s para el lote: la cola los procesa uno tras otro.

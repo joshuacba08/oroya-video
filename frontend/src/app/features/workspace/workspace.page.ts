@@ -27,10 +27,12 @@ import { DialogService } from '../../core/dialogs/dialog.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import type {
   ApiErrorVm,
+  EncodingQuality,
   InterpolationTarget,
   ModelVm,
   PreviewFrameVm,
   QueueJobVm,
+  VideoCodec,
   WorkspaceVm,
 } from '../../core/models/oroya.models';
 import { OvVideoPreviewComponent } from '../../shared/ui/ov-video-preview.component';
@@ -50,7 +52,13 @@ type WorkspaceControls = {
   interpolationTarget: InterpolationTarget;
   aiStrength: number;
   modelDenoise: number;
+  aiCleanup: boolean;
+  temporalStability: number;
   keepAudio: boolean;
+  codec: VideoCodec;
+  quality: EncodingQuality;
+  gpuEncoding: boolean;
+  tenBit: boolean;
   /** Vacío: nombre por defecto ("<proyecto> (Oroya 2x)"). */
   exportFileName: string;
   /** Vacío: la carpeta de exportación de Ajustes (con una subcarpeta por proyecto). */
@@ -65,45 +73,64 @@ type WorkspaceControls = {
 
 /** Máximo de píxeles por segundo del nivel H.264 5.1 (983 040 macrobloques/s). */
 const H264_LEVEL_51_PIXEL_RATE = 983_040 * 256;
+/** H.265 nivel 5.1: 534 773 760 muestras de luma por segundo. */
+const H265_LEVEL_51_PIXEL_RATE = 534_773_760;
+
+type PresetModel = {
+  slug: string;
+  aiStrength: number;
+  modelDenoise: number;
+};
 
 type QualityPreset = {
   id: string;
   labelKey: string;
-  modelSlug: string;
+  /** Por orden de preferencia: el primero instalado (o habilitado) que haya. */
+  models: PresetModel[];
   scale: WorkspaceVm['scale'];
-  aiStrength: number;
-  modelDenoise: number;
+  /** Limpieza de compresión con IA (DeH264) antes de escalar, si está instalada. */
+  aiCleanup: boolean;
   compressionCleanup: boolean;
+  temporalStability: number;
 };
 
-/** Valores elegidos comparando en video real de DVD (piano, caras) y animación. */
+/** Valores elegidos comparando recortes reales de video de DVD (piano, caras) y animación. */
 const QUALITY_PRESETS: QualityPreset[] = [
   {
     id: 'old-video',
     labelKey: 'workspace.presetOldVideo',
-    modelSlug: 'realesrgan-general',
+    models: [
+      { slug: 'realplksr-real-2x', aiStrength: 100, modelDenoise: 50 },
+      { slug: 'realesrgan-general', aiStrength: 85, modelDenoise: 30 },
+    ],
     scale: '2x',
-    aiStrength: 85,
-    modelDenoise: 30,
+    aiCleanup: true,
     compressionCleanup: true,
+    temporalStability: 50,
   },
   {
     id: 'animation',
     labelKey: 'workspace.presetAnimation',
-    modelSlug: 'realesrgan-x4',
+    models: [
+      { slug: 'span-anime-2x', aiStrength: 100, modelDenoise: 50 },
+      { slug: 'realesrgan-x4', aiStrength: 100, modelDenoise: 50 },
+    ],
     scale: '2x',
-    aiStrength: 100,
-    modelDenoise: 50,
+    aiCleanup: false,
     compressionCleanup: true,
+    temporalStability: 30,
   },
   {
     id: 'max-detail',
     labelKey: 'workspace.presetMaxDetail',
-    modelSlug: 'realesrgan-x4',
+    models: [
+      { slug: 'realplksr-4x', aiStrength: 100, modelDenoise: 50 },
+      { slug: 'realesrgan-x4', aiStrength: 100, modelDenoise: 50 },
+    ],
     scale: '4x',
-    aiStrength: 100,
-    modelDenoise: 50,
+    aiCleanup: false,
     compressionCleanup: false,
+    temporalStability: 50,
   },
 ];
 
@@ -170,6 +197,13 @@ export class WorkspacePage {
     }),
   );
 
+  constructor() {
+    this.data
+      .encoders()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.gpuEncoders.set(response?.hardware ?? {}));
+  }
+
   backToProjects(): void {
     void this.router.navigateByUrl('/projects');
   }
@@ -197,6 +231,8 @@ export class WorkspacePage {
             interpolation: this.interpolationConfig(workspace, controls),
             ai_strength: controls.aiStrength,
             model_denoise: controls.modelDenoise,
+            ai_cleanup: { enabled: controls.aiCleanup && workspace.aiCleanupAvailable },
+            temporal_stability: controls.temporalStability,
           },
           export_config: this.exportConfig(controls),
         }),
@@ -434,6 +470,82 @@ export class WorkspacePage {
     });
   }
 
+  /** Vista previa en movimiento: estado del job y, al terminar, sus dos videos. */
+  readonly motionPreview = signal<{
+    jobId: string;
+    status: string;
+    progress: number;
+    error?: string;
+  } | null>(null);
+  private motionPreviewSub: Subscription | undefined;
+
+  async startMotionPreview(workspace: WorkspaceVm): Promise<void> {
+    const controls = this.ensureControls(workspace);
+    // Desde el fotograma elegido; si no hay, desde el inicio del recorte o del video.
+    const start =
+      this.currentFrameSeconds(workspace) ?? (controls.trimEnabled ? controls.trimStart : 0);
+    this.motionPreviewSub?.unsubscribe();
+    this.motionPreview.set({ jobId: '', status: 'starting', progress: 0 });
+    try {
+      // Con los ajustes que se ven ahora en pantalla.
+      await this.persistControls(workspace);
+      const jobId = await firstValueFrom(
+        this.data.createPreviewClip(workspace.project.id, Math.max(start, 0)),
+      );
+      this.motionPreview.set({ jobId, status: 'queued', progress: 0 });
+      this.motionPreviewSub = this.data
+        .pollJobProgress(jobId, workspace.project.name, 1000)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((job) =>
+          this.motionPreview.update((current) =>
+            current && current.jobId === jobId
+              ? { jobId, status: job.status, progress: job.progress, error: job.errorMessage }
+              : current,
+          ),
+        );
+    } catch (error) {
+      this.motionPreview.set({
+        jobId: '',
+        status: 'failed',
+        progress: 0,
+        error: this.data.toErrorVm(error).message,
+      });
+    }
+  }
+
+  closeMotionPreview(): void {
+    this.motionPreviewSub?.unsubscribe();
+    this.motionPreview.set(null);
+  }
+
+  motionPreviewUrl(variant: 'enhanced' | 'original'): string {
+    const jobId = this.motionPreview()?.jobId;
+    return jobId ? this.data.previewClipUrl(jobId, variant) : '';
+  }
+
+  /** Reproduce los dos videos a la vez (el original sigue al mejorado, que lleva el audio). */
+  syncMotionPreview(enhanced: HTMLVideoElement, original: HTMLVideoElement, event: Event): void {
+    if (event.type === 'play') {
+      original.currentTime = enhanced.currentTime;
+      void original.play();
+    } else if (event.type === 'pause') {
+      original.pause();
+    } else if (Math.abs(original.currentTime - enhanced.currentTime) > 0.08) {
+      original.currentTime = enhanced.currentTime;
+    }
+  }
+
+  /** Codificación por GPU que funciona en este equipo, por códec (null = aún sin saber). */
+  readonly gpuEncoders = signal<Record<string, boolean> | null>(null);
+
+  gpuEncodingAvailable(codec: VideoCodec): boolean {
+    return this.gpuEncoders()?.[codec] === true;
+  }
+
+  setEncoding(workspace: WorkspaceVm, patch: Partial<Pick<WorkspaceControls, 'codec' | 'quality' | 'gpuEncoding' | 'tenBit'>>): void {
+    this.updateControls(workspace, patch);
+  }
+
   setAiStrength(workspace: WorkspaceVm, value: string): void {
     this.updateControls(workspace, { aiStrength: this.clampPercent(value) });
   }
@@ -450,17 +562,37 @@ export class WorkspacePage {
     if (!preset) {
       return;
     }
-    const model = workspace.alternateModels.find((item) => item.slug === preset.modelSlug);
+    const candidates = preset.models
+      .map((choice) => ({
+        choice,
+        model: workspace.alternateModels.find((item) => item.slug === choice.slug),
+      }))
+      .filter((item) => item.model?.enabled);
+    // El primer modelo instalado; si ninguno lo está, el preferido (Modelos lo descargará).
+    const picked = candidates.find((item) => item.model?.installed) ?? candidates[0];
+    const uses = picked?.choice ?? preset.models[preset.models.length - 1];
+    // Con la limpieza de IA, el desbloqueo de ffmpeg sobra.
+    const aiCleanup = preset.aiCleanup && workspace.aiCleanupAvailable;
     this.updateControls(workspace, {
-      ...(model?.enabled ? { modelId: model.id } : {}),
+      ...(picked?.model ? { modelId: picked.model.id } : {}),
       scale: preset.scale,
       exportResolution: preset.scale,
-      aiStrength: preset.aiStrength,
-      modelDenoise: preset.modelDenoise,
+      aiStrength: uses.aiStrength,
+      modelDenoise: uses.modelDenoise,
+      aiCleanup,
+      temporalStability: preset.temporalStability,
       denoise: 0,
       sharpen: 0,
-      compressionCleanup: preset.compressionCleanup,
+      compressionCleanup: preset.compressionCleanup && !aiCleanup,
     });
+  }
+
+  setTemporalStability(workspace: WorkspaceVm, value: string): void {
+    this.updateControls(workspace, { temporalStability: this.clampPercent(value) });
+  }
+
+  setAiCleanup(workspace: WorkspaceVm, checked: boolean): void {
+    this.updateControls(workspace, { aiCleanup: checked });
   }
 
   /** Salida que muchos reproductores (los de Windows, navegadores) no decodifican con fluidez:
@@ -474,7 +606,8 @@ export class WorkspacePage {
       : controls.interpolationTarget === '2x'
         ? workspace.videoFps * 2
         : controls.interpolationTarget;
-    if (!width || !height || width * height * fps <= H264_LEVEL_51_PIXEL_RATE) {
+    const limit = controls.codec === 'h265' ? H265_LEVEL_51_PIXEL_RATE : H264_LEVEL_51_PIXEL_RATE;
+    if (!width || !height || width * height * fps <= limit) {
       return null;
     }
     return `${width}×${height} · ${Math.round(fps)} fps`;
@@ -724,6 +857,8 @@ export class WorkspacePage {
             interpolation: this.interpolationConfig(workspace, controls),
             ai_strength: controls.aiStrength,
             model_denoise: controls.modelDenoise,
+            ai_cleanup: { enabled: controls.aiCleanup && workspace.aiCleanupAvailable },
+            temporal_stability: controls.temporalStability,
           },
           export_config: this.exportConfig(controls),
           workspace_state: {
@@ -757,11 +892,17 @@ export class WorkspacePage {
   private exportConfig(controls: WorkspaceControls) {
     return {
       format: 'mp4' as const,
-      codec: 'h264' as const,
       keep_audio: controls.keepAudio,
       output_resolution: controls.exportResolution,
       file_name: controls.exportFileName.trim(),
       output_dir: controls.exportDir,
+      codec: controls.codec,
+      encoding: {
+        codec: controls.codec,
+        quality: controls.quality,
+        hardware: controls.gpuEncoding,
+        ten_bit: controls.tenBit && controls.codec === 'h265',
+      },
       trim: controls.trimEnabled
         ? { start_seconds: controls.trimStart, end_seconds: controls.trimEnd }
         : null,
@@ -856,6 +997,12 @@ export class WorkspacePage {
       interpolationTarget: workspace.interpolation.targetFps,
       aiStrength: workspace.aiStrength,
       modelDenoise: workspace.modelDenoise,
+      aiCleanup: workspace.aiCleanup,
+      temporalStability: workspace.temporalStability,
+      codec: workspace.encoding.codec,
+      quality: workspace.encoding.quality,
+      gpuEncoding: workspace.encoding.hardware,
+      tenBit: workspace.encoding.tenBit,
       keepAudio: workspace.keepAudio,
       exportFileName: workspace.exportFileName,
       exportDir: workspace.exportDir,

@@ -33,6 +33,12 @@ from app.schemas.job_schema import (
     EncodedVideoResponse,
     VideoEncodingSummaryResponse,
 )
+from app.services.encoding_options import (
+    build_video_codec_args,
+    detect_hardware_encoders,
+    hardware_fits,
+    resolve_encoding,
+)
 from app.services.frame_extraction_service import (
     finish_cancelled_ffmpeg_stage,
     time_to_datetime,
@@ -48,6 +54,7 @@ from app.services.process_registry_service import (
     register_process,
     unregister_process,
 )
+from app.utils.color import OUTPUT_COLOR_ARGS, encode_color_filter
 from app.utils.enhancement_config import parse_enhancement_config_json
 from app.utils.process_output import (
     StderrDrain,
@@ -76,7 +83,9 @@ def resolve_encoding_fps(job) -> float:
     return 30.0
 
 
-def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
+def build_pre_ai_filters(enhancement_config: dict) -> str | None:
+    """Clean-up applied to the source, before the AI (REQ-038): compression artefacts and
+    noise removed after upscaling would also blur the detail the AI just created."""
     filters: list[str] = []
 
     if enhancement_config.get("compression_cleanup") is True:
@@ -86,13 +95,22 @@ def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
     if isinstance(denoise, int) and not isinstance(denoise, bool) and 0 < denoise <= 100:
         filters.append(f"hqdn3d={denoise * 0.08:.2f}")
 
+    return ",".join(filters) or None
+
+
+def build_post_ai_filters(enhancement_config: dict) -> str | None:
+    """Applied to the enhanced frames when encoding."""
     sharpen = enhancement_config.get("sharpen")
     if isinstance(sharpen, int) and not isinstance(sharpen, bool) and 0 < sharpen <= 100:
-        filters.append(f"unsharp=5:5:{sharpen / 100 * 1.5:.2f}")
+        return f"unsharp=5:5:{sharpen / 100 * 1.5:.2f}"
+    return None
 
-    if not filters:
-        return None
-    return ",".join(filters)
+
+def build_enhancement_video_filters(enhancement_config: dict) -> str | None:
+    """All user filters, in processing order (used to describe them in the job logs)."""
+    return combine_video_filters(
+        build_pre_ai_filters(enhancement_config), build_post_ai_filters(enhancement_config)
+    )
 
 
 OUTPUT_RESOLUTION_FACTORS = {"original": 1, "2x": 2, "4x": 4}
@@ -139,6 +157,8 @@ def build_video_encoding_command(
     codec: str = FFMPEG_ENCODING_CODEC,
     pix_fmt: str = ENCODING_PIXEL_FORMAT,
     video_filters: str | None = None,
+    color_args: list[str] | None = None,
+    codec_args: list[str] | None = None,
 ) -> list[str]:
     command = [
         "ffmpeg",
@@ -151,10 +171,8 @@ def build_video_encoding_command(
         "-i",
         str(input_pattern),
         *(["-vf", video_filters] if video_filters else []),
-        "-c:v",
-        codec,
-        "-pix_fmt",
-        pix_fmt,
+        *(codec_args or ["-c:v", codec, "-pix_fmt", pix_fmt]),
+        *(color_args or []),
         "-movflags",
         "+faststart",
         "-progress",
@@ -289,11 +307,27 @@ def encode_video_for_job(
     enhancement_config = parse_enhancement_config_json(job.enhancement_config_json)
     export_config = parse_enhancement_config_json(job.export_config_json)
     enhanced_scale = job.realesrgan_scale if job.enhancer_engine == "realesrgan" else 1
+    # Los filtros previos ya se aplicaron al extraer los fotogramas (antes de la IA).
     user_filters = combine_video_filters(
-        build_enhancement_video_filters(enhancement_config),
+        build_post_ai_filters(enhancement_config),
         build_output_scale_filter(export_config, job.video_asset, enhanced_scale),
     )
-    video_filters = combine_video_filters(user_filters, EVEN_DIMENSIONS_FILTER)
+    encoding = resolve_encoding(export_config)
+    output_factor = OUTPUT_RESOLUTION_FACTORS.get(
+        str(export_config.get("output_resolution", "")).lower(), 1
+    )
+    hardware = (
+        encoding.hardware
+        and hardware_fits(
+            (getattr(job.video_asset, "width", 0) or 0) * output_factor,
+            (getattr(job.video_asset, "height", 0) or 0) * output_factor,
+        )
+        and detect_hardware_encoders(ffmpeg_path).get(encoding.codec, False)
+    )
+    encoder_args = build_video_codec_args(encoding, hardware)
+    video_filters = combine_video_filters(
+        user_filters, EVEN_DIMENSIONS_FILTER, encode_color_filter(encoder_args.pix_fmt)
+    )
     encoded_dir = ensure_job_encoded_directory(job.id, active_settings)
     output_path = get_job_silent_video_path(job.id, active_settings)
     command = build_video_encoding_command(
@@ -301,6 +335,8 @@ def encode_video_for_job(
         output_path,
         fps,
         video_filters=video_filters,
+        color_args=OUTPUT_COLOR_ARGS,
+        codec_args=encoder_args.args,
     )
     command[0] = ffmpeg_path
     started_at = time.monotonic()
@@ -317,7 +353,7 @@ def encode_video_for_job(
             "encoded_video_path": str(output_path),
             "encoded_video_file_name": ENCODED_VIDEO_FILE_NAME,
             "encoding_fps": fps,
-            "encoding_codec": ENCODING_CODEC,
+            "encoding_codec": encoding.codec,
             "encoding_format": ENCODING_FORMAT,
             "encoding_started_at": job.encoding_started_at or time_to_datetime(now),
             "encoding_error_code": None,
@@ -498,7 +534,7 @@ def encode_video_for_job(
                 "encoded_video_file_name": ENCODED_VIDEO_FILE_NAME,
                 "encoded_video_size_bytes": output_size,
                 "encoding_fps": fps,
-                "encoding_codec": ENCODING_CODEC,
+                "encoding_codec": encoding.codec,
                 "encoding_format": ENCODING_FORMAT,
                 "elapsed_time_seconds": int(time.monotonic() - started_at),
                 "encoding_completed_at": time_to_datetime(time.time()),

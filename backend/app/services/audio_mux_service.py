@@ -554,7 +554,7 @@ def get_muxed_video_metadata(
         file_name=file_name,
         size_bytes=size_bytes,
         format=MUXED_VIDEO_FORMAT,
-        video_codec=MUXED_VIDEO_CODEC,
+        video_codec=job.encoding_codec or MUXED_VIDEO_CODEC,
         audio_codec=job.audio_codec,
         has_audio=job.audio_strategy not in {None, "none"},
         audio_strategy=job.audio_strategy,

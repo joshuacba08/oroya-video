@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/system/encoders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Available GPU encoders */
+        get: operations["system_encoders_api_v1_system_encoders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/ffmpeg/download": {
         parameters: {
             query?: never;
@@ -1246,6 +1263,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project_id}/preview-clip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process a few seconds as a motion preview */
+        post: operations["create_preview_clip_route_api_v1_projects__project_id__preview_clip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{job_id}/preview-clip/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the motion preview video (enhanced or original) */
+        get: operations["get_preview_clip_route_api_v1_jobs__job_id__preview_clip__variant__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/exports": {
         parameters: {
             query?: never;
@@ -1596,6 +1647,23 @@ export interface paths {
         };
         /** Detected GPU status */
         get: operations["system_gpu_api_system_gpu_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/encoders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Available GPU encoders */
+        get: operations["system_encoders_api_system_encoders_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2625,6 +2693,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/preview-clip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Process a few seconds as a motion preview */
+        post: operations["create_preview_clip_route_api_projects__project_id__preview_clip_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/preview-clip/{variant}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the motion preview video (enhanced or original) */
+        get: operations["get_preview_clip_route_api_jobs__job_id__preview_clip__variant__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/exports": {
         parameters: {
             query?: never;
@@ -3042,6 +3144,11 @@ export interface components {
             python_version: string;
             /** Ai Extra Site Dir */
             ai_extra_site_dir?: string | null;
+            /**
+             * Missing Components
+             * @default []
+             */
+            missing_components: string[];
         };
         /** AppStateBackendResponse */
         AppStateBackendResponse: {
@@ -3385,6 +3492,16 @@ export interface components {
             codec: string;
             /** Has Audio */
             has_audio: boolean;
+        };
+        /**
+         * EncodersResponse
+         * @description GPU (NVENC) encoders that really work here, per codec (REQ-040).
+         */
+        EncodersResponse: {
+            /** Hardware */
+            hardware: {
+                [key: string]: boolean;
+            };
         };
         /** ExportAssetResponse */
         ExportAssetResponse: {
@@ -4123,6 +4240,8 @@ export interface components {
             segments_total?: number | null;
             /** Preview Frame Index */
             preview_frame_index?: number | null;
+            /** Job Kind */
+            job_kind?: string | null;
             /** Extraction Started At */
             extraction_started_at: string | null;
             /** Extraction Completed At */
@@ -4357,6 +4476,19 @@ export interface components {
             version: string;
             /** Machine */
             machine: string;
+        };
+        /**
+         * PreviewClipRequest
+         * @description Motion preview (REQ-043): a few seconds processed with the project's settings.
+         */
+        PreviewClipRequest: {
+            /** Start Seconds */
+            start_seconds: number;
+            /**
+             * Duration Seconds
+             * @default 3
+             */
+            duration_seconds: number;
         };
         /** PreviewFrameListItem */
         PreviewFrameListItem: {
@@ -5175,6 +5307,10 @@ export interface components {
             profile?: string | null;
             /** Bit Rate */
             bit_rate?: number | null;
+            /** Color Space */
+            color_space?: string | null;
+            /** Color Range */
+            color_range?: string | null;
         };
     };
     responses: never;
@@ -5475,6 +5611,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GPUResponse"];
+                };
+            };
+        };
+    };
+    system_encoders_api_v1_system_encoders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncodersResponse"];
                 };
             };
         };
@@ -7707,6 +7863,73 @@ export interface operations {
             };
         };
     };
+    create_preview_clip_route_api_v1_projects__project_id__preview_clip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewClipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preview_clip_route_api_v1_jobs__job_id__preview_clip__variant__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+                variant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_exports_route_api_v1_exports_get: {
         parameters: {
             query?: {
@@ -8272,6 +8495,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GPUResponse"];
+                };
+            };
+        };
+    };
+    system_encoders_api_system_encoders_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EncodersResponse"];
                 };
             };
         };
@@ -10491,6 +10734,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreviewFrameListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_preview_clip_route_api_projects__project_id__preview_clip_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewClipRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobControlResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_preview_clip_route_api_jobs__job_id__preview_clip__variant__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+                variant: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
