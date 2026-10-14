@@ -83,6 +83,7 @@ def test_motion_preview_is_processed_and_served(stream_client, tmp_path) -> None
     assert not Path(job.working_dir).exists()
 
 
+@needs_ffmpeg
 def test_unknown_preview_variants_are_rejected(stream_client) -> None:  # noqa: F811
     client, _, _ = stream_client
     assert client.get("/api/v1/jobs/missing/preview-clip/enhanced").status_code == 404

@@ -37,7 +37,18 @@ jobs:
         run: python -m pip install -r requirements.txt
       # Los tests del pipeline por streaming y del recorte usan ffmpeg real (si falta, se saltan).
       - name: Install FFmpeg
-        run: choco install ffmpeg --no-progress -y
+        shell: pwsh
+        # El feed de Chocolatey falla a veces ("installed 0/0") sin que el paso falle: se
+        # reintenta y, si sigue sin ffmpeg, se falla aquí en vez de saltar los tests en silencio.
+        run: |
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            choco install ffmpeg --no-progress -y
+            $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + $env:Path
+            if (Get-Command ffmpeg -ErrorAction SilentlyContinue) { break }
+            Start-Sleep -Seconds (15 * $attempt)
+          }
+          if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw 'FFmpeg could not be installed' }
+          ffmpeg -version | Select-Object -First 1
       - name: Lint
         run: |
           python -m ruff check app tests ../scripts
