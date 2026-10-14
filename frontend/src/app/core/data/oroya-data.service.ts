@@ -237,6 +237,21 @@ export class OroyaDataService {
     return resilientPoll(intervalMs, () => this.aiInstallProgress());
   }
 
+  /** Vista previa en movimiento (REQ-043): procesa unos segundos con los ajustes del proyecto. */
+  createPreviewClip(projectId: string, startSeconds: number, durationSeconds = 3): Observable<string> {
+    return this.command(() =>
+      this.api.post<{ job: { id: string } }>(
+        `/projects/${encodeURIComponent(projectId)}/preview-clip`,
+        { start_seconds: startSeconds, duration_seconds: durationSeconds },
+        SLOW_REQUEST_MS,
+      ),
+    ).pipe(map((response) => response.job.id));
+  }
+
+  previewClipUrl(jobId: string, variant: 'enhanced' | 'original'): string {
+    return this.api.resolveUrl(`/jobs/${encodeURIComponent(jobId)}/preview-clip/${variant}`);
+  }
+
   filteredPreviewUrl(
     jobId: string,
     frameIndex: number,

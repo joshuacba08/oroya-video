@@ -198,6 +198,9 @@ class ProcessingJob(Base):
     queued_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Pipeline con que se empezó ("streaming" o "legacy"); reanudar sigue con el mismo.
     pipeline_mode: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # None/"export": trabajo normal; "preview": vista previa en movimiento (REQ-043), efímera y
+    # fuera de la cola, el panel y el historial.
+    job_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
     segment_frames: Mapped[int | None] = mapped_column(Integer, nullable=True)
     segments_completed: Mapped[int | None] = mapped_column(Integer, nullable=True)
     segments_total: Mapped[int | None] = mapped_column(Integer, nullable=True)

@@ -470,6 +470,71 @@ export class WorkspacePage {
     });
   }
 
+  /** Vista previa en movimiento: estado del job y, al terminar, sus dos videos. */
+  readonly motionPreview = signal<{
+    jobId: string;
+    status: string;
+    progress: number;
+    error?: string;
+  } | null>(null);
+  private motionPreviewSub: Subscription | undefined;
+
+  async startMotionPreview(workspace: WorkspaceVm): Promise<void> {
+    const controls = this.ensureControls(workspace);
+    // Desde el fotograma elegido; si no hay, desde el inicio del recorte o del video.
+    const start =
+      this.currentFrameSeconds(workspace) ?? (controls.trimEnabled ? controls.trimStart : 0);
+    this.motionPreviewSub?.unsubscribe();
+    this.motionPreview.set({ jobId: '', status: 'starting', progress: 0 });
+    try {
+      // Con los ajustes que se ven ahora en pantalla.
+      await this.persistControls(workspace);
+      const jobId = await firstValueFrom(
+        this.data.createPreviewClip(workspace.project.id, Math.max(start, 0)),
+      );
+      this.motionPreview.set({ jobId, status: 'queued', progress: 0 });
+      this.motionPreviewSub = this.data
+        .pollJobProgress(jobId, workspace.project.name, 1000)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((job) =>
+          this.motionPreview.update((current) =>
+            current && current.jobId === jobId
+              ? { jobId, status: job.status, progress: job.progress, error: job.errorMessage }
+              : current,
+          ),
+        );
+    } catch (error) {
+      this.motionPreview.set({
+        jobId: '',
+        status: 'failed',
+        progress: 0,
+        error: this.data.toErrorVm(error).message,
+      });
+    }
+  }
+
+  closeMotionPreview(): void {
+    this.motionPreviewSub?.unsubscribe();
+    this.motionPreview.set(null);
+  }
+
+  motionPreviewUrl(variant: 'enhanced' | 'original'): string {
+    const jobId = this.motionPreview()?.jobId;
+    return jobId ? this.data.previewClipUrl(jobId, variant) : '';
+  }
+
+  /** Reproduce los dos videos a la vez (el original sigue al mejorado, que lleva el audio). */
+  syncMotionPreview(enhanced: HTMLVideoElement, original: HTMLVideoElement, event: Event): void {
+    if (event.type === 'play') {
+      original.currentTime = enhanced.currentTime;
+      void original.play();
+    } else if (event.type === 'pause') {
+      original.pause();
+    } else if (Math.abs(original.currentTime - enhanced.currentTime) > 0.08) {
+      original.currentTime = enhanced.currentTime;
+    }
+  }
+
   /** Codificación por GPU que funciona en este equipo, por códec (null = aún sin saber). */
   readonly gpuEncoders = signal<Record<string, boolean> | null>(null);
 

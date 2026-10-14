@@ -43,6 +43,7 @@ from app.core.errors import (
 from app.core.logging import get_logger
 from app.db import database
 from app.db.repositories import job_repository, project_repository
+from app.db.repositories.job_repository import PREVIEW_JOB_KIND
 from app.services.audio_mux_service import mux_audio_for_job
 from app.services.audit_log_service import record_audit_event
 from app.services.cleanup_service import (
@@ -54,6 +55,7 @@ from app.services.face_restore_service import restore_faces_for_job
 from app.services.frame_enhancement_service import enhance_frames_for_job
 from app.services.frame_extraction_service import extract_frames_for_job, time_to_datetime
 from app.services.job_contract_service import PAUSABLE_STAGES, resolve_pipeline_mode
+from app.services.preview_clip_service import finish_preview_job
 from app.services.process_registry_service import (
     clear_shutdown,
     is_shutting_down,
@@ -313,6 +315,11 @@ def process_job_skeleton_sync(job_id: str, settings: Settings | None = None) -> 
         mux_audio_for_job(db, job_id, active_settings)
         db.refresh(job)
         if job.status in {"cancelled", "failed", "paused"} or is_shutting_down():
+            return
+        if job.job_kind == PREVIEW_JOB_KIND:
+            # Vista previa en movimiento (REQ-043): sin exportación ni limpieza; el clip del
+            # original para comparar y listo.
+            finish_preview_job(db, job, active_settings)
             return
         export_asset = create_final_export_for_job(db, job_id, active_settings)
         db.refresh(job)

@@ -23,6 +23,7 @@ from app.services.job_recovery_service import (
     get_waiting_job_ids,
     recover_interrupted_jobs_on_startup,
 )
+from app.services.preview_clip_service import delete_previews
 from app.services.process_registry_service import clear_registry
 from app.services.settings_service import (
     activate_installed_ai_runtime,
@@ -95,6 +96,8 @@ def create_lifespan(settings: Settings):
             db = database.SessionLocal()
             try:
                 seed_default_models(db, active_settings)
+                # Las vistas previas en movimiento son efímeras: no sobreviven al reinicio.
+                delete_previews(db, active_settings, keep_running=False)
                 recover_interrupted_jobs_on_startup(db, active_settings)
                 waiting_job_ids = get_waiting_job_ids(db)
             finally:

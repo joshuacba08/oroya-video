@@ -64,6 +64,15 @@
           <n-icon name="image" size="sm" />
           {{ 'workspace.snapshot' | t }}
         </n-button>
+        <n-button
+          variant="secondary"
+          size="sm"
+          [disabled]="processing() || motionPreview()?.status === 'running' || motionPreview()?.status === 'queued'"
+          (click)="startMotionPreview(workspace)"
+        >
+          <n-icon name="film" size="sm" />
+          {{ 'workspace.motionPreview' | t }}
+        </n-button>
         @if (liveJob(); as job) {
           @if (hasActiveLiveJob()) {
             <span class="workspace-page__live-status" [class.workspace-page__live-status--paused]="job.status === 'paused'">
@@ -599,3 +608,53 @@
     </main>
   }
 </section>
+
+@if (motionPreview(); as clip) {
+  <div class="motion-preview__backdrop" (click)="closeMotionPreview()"></div>
+  <section class="motion-preview" role="dialog" aria-modal="true" [attr.aria-label]="'workspace.motionPreview' | t">
+    <header>
+      <strong>{{ 'workspace.motionPreview' | t }}</strong>
+      <button type="button" (click)="closeMotionPreview()" [attr.aria-label]="'common.close' | t">
+        <n-icon name="x" size="sm" />
+      </button>
+    </header>
+    @switch (clip.status) {
+      @case ('completed') {
+        <div class="motion-preview__videos">
+          <figure>
+            <figcaption>{{ 'workspace.original' | t }}</figcaption>
+            <video #originalClip [src]="motionPreviewUrl('original')" muted playsinline preload="auto"></video>
+          </figure>
+          <figure>
+            <figcaption>{{ 'workspace.enhanced' | t }}</figcaption>
+            <video
+              #enhancedClip
+              class="motion-preview__enhanced"
+              [src]="motionPreviewUrl('enhanced')"
+              controls
+              loop
+              playsinline
+              preload="auto"
+              (play)="syncMotionPreview(enhancedClip, originalClip, $event)"
+              (pause)="syncMotionPreview(enhancedClip, originalClip, $event)"
+              (timeupdate)="syncMotionPreview(enhancedClip, originalClip, $event)"
+            ></video>
+          </figure>
+        </div>
+        <p class="motion-preview__hint">{{ 'workspace.motionPreviewHint' | t }}</p>
+      }
+      @case ('failed') {
+        <p class="motion-preview__error">{{ clip.error || ('workspace.motionPreviewFailed' | t) }}</p>
+      }
+      @default {
+        <div class="motion-preview__progress">
+          <span>
+            {{ (clip.status === 'queued' ? 'workspace.motionPreviewQueued' : 'workspace.motionPreviewWorking') | t }}
+          </span>
+          <n-progress [value]="clip.progress" />
+        </div>
+      }
+    }
+  </section>
+}
+

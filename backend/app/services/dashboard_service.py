@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sqlalchemy import case
+from sqlalchemy import case, or_
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings, get_settings
 from app.core.logging import get_logger
 from app.db.models import AIModel, ExportAsset, ProcessingJob, Project, VideoAsset
+from app.db.repositories.job_repository import PREVIEW_JOB_KIND, export_jobs_query
 from app.db.repositories.project_repository import to_project_response
 from app.schemas.hardening_schema import QueueItemResponse, QueueResponse
 from app.schemas.settings_schema import (
@@ -33,6 +34,11 @@ from app.services.tool_detection_service import get_tools_status
 logger = get_logger(__name__)
 
 
+def _jobs(db: Session):
+    """Jobs shown to the user: motion previews (REQ-043) are not listed or counted."""
+    return export_jobs_query(db)
+
+
 def _get_active_settings(settings: Settings | None = None) -> Settings:
     return settings or get_settings()
 
@@ -44,10 +50,8 @@ def get_bootstrap_response(db: Session, settings: Settings | None = None) -> Boo
     counts = BootstrapCountsResponse(
         projects=db.query(Project).count(),
         videos=db.query(VideoAsset).count(),
-        jobs_running=db.query(ProcessingJob).filter(ProcessingJob.status == "running").count(),
-        jobs_interrupted=(
-            db.query(ProcessingJob).filter(ProcessingJob.status == "interrupted").count()
-        ),
+        jobs_running=_jobs(db).filter(ProcessingJob.status == "running").count(),
+        jobs_interrupted=(_jobs(db).filter(ProcessingJob.status == "interrupted").count()),
         exports=db.query(ExportAsset).count(),
         models_installed=db.query(AIModel).filter(AIModel.is_installed.is_(True)).count(),
     )
@@ -95,14 +99,14 @@ def get_dashboard_response(db: Session, settings: Settings | None = None) -> Das
     recent_projects = db.query(Project).order_by(Project.updated_at.desc()).limit(5).all()
     recent_exports = db.query(ExportAsset).order_by(ExportAsset.created_at.desc()).limit(5).all()
     active_jobs = (
-        db.query(ProcessingJob)
+        _jobs(db)
         .filter(ProcessingJob.status.in_(("queued", "running", "retrying")))
         .order_by(ProcessingJob.updated_at.desc())
         .limit(10)
         .all()
     )
     interrupted_jobs = (
-        db.query(ProcessingJob)
+        _jobs(db)
         .filter(ProcessingJob.status == "interrupted")
         .order_by(ProcessingJob.updated_at.desc())
         .limit(10)
@@ -153,12 +157,10 @@ def get_app_state_response(db: Session, settings: Settings | None = None) -> App
             api_version=active_settings.api_version,
         ),
         queue=AppStateQueueResponse(
-            running=db.query(ProcessingJob).filter(ProcessingJob.status == "running").count(),
-            queued=db.query(ProcessingJob).filter(ProcessingJob.status == "queued").count(),
-            pending=db.query(ProcessingJob).filter(ProcessingJob.status == "pending").count(),
-            interrupted=(
-                db.query(ProcessingJob).filter(ProcessingJob.status == "interrupted").count()
-            ),
+            running=_jobs(db).filter(ProcessingJob.status == "running").count(),
+            queued=_jobs(db).filter(ProcessingJob.status == "queued").count(),
+            pending=_jobs(db).filter(ProcessingJob.status == "pending").count(),
+            interrupted=(_jobs(db).filter(ProcessingJob.status == "interrupted").count()),
         ),
         system=AppStateSystemResponse(
             ready=requirements.ready,
@@ -194,6 +196,7 @@ def get_queue_response(
         db.query(ProcessingJob, Project.name)
         .outerjoin(Project, Project.id == ProcessingJob.project_id)
         .filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES))
+        .filter(or_(ProcessingJob.job_kind.is_(None), ProcessingJob.job_kind != PREVIEW_JOB_KIND))
         # Orden real de proceso: el que corre, después la cola (FIFO) y luego el resto.
         .order_by(
             case(
@@ -241,16 +244,16 @@ def get_queue_response(
         )
         for job, project_name in items
     ]
-    total = db.query(ProcessingJob).filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)).count()
+    total = _jobs(db).filter(ProcessingJob.status.in_(QUEUE_VISIBLE_STATUSES)).count()
     return QueueResponse(
         items=response_items,
         total=total,
-        running=db.query(ProcessingJob).filter(ProcessingJob.status == "running").count(),
-        queued=db.query(ProcessingJob).filter(ProcessingJob.status == "queued").count(),
-        pending=db.query(ProcessingJob).filter(ProcessingJob.status == "pending").count(),
-        interrupted=db.query(ProcessingJob).filter(ProcessingJob.status == "interrupted").count(),
-        paused=db.query(ProcessingJob).filter(ProcessingJob.status == "paused").count(),
-        failed=db.query(ProcessingJob).filter(ProcessingJob.status == "failed").count(),
+        running=_jobs(db).filter(ProcessingJob.status == "running").count(),
+        queued=_jobs(db).filter(ProcessingJob.status == "queued").count(),
+        pending=_jobs(db).filter(ProcessingJob.status == "pending").count(),
+        interrupted=_jobs(db).filter(ProcessingJob.status == "interrupted").count(),
+        paused=_jobs(db).filter(ProcessingJob.status == "paused").count(),
+        failed=_jobs(db).filter(ProcessingJob.status == "failed").count(),
         limit=limit,
         offset=offset,
     )
