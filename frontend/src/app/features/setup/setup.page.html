@@ -102,6 +102,25 @@
         <div>
           <strong>{{ 'setup.ai' | t }}</strong>
           <span>{{ (startup.aiRuntimeAvailable ? 'setup.aiOk' : 'setup.aiMissing') | t }}</span>
+          <!-- Progreso también al actualizar componentes, no solo en la primera instalación. -->
+          @if (aiInstall(); as install) {
+            @if (install.status === 'installing') {
+              <div class="setup-page__progress">
+                <n-progress [value]="install.percent" variant="gemini" size="xs" />
+                <small>
+                  {{ 'setup.aiStep' | t: { step: install.step || 1, total: install.steps_total, label: install.step_label } }}
+                </small>
+                @if (install.message) {
+                  <small class="setup-page__install-log">{{ install.message }}</small>
+                }
+              </div>
+            } @else if (install.status === 'failed') {
+              <small class="setup-page__step-error">{{ install.error_message }}</small>
+            }
+          }
+          @if (aiActivating()) {
+            <small class="setup-page__install-log">{{ 'setup.aiActivating' | t }}</small>
+          }
           @if (startup.aiRuntimeAvailable && (aiRuntime()?.missing_components?.length || aiInstalling())) {
             <div class="setup-page__ai-actions">
               <small>{{ 'setup.aiUpdate' | t: { components: aiRuntime()?.missing_components?.join(', ') ?? '' } }}</small>
@@ -112,21 +131,6 @@
             </div>
           }
           @if (!startup.aiRuntimeAvailable) {
-            @if (aiInstall(); as install) {
-              @if (install.status === 'installing') {
-                <div class="setup-page__progress">
-                  <n-progress [value]="install.percent" variant="gemini" size="xs" />
-                  <small>
-                    {{ 'setup.aiStep' | t: { step: install.step || 1, total: install.steps_total, label: install.step_label } }}
-                  </small>
-                  @if (install.message) {
-                    <small class="setup-page__install-log">{{ install.message }}</small>
-                  }
-                </div>
-              } @else if (install.status === 'failed') {
-                <small class="setup-page__step-error">{{ install.error_message }}</small>
-              }
-            }
             <div class="setup-page__ai-actions">
               <n-button variant="primary" size="sm" [disabled]="aiInstalling()" (click)="startAiInstall()">
                 <n-icon name="download" size="sm" />
@@ -137,7 +141,7 @@
                 {{ (verifyingAi() ? 'setup.verifying' : 'setup.verify') | t }}
               </n-button>
             </div>
-            @if (aiAvailable() === false && !aiInstalling()) {
+            @if (aiAvailable() === false && !aiInstalling() && aiInstall()?.status !== 'failed') {
               <small class="setup-page__step-error">{{ 'setup.aiNotYet' | t }}</small>
             }
             <details class="setup-page__manual">

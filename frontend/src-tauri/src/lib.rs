@@ -235,6 +235,10 @@ fn spawn_backend(app: &AppHandle, paths: &BackendPaths, port: u16) -> Result<Chi
     .env("DEBUG", "false")
     .env("PYTHONNOUSERSITE", "1")
     .env("PYTHONUNBUFFERED", "1")
+    // UTF-8 siempre: con la página de códigos del sistema (p. ej. cp932 en japonés) un
+    // mensaje con tildes rompía el log del proceso.
+    .env("PYTHONUTF8", "1")
+    .env("PYTHONIOENCODING", "utf-8")
     // El backend también vigila este PID: si la app muere, se apaga solo.
     .env("OROYA_PARENT_PID", std::process::id().to_string())
     .stdin(Stdio::null());
@@ -438,6 +442,21 @@ fn stop_backend_for_update(app: AppHandle) {
     stop_backend(&app);
 }
 
+/// Reinicio pedido por la UI: activa un runtime de IA recién instalado, que el backend en
+/// marcha no puede cargar (Windows bloquea las DLL que ya tiene abiertas).
+#[tauri::command]
+fn reload_backend(app: AppHandle) {
+    let _ = std::thread::Builder::new()
+        .name("backend-reload".into())
+        .spawn(move || {
+            stop_backend(&app);
+            // El supervisor anterior revisa `stopping` cada segundo: se le deja terminar antes
+            // de arrancar uno nuevo.
+            std::thread::sleep(Duration::from_millis(1500));
+            restart_backend(app);
+        });
+}
+
 fn focus_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -468,6 +487,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend_info,
             restart_backend,
+            reload_backend,
             stop_backend_for_update
         ])
         .setup(move |app| {

@@ -17,7 +17,7 @@ from app.middleware.access_log import AccessLogMiddleware
 from app.middleware.local_only import LocalOnlyMiddleware
 from app.middleware.request_id import RequestIdMiddleware
 from app.services.ai_model_service import seed_default_models
-from app.services.ai_runtime_service import ensure_ai_extra_site_dir
+from app.services.ai_runtime_service import apply_pending_ai_env, ensure_ai_extra_site_dir
 from app.services.cleanup_service import start_startup_temp_cleanup
 from app.services.job_recovery_service import (
     get_waiting_job_ids,
@@ -87,6 +87,11 @@ def create_lifespan(settings: Settings):
         active_settings = apply_persisted_settings(settings)
         ensure_storage_directories(settings)
         configure_logging(active_settings)
+        # Antes de que nada cargue el runtime de IA: después Windows bloquearía sus archivos.
+        try:
+            apply_pending_ai_env(active_settings)
+        except Exception:  # noqa: BLE001 - nunca impide arrancar
+            logger.warning("Pending AI runtime switch failed", exc_info=True)
         ensure_ai_extra_site_dir(active_settings)
         clear_registry()
         database.init_db(active_settings)

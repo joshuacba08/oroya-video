@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import importlib
 import platform
+import shutil
 import site
 import sys
+import time
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,75 @@ logger = get_logger(__name__)
 
 def _get_active_settings(settings: Settings | None = None) -> Settings:
     return settings or get_settings()
+
+
+# Instalación aislada: el runtime nuevo se instala junto al activo (`ai-env.staging`) y se
+# activa al reiniciar el backend. Instalar sobre la carpeta en uso fallaba en Windows: el
+# backend tiene abiertas sus DLL (numpy, torch…) y pip la dejaba a medio borrar.
+STAGING_SUFFIX = ".staging"
+PENDING_SUFFIX = ".pending"
+OLD_SUFFIX = ".old-"
+SWAP_ATTEMPTS = 5
+
+
+def get_ai_env_staging_dir(site_dir: Path) -> Path:
+    return site_dir.with_name(site_dir.name + STAGING_SUFFIX)
+
+
+def get_ai_env_pending_marker(site_dir: Path) -> Path:
+    return site_dir.with_name(site_dir.name + PENDING_SUFFIX)
+
+
+def is_ai_env_switch_pending(settings: Settings | None = None) -> bool:
+    site_dir_value = _get_active_settings(settings).ai_extra_site_dir
+    return bool(site_dir_value) and get_ai_env_pending_marker(Path(site_dir_value)).is_file()
+
+
+def _rename_with_retry(source: Path, target: Path) -> None:
+    # Un antivirus puede tener abierto un archivo recién escrito unos instantes.
+    for attempt in range(SWAP_ATTEMPTS):
+        try:
+            source.rename(target)
+            return
+        except OSError:
+            if attempt == SWAP_ATTEMPTS - 1:
+                raise
+            time.sleep(0.5 * (attempt + 1))
+
+
+def apply_pending_ai_env(settings: Settings | None = None) -> bool:
+    """Al arrancar, antes de cargar nada del runtime de IA: activa el instalado en
+    `ai-env.staging` y borra las carpetas sustituidas. Devuelve si hubo cambio."""
+    site_dir_value = _get_active_settings(settings).ai_extra_site_dir
+    if not site_dir_value:
+        return False
+    site_dir = Path(site_dir_value)
+    staging = get_ai_env_staging_dir(site_dir)
+    marker = get_ai_env_pending_marker(site_dir)
+    switched = False
+    if marker.is_file() and staging.is_dir():
+        retired = site_dir.with_name(f"{site_dir.name}{OLD_SUFFIX}{int(time.time())}")
+        try:
+            if site_dir.exists():
+                _rename_with_retry(site_dir, retired)
+            try:
+                _rename_with_retry(staging, site_dir)
+            except OSError:
+                if retired.exists() and not site_dir.exists():
+                    _rename_with_retry(retired, site_dir)  # se queda el anterior
+                raise
+            marker.unlink(missing_ok=True)
+            switched = True
+            logger.info("AI runtime switched to the newly installed one")
+        except OSError:
+            # Se reintenta en el próximo arranque; mientras, sigue el runtime anterior.
+            logger.warning("Could not switch to the newly installed AI runtime", exc_info=True)
+    elif marker.exists():
+        marker.unlink(missing_ok=True)
+    if site_dir.is_dir():  # nunca borrar el único runtime que queda
+        for retired_dir in site_dir.parent.glob(f"{site_dir.name}{OLD_SUFFIX}*"):
+            shutil.rmtree(retired_dir, ignore_errors=True)
+    return switched
 
 
 def ensure_ai_extra_site_dir(settings: Settings | None = None) -> None:

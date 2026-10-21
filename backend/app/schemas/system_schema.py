@@ -75,6 +75,8 @@ class FFmpegDownloadProgressResponse(BaseModel):
 class AIInstallStartResponse(BaseModel):
     status: str
     already_installed: bool
+    # Instalación aislada: el runtime nuevo se activa al reiniciar el backend.
+    restart_required: bool = False
 
 
 class AIInstallProgressResponse(BaseModel):
@@ -87,6 +89,7 @@ class AIInstallProgressResponse(BaseModel):
     error_code: str | None
     error_message: str | None
     output_tail: list[str]
+    restart_required: bool = False
 
 
 class ShutdownResponse(BaseModel):
