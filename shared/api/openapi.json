@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Oroya Video Backend",
-    "version": "0.6.0"
+    "version": "0.6.1"
   },
   "paths": {
     "/api/v1/health": {
@@ -8412,6 +8412,11 @@
             },
             "type": "array",
             "title": "Output Tail"
+          },
+          "restart_required": {
+            "type": "boolean",
+            "title": "Restart Required",
+            "default": false
           }
         },
         "type": "object",
@@ -8437,6 +8442,11 @@
           "already_installed": {
             "type": "boolean",
             "title": "Already Installed"
+          },
+          "restart_required": {
+            "type": "boolean",
+            "title": "Restart Required",
+            "default": false
           }
         },
         "type": "object",

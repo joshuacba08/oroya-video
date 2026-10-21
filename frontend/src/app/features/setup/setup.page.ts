@@ -12,6 +12,8 @@ import type {
   AIRuntimeStatusResponse,
 } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { DesktopBackendService } from '../../core/desktop/desktop-backend.service';
+import { DesktopService } from '../../core/desktop/desktop.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type {
   ApiErrorVm,
@@ -21,6 +23,9 @@ import type {
 } from '../../core/models/oroya.models';
 
 export const SETUP_DISMISSED_KEY = 'oroya.setup.dismissed';
+/** Lo que puede tardar el backend en pararse y volver a arrancar con el runtime nuevo. */
+export const AI_ACTIVATION_TIMEOUT_MS = 120_000;
+const AI_ACTIVATION_POLL_MS = 500;
 
 @Component({
   selector: 'app-setup-page',
@@ -31,6 +36,8 @@ export const SETUP_DISMISSED_KEY = 'oroya.setup.dismissed';
 })
 export class SetupPage {
   private readonly data = inject(OroyaDataService);
+  private readonly desktop = inject(DesktopService);
+  private readonly desktopBackend = inject(DesktopBackendService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload$ = new BehaviorSubject(0);
@@ -44,6 +51,8 @@ export class SetupPage {
   readonly aiAvailable = signal<boolean | null>(null);
   readonly aiRuntime = signal<AIRuntimeStatusResponse | null>(null);
   readonly aiInstall = signal<AIInstallProgressResponse | null>(null);
+  /** Reiniciando el backend para cargar el runtime recién instalado. */
+  readonly aiActivating = signal(false);
   private aiInstallSub: Subscription | undefined;
 
   constructor() {
@@ -69,6 +78,10 @@ export class SetupPage {
     try {
       this.error.set(null);
       const started = await firstValueFrom(this.data.installAi());
+      if (started.restart_required) {
+        await this.activateAiRuntime();
+        return;
+      }
       if (started.already_installed) {
         await this.verifyAiRuntime(null);
         return;
@@ -80,7 +93,33 @@ export class SetupPage {
   }
 
   aiInstalling(): boolean {
-    return this.aiInstall()?.status === 'installing';
+    return this.aiInstall()?.status === 'installing' || this.aiActivating();
+  }
+
+  /**
+   * El runtime nuevo se instala junto al que está en uso (Windows no deja reemplazar sus DLL
+   * mientras el backend las tiene cargadas) y se activa al reiniciar el backend.
+   */
+  async activateAiRuntime(): Promise<void> {
+    this.aiActivating.set(true);
+    try {
+      if (this.desktop.isDesktop()) {
+        const readyBefore = this.desktopBackend.readyCount();
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('reload_backend');
+        await this.waitForBackendRestart(readyBefore);
+      }
+      await this.verifyAiRuntime(null);
+    } finally {
+      this.aiActivating.set(false);
+    }
+  }
+
+  private async waitForBackendRestart(readyBefore: number): Promise<void> {
+    const deadline = Date.now() + AI_ACTIVATION_TIMEOUT_MS;
+    while (this.desktopBackend.readyCount() <= readyBefore && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, AI_ACTIVATION_POLL_MS));
+    }
   }
 
   private followAiInstall(): void {
@@ -93,7 +132,9 @@ export class SetupPage {
         if (progress.status === 'completed' || progress.status === 'failed') {
           this.aiInstallSub?.unsubscribe();
           if (progress.status === 'completed') {
-            void this.verifyAiRuntime(null);
+            void (progress.restart_required
+              ? this.activateAiRuntime()
+              : this.verifyAiRuntime(null));
           }
         }
       });

@@ -223,6 +223,7 @@ export const es: Record<TranslationKey, string> = {
   'setup.aiStep': 'Paso {step} de {total}: {label}',
   'setup.aiInstall': 'Instalar runtime de IA',
   'setup.aiInstalling': 'Instalando...',
+  'setup.aiActivating': 'Activando el runtime de IA: reiniciando el motor...',
   'setup.verify': 'Verificar',
   'setup.verifying': 'Verificando...',
   'setup.aiNotYet': 'PyTorch todavía no está disponible.',

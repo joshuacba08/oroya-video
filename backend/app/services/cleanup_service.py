@@ -75,6 +75,27 @@ def calculate_job_temp_size(job_id: str, settings: Settings | None = None) -> di
     }
 
 
+DELETE_ATTEMPTS = 5
+DELETE_RETRY_DELAY_SECONDS = 0.3
+
+
+def _delete_with_retry(path: Path) -> None:
+    """Windows no deja borrar un archivo abierto: una vista previa que se está sirviendo, el
+    antivirus o el visor de miniaturas lo sueltan en un momento. Antes, "Reintentar" fallaba
+    con un error 500 por eso."""
+    for attempt in range(DELETE_ATTEMPTS):
+        try:
+            if path.is_file():
+                path.unlink()
+            elif path.exists():
+                shutil.rmtree(path)
+            return
+        except PermissionError:
+            if attempt == DELETE_ATTEMPTS - 1:
+                raise
+            time.sleep(DELETE_RETRY_DELAY_SECONDS * (attempt + 1))
+
+
 def _delete_path_if_requested(
     path: Path,
     *,
@@ -84,10 +105,7 @@ def _delete_path_if_requested(
     if not enabled or not path.exists():
         return 0
     freed_bytes = get_directory_size_bytes(path)
-    if path.is_file():
-        path.unlink()
-    else:
-        shutil.rmtree(path)
+    _delete_with_retry(path)
     deleted_paths.append(str(path))
     return freed_bytes
 

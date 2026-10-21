@@ -1,6 +1,6 @@
 [package]
 name = "oroya-video"
-version = "0.6.0"
+version = "0.6.1"
 description = "Oroya Video desktop client"
 authors = ["Oroya Video"]
 edition = "2021"

@@ -2897,6 +2897,11 @@ export interface components {
             error_message: string | null;
             /** Output Tail */
             output_tail: string[];
+            /**
+             * Restart Required
+             * @default false
+             */
+            restart_required: boolean;
         };
         /** AIInstallStartResponse */
         AIInstallStartResponse: {
@@ -2904,6 +2909,11 @@ export interface components {
             status: string;
             /** Already Installed */
             already_installed: boolean;
+            /**
+             * Restart Required
+             * @default false
+             */
+            restart_required: boolean;
         };
         /** AIModelCreateRequest */
         AIModelCreateRequest: {

@@ -221,6 +221,7 @@ export const en = {
   'setup.aiStep': 'Step {step} of {total}: {label}',
   'setup.aiInstall': 'Install AI runtime',
   'setup.aiInstalling': 'Installing...',
+  'setup.aiActivating': 'Activating the AI runtime: restarting the engine...',
   'setup.verify': 'Verify',
   'setup.verifying': 'Verifying...',
   'setup.aiNotYet': 'PyTorch is not available yet.',
