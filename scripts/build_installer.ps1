@@ -7,7 +7,8 @@
     2. Instala las dependencias core del backend en ese runtime.
     3. Copia el código del backend a frontend/src-tauri/resources/backend/.
     4. Construye el wheel parcheado de basicsr (instalación de IA desde el asistente).
-    5. Ejecuta pnpm test + pnpm tauri build (NSIS).
+    5. Recopila la licencia y los avisos de terceros en frontend/src-tauri/resources/licenses/.
+    6. Ejecuta pnpm test + pnpm tauri build (NSIS).
 
     El instalador resultante arranca el backend automáticamente (sidecar) y
     guarda todos los datos de usuario en %LOCALAPPDATA%\dev.oroya.video.
@@ -104,7 +105,12 @@ Write-Host "Construyendo wheel de basicsr..." -ForegroundColor Yellow
     (Join-Path $resourcesDir "wheels")
 if ($LASTEXITCODE -ne 0) { throw "basicsr wheel build failed" }
 
-# 5. Build del frontend + instalador NSIS
+# 5. Licencias: la propia y las de terceros que van dentro del instalador
+Write-Host "Recopilando licencias..." -ForegroundColor Yellow
+& (Join-Path $pythonDir "python.exe") (Join-Path $repoRoot "scripts\collect_licenses.py")
+if ($LASTEXITCODE -ne 0) { throw "license collection failed" }
+
+# 6. Build del frontend + instalador NSIS
 Push-Location (Join-Path $repoRoot "frontend")
 try {
     if (-not $SkipFrontendTests) {

@@ -12,6 +12,7 @@ import type {
   AIRuntimeStatusResponse,
 } from '../../core/api/api-types';
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { ModelLicenseService } from '../../core/dialogs/model-license.service';
 import { DesktopBackendService } from '../../core/desktop/desktop-backend.service';
 import { DesktopService } from '../../core/desktop/desktop.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
@@ -36,6 +37,7 @@ const AI_ACTIVATION_POLL_MS = 500;
 })
 export class SetupPage {
   private readonly data = inject(OroyaDataService);
+  private readonly licenses = inject(ModelLicenseService);
   private readonly desktop = inject(DesktopService);
   private readonly desktopBackend = inject(DesktopBackendService);
   private readonly router = inject(Router);
@@ -235,6 +237,9 @@ export class SetupPage {
 
   async startModelDownload(model: ModelVm): Promise<void> {
     if (this.modelDownloadFor(model)?.status === 'downloading') {
+      return;
+    }
+    if (!(await this.licenses.acceptDownload(model))) {
       return;
     }
 

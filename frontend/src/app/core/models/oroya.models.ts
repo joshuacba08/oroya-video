@@ -145,6 +145,10 @@ export interface ModelVm {
   speed: number;
   vramGb: number;
   category: string;
+  /** Licencia del modelo (`metadata.license`), o '' si el backend no la declara. */
+  license: string;
+  /** Solo uso no comercial: se avisa en la tarjeta y se pide aceptarlo antes de descargar. */
+  nonCommercial: boolean;
 }
 
 export interface ModelDownloadVm {

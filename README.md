@@ -978,4 +978,15 @@ backend empaquetado presente).
 
 ## 25. Licencia
 
-Oroya Video se publica bajo licencia MIT. Consulta [LICENSE](LICENSE) para el texto completo.
+Copyright 2026 Josué Oroya. Oroya Video se publica bajo la
+[licencia Apache 2.0](LICENSE): cualquiera puede usarlo, modificarlo y redistribuirlo, también con
+fines comerciales, siempre que conserve los avisos de [LICENSE](LICENSE) y [NOTICE](NOTICE) e
+indique los cambios que haga. El software se entrega "tal cual", sin garantías.
+
+- **Marca:** la licencia no da permiso para usar el nombre "Oroya Video" ni su logo. Una versión
+  modificada no puede presentarse como la oficial.
+- **Componentes de terceros:** FFmpeg, PyTorch y los modelos de IA tienen sus propias licencias.
+  Se detallan en [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). La restauración de caras
+  (GFPGAN) es **solo para uso no comercial**.
+- **Tus videos:** el usuario es responsable de tener los derechos de los videos que procesa y de
+  cómo usa el resultado.

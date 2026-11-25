@@ -55,7 +55,13 @@ def test_seed_adds_tiers_to_models_from_older_versions(tmp_path: Path) -> None:
             if item["slug"] == "realesrgan-x2"
         )
 
-    assert x2["metadata"] == {"custom": 1, "quality_tier": "high", "speed_tier": "medium"}
+    assert x2["metadata"] == {
+        "custom": 1,
+        "quality_tier": "high",
+        "speed_tier": "medium",
+        "license": "BSD-3-Clause",
+        "source_url": "https://github.com/xinntao/Real-ESRGAN",
+    }
 
 
 def test_job_events_stream_sends_progress_and_closes_on_terminal_state(tmp_path: Path) -> None:

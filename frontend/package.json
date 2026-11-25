@@ -12,6 +12,7 @@
     "e2e": "playwright test -c e2e/playwright.config.ts"
   },
   "private": true,
+  "license": "Apache-2.0",
   "packageManager": "pnpm@11.7.0",
   "dependencies": {
     "@angular/cdk": "^22.2.0",

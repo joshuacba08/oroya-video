@@ -45,6 +45,14 @@ import type { ModelDownloadVm, ModelVm } from '../../core/models/oroya.models';
         }
       </header>
       <p>{{ model().description }}</p>
+      @if (model().nonCommercial) {
+        <p class="ov-model-card__license ov-model-card__license--restricted">
+          <n-icon name="triangle-alert" size="sm" />
+          {{ 'model.licenseNonCommercial' | t }}
+        </p>
+      } @else if (model().license) {
+        <p class="ov-model-card__license">{{ 'model.license' | t: { license: model().license } }}</p>
+      }
       @if (download(); as state) {
         @if (state.status === 'downloading') {
           <div class="ov-model-card__download">
@@ -189,6 +197,19 @@ import type { ModelDownloadVm, ModelVm } from '../../core/models/oroya.models';
         font-family: var(--n-font-mono);
         font-size: 0.72rem;
         font-weight: 700;
+      }
+
+      .ov-model-card__license {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--n-font-mono);
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+
+      .ov-model-card__license--restricted {
+        color: var(--n-color-warning);
       }
 
       .ov-model-card__download-error {

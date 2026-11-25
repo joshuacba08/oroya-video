@@ -6,6 +6,7 @@ import { NIcon } from '@neuralangular/angular-ui/icon';
 import { BehaviorSubject, Subscription, catchError, firstValueFrom, of, switchMap } from 'rxjs';
 
 import { OroyaDataService } from '../../core/data/oroya-data.service';
+import { ModelLicenseService } from '../../core/dialogs/model-license.service';
 import { TranslatePipe } from '../../core/i18n/translate.pipe';
 import type { ApiErrorVm, ModelDownloadVm, ModelVm } from '../../core/models/oroya.models';
 import { OvModelCardComponent } from '../../shared/ui/ov-model-card.component';
@@ -20,6 +21,7 @@ import { OvSectionHeaderComponent } from '../../shared/ui/ov-section-header.comp
 })
 export class ModelsPage {
   private readonly data = inject(OroyaDataService);
+  private readonly licenses = inject(ModelLicenseService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly reload$ = new BehaviorSubject(0);
   private readonly downloadSubs: Record<string, Subscription> = {};
@@ -76,6 +78,9 @@ export class ModelsPage {
 
   async startDownload(model: ModelVm): Promise<void> {
     if (this.downloadFor(model)?.status === 'downloading') {
+      return;
+    }
+    if (!(await this.licenses.acceptDownload(model))) {
       return;
     }
 
