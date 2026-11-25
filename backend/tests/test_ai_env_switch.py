@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -65,7 +66,7 @@ def test_failed_switch_keeps_the_previous_runtime(tmp_path: Path) -> None:
     assert (tmp_path / "ai-env.staging").is_dir()
 
 
-def test_startup_applies_the_pending_runtime(tmp_path: Path) -> None:
+def test_startup_applies_the_pending_runtime(tmp_path: Path, monkeypatch) -> None:
     from fastapi.testclient import TestClient
 
     from app.main import create_app
@@ -76,6 +77,10 @@ def test_startup_applies_the_pending_runtime(tmp_path: Path) -> None:
         ai_extra_site_dir=str(tmp_path / "ai-env"),
     )
     _prepare(tmp_path)
+    # El arranque registra ai-env en sys.path (site.addsitedir) y aquí trae un `numpy/` de
+    # prueba: sin restaurarlo, los tests siguientes importan esa carpeta vacía como numpy
+    # cuando no está instalado el real (CI).
+    monkeypatch.setattr(sys, "path", list(sys.path))
     with TestClient(create_app(settings)):
         pass
     assert (tmp_path / "ai-env" / "numpy" / "new.pyd").is_file()
