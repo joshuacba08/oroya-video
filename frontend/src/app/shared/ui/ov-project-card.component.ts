@@ -189,6 +189,9 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
 
       .ov-project-card__body {
         display: grid;
+        /* minmax(0, 1fr): un nombre largo se recorta con "…" en vez de ensanchar la columna
+           y empujar fuera de la tarjeta los botones de renombrar y borrar. */
+        grid-template-columns: minmax(0, 1fr);
         gap: 8px;
         padding: 16px 18px 18px;
       }
@@ -249,10 +252,12 @@ import type { ProjectCardVm } from '../../core/models/oroya.models';
         align-items: start;
         justify-content: space-between;
         gap: 8px;
+        min-width: 0;
       }
 
       .ov-project-card__actions {
         display: inline-flex;
+        flex-shrink: 0;
         gap: 4px;
         opacity: 0;
         transition: opacity var(--n-transition-fast);

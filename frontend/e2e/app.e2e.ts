@@ -147,12 +147,21 @@ test('renames and deletes a project with the in-app dialogs', async ({ page }) =
   await card.getByRole('button', { name: 'Rename' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.locator('input')).toBeFocused();
-  await dialog.locator('input').fill('E2E renamed');
+  // Nombre muy largo (como los de videos descargados): antes ensanchaba la tarjeta y dejaba los
+  // botones de renombrar y borrar fuera de la vista.
+  const longName = 'E2E renamed 森高千里「別れた女」見て〜スペシャル〜ライブ映像 1989 remaster full concert';
+  await dialog.locator('input').fill(longName);
   await dialog.locator('input').press('Enter');
   const renamed = page.locator('ov-project-card').filter({ hasText: 'E2E renamed' });
   await expect(renamed).toBeVisible();
 
-  await renamed.getByRole('button', { name: 'Delete' }).click();
+  await renamed.hover();
+  const deleteButton = renamed.getByRole('button', { name: 'Delete' });
+  const cardBox = await renamed.locator('.ov-project-card').boundingBox();
+  const buttonBox = await deleteButton.boundingBox();
+  expect(cardBox && buttonBox).toBeTruthy();
+  expect(buttonBox!.x + buttonBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+  await deleteButton.click();
   await expect(page.getByRole('dialog')).toContainText('E2E renamed');
   await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
   await expect(renamed).toHaveCount(0);
