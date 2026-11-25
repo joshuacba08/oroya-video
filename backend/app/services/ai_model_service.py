@@ -66,7 +66,14 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({"quality_tier": "high", "speed_tier": "medium"}),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "high",
+                "speed_tier": "medium",
+                "license": "BSD-3-Clause",
+                "source_url": "https://github.com/xinntao/Real-ESRGAN",
+            }
+        ),
     },
     {
         "name": "Real-ESRGAN x4",
@@ -94,7 +101,14 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({"quality_tier": "very_high", "speed_tier": "slow"}),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "very_high",
+                "speed_tier": "slow",
+                "license": "BSD-3-Clause",
+                "source_url": "https://github.com/xinntao/Real-ESRGAN",
+            }
+        ),
     },
     {
         "name": "Real-ESRGAN General",
@@ -126,6 +140,8 @@ DEFAULT_MODELS = [
             {
                 "quality_tier": "medium",
                 "speed_tier": "fast",
+                "license": "BSD-3-Clause",
+                "source_url": "https://github.com/xinntao/Real-ESRGAN",
                 # Variante "wdn": se mezcla con la principal para regular la reducción de ruido.
                 "auxiliary_files": [GENERAL_WDN_RELATIVE_PATH],
             }
@@ -161,6 +177,11 @@ DEFAULT_MODELS = [
             {
                 "quality_tier": "high",
                 "speed_tier": "medium",
+                # Pesos (y los de facexlib) entrenados con datos de uso no comercial (FFHQ,
+                # CelebAMask-HQ): la UI lo avisa y pide aceptarlo antes de descargar.
+                "license": "Non-commercial",
+                "non_commercial": True,
+                "source_url": "https://github.com/TencentARC/GFPGAN",
                 # Pesos de facexlib (detección y segmentación de caras) que GFPGAN necesita.
                 "auxiliary_files": [
                     "facexlib/detection_Resnet50_Final.pth",
@@ -195,7 +216,14 @@ DEFAULT_MODELS = [
                 "face_enhancement": False,
             }
         ),
-        "metadata_json": json.dumps({"quality_tier": "high", "speed_tier": "fast"}),
+        "metadata_json": json.dumps(
+            {
+                "quality_tier": "high",
+                "speed_tier": "fast",
+                "license": "MIT",
+                "source_url": "https://github.com/hzwer/Practical-RIFE",
+            }
+        ),
     },
     {
         "name": "RealPLKSR Real 2x",

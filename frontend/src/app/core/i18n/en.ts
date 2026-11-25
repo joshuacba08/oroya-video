@@ -133,6 +133,12 @@ export const en = {
   'model.disabled': 'Disabled',
   'model.downloadAria': 'Download {name}',
   'model.downloadFailed': 'Download failed: {error}',
+  'model.license': 'License: {license}',
+  'model.licenseNonCommercial': 'Non-commercial use only',
+  'model.nonCommercialTitle': '{name}: non-commercial use only',
+  'model.nonCommercialMessage':
+    '{name} and its face detection models were trained on data licensed for non-commercial use (FFHQ, CelebAMask-HQ), and its license includes non-commercial components. Use face restoration for personal or non-commercial purposes only. If you need it for commercial work, do not download it: the rest of Oroya Video works without it.',
+  'model.nonCommercialAccept': 'I agree, download',
   'model.quality': 'Quality',
   'model.speed': 'Speed',
   'model.vram': 'VRAM',

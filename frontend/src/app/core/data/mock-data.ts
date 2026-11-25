@@ -154,6 +154,8 @@ export const MOCK_MODELS: ModelVm[] = [
     speed: 65,
     vramGb: 4.8,
     category: 'upscaling',
+    license: 'BSD-3-Clause',
+    nonCommercial: false,
   },
   {
     id: 'realesrgan-x4',
@@ -170,6 +172,8 @@ export const MOCK_MODELS: ModelVm[] = [
     speed: 35,
     vramGb: 9.6,
     category: 'upscaling',
+    license: 'BSD-3-Clause',
+    nonCommercial: false,
   },
   {
     id: 'gfpgan',
@@ -186,6 +190,8 @@ export const MOCK_MODELS: ModelVm[] = [
     speed: 55,
     vramGb: 6,
     category: 'restoration',
+    license: 'Non-commercial',
+    nonCommercial: true,
   },
   {
     id: 'rife',
@@ -201,6 +207,8 @@ export const MOCK_MODELS: ModelVm[] = [
     speed: 48,
     vramGb: 5,
     category: 'interpolation',
+    license: 'MIT',
+    nonCommercial: false,
   },
   {
     id: 'codeformer',
@@ -216,6 +224,8 @@ export const MOCK_MODELS: ModelVm[] = [
     speed: 42,
     vramGb: 5.5,
     category: 'restoration',
+    license: 'Non-commercial',
+    nonCommercial: true,
   },
   {
     id: 'basicvsr',
@@ -231,6 +241,8 @@ export const MOCK_MODELS: ModelVm[] = [
     speed: 28,
     vramGb: 8,
     category: 'upscaling',
+    license: 'Apache-2.0',
+    nonCommercial: false,
   },
 ];
 

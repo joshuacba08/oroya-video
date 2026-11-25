@@ -472,6 +472,8 @@ function mapModelLike(value: unknown, index = 0): ModelVm {
     speed: TIER_BAR_VALUE[`speed.${speedTier}`] ?? 0,
     vramGb: Math.round((numberValue(model['estimated_vram_mb'], 4096) / 1024) * 10) / 10,
     category: pickString(model, ['category'], 'upscaling'),
+    license: stringValue(metadata['license']),
+    nonCommercial: booleanValue(metadata['non_commercial']),
   };
 }
 
@@ -706,5 +708,7 @@ function emptyModelVm(): ModelVm {
     speed: 0,
     vramGb: 0,
     category: 'upscaling',
+    license: '',
+    nonCommercial: false,
   };
 }

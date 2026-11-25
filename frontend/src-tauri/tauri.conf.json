@@ -44,7 +44,8 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "resources/backend": "backend"
+      "resources/backend": "backend",
+      "resources/licenses": "licenses"
     },
     "publisher": "Oroya Video",
     "shortDescription": "Mejora de video local con IA",

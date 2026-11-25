@@ -2,7 +2,8 @@
 name = "oroya-video"
 version = "0.6.1"
 description = "Oroya Video desktop client"
-authors = ["Oroya Video"]
+authors = ["Josué Oroya"]
+license = "Apache-2.0"
 edition = "2021"
 
 [lib]

@@ -134,6 +134,12 @@ export const es: Record<TranslationKey, string> = {
   'model.disabled': 'Deshabilitado',
   'model.downloadAria': 'Descargar {name}',
   'model.downloadFailed': 'Error en la descarga: {error}',
+  'model.license': 'Licencia: {license}',
+  'model.licenseNonCommercial': 'Solo uso no comercial',
+  'model.nonCommercialTitle': '{name}: solo uso no comercial',
+  'model.nonCommercialMessage':
+    '{name} y los modelos de detección de caras que lo acompañan se entrenaron con datos de uso no comercial (FFHQ, CelebAMask-HQ), y su licencia incluye componentes no comerciales. Solo puedes usar la restauración de caras con fines personales o no comerciales. Si lo necesitas para un uso comercial, no lo descargues: el resto de Oroya Video funciona sin él.',
+  'model.nonCommercialAccept': 'Acepto, descargar',
   'model.quality': 'Calidad',
   'model.speed': 'Velocidad',
   'model.vram': 'VRAM',

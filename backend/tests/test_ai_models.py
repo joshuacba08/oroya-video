@@ -113,6 +113,21 @@ def test_seed_creates_default_models_without_duplicates(model_client) -> None:
     assert second_list_response.json()["total"] == len(DEFAULT_MODELS)
 
 
+def test_default_models_declare_license_and_gfpgan_is_non_commercial(model_client) -> None:
+    client, _, _ = model_client
+
+    items = {item["slug"]: item for item in client.get("/api/models").json()["items"]}
+
+    assert len(items) == len(DEFAULT_MODELS)
+    for slug, item in items.items():
+        assert item["metadata"].get("license"), slug
+        assert item["metadata"].get("source_url"), slug
+    non_commercial = {
+        slug for slug, item in items.items() if item["metadata"].get("non_commercial")
+    }
+    assert non_commercial == {"gfpgan-v1.4"}
+
+
 def test_get_models_and_get_model_by_slug(model_client) -> None:
     client, _, _ = model_client
 

@@ -8,7 +8,8 @@ version = "0.6.1"
 description = "Local FastAPI backend foundation for Oroya Video."
 readme = "README.md"
 requires-python = ">=3.12"
-license = "MIT"
+license = "Apache-2.0"
+authors = [{ name = "Josué Oroya" }]
 dependencies = [
     "fastapi",
     "uvicorn[standard]",

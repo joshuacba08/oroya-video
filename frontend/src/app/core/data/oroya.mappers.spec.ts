@@ -104,6 +104,26 @@ describe('oroya mappers', () => {
     expect(custom.version).toBe('v2.0');
   });
 
+  it('maps the model license and the non-commercial flag from metadata', () => {
+    const response = {
+      items: [
+        {
+          slug: 'gfpgan-v1.4',
+          name: 'GFPGAN v1.4',
+          metadata: { license: 'Non-commercial', non_commercial: true },
+        },
+        { slug: 'realesrgan-x2', name: 'Real-ESRGAN x2', metadata: { license: 'BSD-3-Clause' } },
+        { slug: 'custom', name: 'Custom upscaler' },
+      ],
+    } as unknown as ModelListResponse;
+
+    const [gfpgan, esrgan, custom] = mapModels(response);
+
+    expect(gfpgan.nonCommercial).toBe(true);
+    expect(esrgan).toMatchObject({ license: 'BSD-3-Clause', nonCommercial: false });
+    expect(custom).toMatchObject({ license: '', nonCommercial: false });
+  });
+
   it('shows the whole running time of a job, not only the current stage', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-10-11T07:10:00Z'));
